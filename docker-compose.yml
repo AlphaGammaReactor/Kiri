@@ -1,0 +1,86 @@
+# Kiri — Development Docker Compose
+# Usage: docker-compose up --build
+
+services:
+  # ── PostgreSQL ──
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kiri
+      POSTGRES_PASSWORD: kiri
+      POSTGRES_DB: kiri
+    ports:
+      - "5432:5432"
+    volumes:
+      - kiri_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kiri"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Redis ──
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── FastAPI Backend ──
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kiri:kiri@postgres:5432/kiri
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Celery Worker ──
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.core.tasks.get_celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kiri:kiri@postgres:5432/kiri
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  # ── Vite Frontend ──
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  kiri_pgdata:

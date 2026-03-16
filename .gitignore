@@ -1,0 +1,42 @@
+# Agent config (local-only)
+.agents/
+
+# Large data files (regenerable from public datasets)
+docs/免疫浸润/normalize_GSE62564.txt
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/__pycache__/
+backend/**/__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build
+frontend/dist/
+frontend/build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test results
+test-results/
+playwright-report/
+frontend/test-results/
+
+# Misc
+*.log
+npm-debug.log*
