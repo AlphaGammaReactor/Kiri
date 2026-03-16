@@ -817,6 +817,227 @@ export async function fetchMitoScore(
     project_id: projectId,
   });
 }
+
+// ══════════════════════════════
+//  Interactomics Module (Phase 9)
+// ══════════════════════════════
+
+/**
+ * Fetch enhanced PPI network (STRING + BioGRID + IntAct, mito annotations).
+ */
+export async function fetchEnhancedPPI(
+  genes: string[],
+  confidence = 0.4,
+  highConfidenceOnly = false,
+  includeIntact = true,
+  annotateMito = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    nodes: Array<{
+      id: string; label: string; is_query: boolean;
+      sources: string[]; is_mitochondrial?: boolean;
+    }>;
+    edges: Array<{
+      source: string; target: string; string_score: number;
+      evidence: string[]; pubmed_ids: string[];
+      sources: string[]; evidence_category: string;
+    }>;
+    meta: {
+      total_nodes: number; total_edges: number;
+      sources_used: string[]; query_genes: string[];
+      high_confidence_count: number; mitochondrial_node_count: number;
+    };
+  }>("/v1/interactomics/network", {
+    genes,
+    confidence,
+    high_confidence_only: highConfidenceOnly,
+    include_intact: includeIntact,
+    annotate_mito: annotateMito,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Fetch co-expression heatmap matrix.
+ */
+export async function fetchCoexpressionHeatmap(
+  genes: string[],
+  projectIds: string[] = ["TCGA-COAD", "TCGA-READ"],
+  rCutoff = 0.6,
+  topN = 50,
+  projectId?: string,
+) {
+  return apiPost<{
+    genes: string[];
+    matrix: Record<string, Record<string, number>>;
+    r_cutoff: number;
+    sample_count: number;
+  }>("/v1/interactomics/coexpression-heatmap", {
+    genes,
+    project_ids: projectIds,
+    r_cutoff: rCutoff,
+    top_n: topN,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Run CoIP-MS / proteomics analysis.
+ */
+export async function fetchProteomicsAnalysis(
+  abundanceMatrix: Record<string, number[]> | null,
+  groups: string[] | null,
+  genes: string[] = [],
+  groupA = "bait",
+  groupB = "control",
+  fdrCutoff = 0.05,
+  lfcCutoff = 1.0,
+  projectId?: string,
+) {
+  return apiPost<{
+    mode?: string;
+    results?: Array<{
+      protein: string; log2_fold_change: number; p_value: number;
+      adjusted_p_value: number; neg_log10_p: number; significant: boolean;
+      mean_bait: number; mean_control: number;
+    }>;
+    significant_count?: number;
+    total_proteins?: number;
+    method?: string;
+    heatmap_matrix?: Record<string, number[]>;
+    heatmap_samples?: string[];
+    available_datasets?: { datasets: Array<Record<string, unknown>> };
+    message?: string;
+  }>("/v1/interactomics/proteomics", {
+    abundance_matrix: abundanceMatrix,
+    groups,
+    genes,
+    group_a: groupA,
+    group_b: groupB,
+    fdr_cutoff: fdrCutoff,
+    lfc_cutoff: lfcCutoff,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Run public dataset differential expression.
+ */
+export async function fetchPublicDE(
+  expressionMatrix: Record<string, number[]> | null,
+  groups: string[] | null,
+  genes: string[] = [],
+  groupA = "perturbation",
+  groupB = "control",
+  lfcCutoff = 1.0,
+  fdrCutoff = 0.05,
+  annotateSubstrates = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    mode?: string;
+    results?: Array<{
+      gene: string; log2_fold_change: number; p_value: number;
+      adjusted_p_value: number; neg_log10_fdr: number; significant: boolean;
+      mean_perturbation: number; mean_control: number;
+      is_known_substrate: boolean;
+      substrate_info?: { protease: string; function: string; pmid: string };
+    }>;
+    deg_count?: number;
+    up_regulated?: number;
+    down_regulated?: number;
+    substrate_degs?: Array<Record<string, unknown>>;
+    method?: string;
+    heatmap_matrix?: Record<string, number[]>;
+    available_datasets?: { datasets: Array<Record<string, unknown>> };
+    message?: string;
+  }>("/v1/interactomics/differential-public", {
+    expression_matrix: expressionMatrix,
+    groups,
+    genes,
+    group_a: groupA,
+    group_b: groupB,
+    lfc_cutoff: lfcCutoff,
+    fdr_cutoff: fdrCutoff,
+    annotate_substrates: annotateSubstrates,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Run substrate cleavage prediction scan.
+ */
+export async function fetchSubstrateScan(
+  genes: string[] = [],
+  motifPattern?: string,
+  scanAllMitocarta = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    candidates: Array<{
+      gene: string; uniprot_id: string; protein_name: string;
+      sequence_length: number;
+      tm_regions: Array<{ start: number; end: number }>;
+      tm_hit_count: number; total_hit_count: number; score: number;
+      coexpression_r: number | null; is_known_substrate: boolean;
+      tm_hits?: Array<{
+        position: number; motif_match: string; flanking_sequence: string;
+      }>;
+    }>;
+    total_scanned: number;
+    total_with_hits: number;
+    tm_hit_candidates: number;
+    motif_pattern: string;
+    method: string;
+  }>("/v1/interactomics/substrate-scan", {
+    genes,
+    motif_pattern: motifPattern,
+    scan_all_mitocarta: scanAllMitocarta,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Build integrated regulatory network.
+ */
+export async function fetchRegulatoryNetwork(
+  genes: string[],
+  projectIds: string[] = ["TCGA-COAD", "TCGA-READ"],
+  includePpi = true,
+  includeCoexpression = true,
+  includeDe = true,
+  includeSubstrates = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    nodes: Array<{
+      id: string; label: string; node_type: string; color?: string;
+      functional_categories?: string[]; evidence_sources?: string[];
+    }>;
+    edges: Array<{
+      source: string; target: string; edge_type: string;
+      weight: number; color?: string; details?: string;
+    }>;
+    meta: {
+      total_nodes: number; total_edges: number;
+      target_genes: string[];
+      edge_colors: Record<string, string>;
+    };
+    functions: Record<string, {
+      label: string; color: string; genes_in_network: string[];
+    }>;
+  }>("/v1/interactomics/regulatory-network", {
+    genes,
+    project_ids: projectIds,
+    include_ppi: includePpi,
+    include_coexpression: includeCoexpression,
+    include_de: includeDe,
+    include_substrates: includeSubstrates,
+    project_id: projectId,
+  });
+}
+
 /**
  * Extract a user-facing error message from an API error.
  */
