@@ -424,6 +424,49 @@ export async function uploadCustomDataset(file: File) {
 
 
 // ══════════════════════════════
+//  Differential Expression
+// ══════════════════════════════
+
+export interface DEResult {
+  gene: string;
+  log2_fold_change: number;
+  p_value: number;
+  adjusted_p_value: number;
+  mean_a: number;
+  mean_b: number;
+  avg_expression: number;
+}
+
+export interface DEResponse {
+  results: DEResult[];
+  method: string;
+  correction: string;
+  group_a: string;
+  group_b: string;
+  n_a: number;
+  n_b: number;
+}
+
+/**
+ * Run differential expression analysis between two sample groups.
+ * Uses PyDESeq2 on the backend with Benjamini-Hochberg FDR correction.
+ */
+export async function fetchDifferentialExpression(
+  matrix: Record<string, number[]>,
+  groups: string[],
+  groupA = "tumor",
+  groupB = "normal"
+) {
+  return apiPost<DEResponse>("/v1/atlas/differential", {
+    matrix,
+    groups,
+    group_a: groupA,
+    group_b: groupB,
+  });
+}
+
+
+// ══════════════════════════════
 //  Temporal Clustering & Immune Deconvolution
 // ══════════════════════════════
 

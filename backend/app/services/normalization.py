@@ -419,6 +419,7 @@ def differential_expression(
             "adjusted_p_value": round(float(gene_stats.get("padj", 1.0) or 1.0), 6),
             "mean_a": round(mean_a, 4),
             "mean_b": round(mean_b, 4),
+            "avg_expression": round(float(np.mean(values)), 4),
         })
 
     # Sort by adjusted p-value

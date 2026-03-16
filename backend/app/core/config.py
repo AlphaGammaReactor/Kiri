@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",  # Vite dev server
+        "http://localhost:5174",  # Vite fallback port
         "http://localhost:3000",
     ]
 
@@ -39,6 +40,19 @@ class Settings(BaseSettings):
     BIOGRID_API_BASE: str = "https://webservice.thebiogrid.org"
     BIOGRID_API_KEY: str = ""  # Optional — BioGRID data skipped if empty
     GEMINI_API_KEY: str = ""   # Required for Phase 5 AI Discovery
+
+    # Authentication (JWT)
+    JWT_SECRET_KEY: str = "kiri-dev-secret-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Invite code (required for registration — distribute privately)
+    INVITE_CODE: str = "u9bc4Qdzr2znqFFGmY7n0J59YMqQzUEf"
+
+    # Brute force protection
+    LOGIN_MAX_ATTEMPTS: int = 5        # lock after N failures
+    LOGIN_LOCKOUT_MINUTES: int = 15    # cooldown period
 
     # Drug Discovery (Phase 7)
     MYCHEM_API_BASE: str = "https://mychem.info/v1"

@@ -31,7 +31,7 @@ test.describe('Kiri E2E - Project Management', () => {
 
     // -- Step 1: Basics
     await expect(page.getByText(/Project Name/i)).toBeVisible();
-    await page.getByPlaceholder(/PARL-MAVS CRC Study/i).fill(testProjectName);
+    await page.getByPlaceholder(/BRCA1 Breast Cancer Study/i).fill(testProjectName);
     await page.getByPlaceholder(/Brief description/i).fill('Automated E2E testing project');
     const cancerTypeSelect = page.locator('select').first();
     await cancerTypeSelect.selectOption('COAD');

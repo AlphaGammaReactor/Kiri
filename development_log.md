@@ -121,7 +121,7 @@ Docker Compose uses an anonymous volume (`/app/node_modules`) to preserve the co
 - **Context:** Full codebase audit against PRD, TODO.md, and source-of-truth docs. Verified all 7 PRD modules are implemented.
 - **i18n Fix:** en.json was 28 keys behind zh.json (missing `modules.interaction.*` 27 keys + `export.subtitle` 1 key). All keys added — **179/179 parity achieved**.
 - **Docker Check:** Backend services (api, postgres, redis) confirmed running. Frontend Docker port-conflicts with local dev server (expected — `npm run dev` is the primary workflow).
-- **Platform Generality:** Updated README.md, TODO.md, and dev log to clarify: Kiri supports any cancer type, any protein targets, any data sources. PARL-MAVS CRC is the initial test case, not the only use case. Code already supports this (11 cancer types in `recommendations.py`, generic gene search, user-defined projects).
+- **Platform Generality:** Updated README.md, TODO.md, and dev log to clarify: Kiri supports any cancer type, any protein targets, any data sources. Code already supports this (11 cancer types in `recommendations.py`, generic gene search, user-defined projects).
 - **PRD Gap Analysis:** Identified unimplemented acceptance criteria: Single-Cell + CPTAC views (Atlas), AI feedback loop (Discovery), bilingual export (Publication Engine), accessibility (keyboard nav, screen reader labels).
 - **Bilingual State:** `en.json` — 179 keys, `zh.json` — 179 keys.
 - **PRD Reference:** §1 (Vision), §3 (Bilingual), §4 (Non-Functional Requirements).
@@ -129,7 +129,7 @@ Docker Compose uses an anonymous volume (`/app/node_modules`) to preserve the co
 ---
 
 ## 2026-03-14 — IDE Agent Configured
-- **Context:** Kiri PARL-MAVS Research Platform — IDE environment initialized with Controller Mode agent.
+- **Context:** Kiri Research Platform — IDE environment initialized with Controller Mode agent.
 - **Decision:** Established 5 slash-command workflows (`/start`, `/todo`, `/check`, `/fix`, `/log`) and breadcrumb logging strategy.
 - **Alternatives Considered:** Single monolithic workflow file — rejected for maintainability.
 - **Dependencies:** None yet (awaiting PRD and system_tech docs for project scaffolding).

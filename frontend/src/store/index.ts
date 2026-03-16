@@ -5,6 +5,7 @@ import projectReducer from "./projectSlice";
 import publicationReducer from "./publicationSlice";
 import errorReducer from "./errorSlice";
 import dataSourceReducer from "./dataSourceSlice";
+import authReducer from "./authSlice";
 import type { HeatmapOptions } from "../components/ExpressionHeatmap";
 import { DEFAULT_HEATMAP_OPTIONS } from "../components/ExpressionHeatmap";
 import { loadPersistedGlobal, createPersistenceSubscriber } from "./persistence";
@@ -81,6 +82,7 @@ export const {
 export const store = configureStore({
   reducer: {
     app: appSlice.reducer,
+    auth: authReducer,
     project: projectReducer,
     publication: publicationReducer,
     errors: errorReducer,
