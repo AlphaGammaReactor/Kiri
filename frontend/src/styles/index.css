@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+/* ──────────────────────────────────────
+   Kiri Dark Lab Theme — Custom Tokens
+   ────────────────────────────────────── */
+
+@theme {
+  /* Core palette */
+  --color-kiri-bg: #0a0e17;
+  --color-kiri-surface: #111827;
+  --color-kiri-surface-hover: #1a2332;
+  --color-kiri-border: #1e293b;
+  --color-kiri-border-focus: #334155;
+
+  /* Accent — Paulownia green */
+  --color-kiri-accent: #22c55e;
+  --color-kiri-accent-dim: #166534;
+  --color-kiri-accent-glow: rgba(34, 197, 94, 0.15);
+
+  /* Text */
+  --color-kiri-text: #f1f5f9;
+  --color-kiri-text-muted: #94a3b8;
+  --color-kiri-text-dim: #64748b;
+
+  /* Status */
+  --color-kiri-success: #22c55e;
+  --color-kiri-warning: #f59e0b;
+  --color-kiri-error: #ef4444;
+  --color-kiri-info: #3b82f6;
+
+  /* Trust badges */
+  --color-kiri-ai-badge: #a855f7;
+  --color-kiri-verified: #22c55e;
+  --color-kiri-quarantined: #ef4444;
+
+  /* Typography */
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Georgia", "Times New Roman", serif;
+}
+
+/* ──────────────────────────────────────
+   Global base styles
+   ────────────────────────────────────── */
+
+body {
+  background-color: var(--color-kiri-bg);
+  color: var(--color-kiri-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-kiri-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-kiri-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-kiri-border-focus);
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-kiri-accent-glow);
+  color: var(--color-kiri-text);
+}

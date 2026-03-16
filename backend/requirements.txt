@@ -1,0 +1,46 @@
+# Kiri Backend — Python Dependencies
+# Core framework
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+pydantic==2.*
+pydantic-settings==2.*
+python-dotenv==1.*
+
+# Bio-computation
+biopython==1.84
+scanpy==1.10.*
+lifelines==0.29.*
+# scikit-survival pinned for compatibility
+scikit-survival==0.23.*
+
+# Data & stats
+pandas==2.*
+numpy==1.*
+scipy==1.*
+statsmodels==0.14.*
+gseapy==1.*
+pydeseq2==0.4.*
+
+
+# HTTP client (for external API calls)
+httpx==0.28.*
+google-genai==0.3.*
+
+# Caching & task queue
+redis==5.*
+celery==5.*
+
+# Utilities
+python-multipart==0.0.*
+orjson==3.*
+structlog==24.*
+
+# Database
+sqlalchemy[asyncio]==2.*
+asyncpg==0.30.*
+alembic==1.*
+
+# Export & Publication
+svglib==1.*
+reportlab==4.*
+matplotlib==3.*
