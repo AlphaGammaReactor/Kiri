@@ -32,7 +32,31 @@
     "crossval": "Cross-Validation",
     "docking": "Protein Docking",
     "settings": "Settings",
-    "history": "Project History"
+    "history": "Project History",
+    "interactomics": "Interactomics"
+  },
+  "interactomics": {
+    "title": "Interactomics & Regulatory Network",
+    "subtitle": "Multi-omics integration: PPI networks, co-expression, proteomics, substrates, and regulatory mechanisms",
+    "tab_network": "Network",
+    "tab_coexpression": "Co-Expression",
+    "tab_proteomics": "Proteomics",
+    "tab_de": "Differential Expression",
+    "tab_substrates": "Substrates",
+    "tab_regulatory": "Regulatory Network",
+    "high_confidence": "High confidence only (>0.7)",
+    "mito_only": "Highlight mitochondrial proteins",
+    "coexpr_heatmap": "Co-Expression Correlation Heatmap (|r| ≥ 0.6)",
+    "proteomics_title": "CoIP-MS / Proteomics Analysis",
+    "proteomics_upload": "Upload a proteomics abundance matrix (CSV) or search PRIDE for published CoIP-MS datasets.",
+    "de_title": "Public Dataset Differential Expression",
+    "de_upload": "Upload expression data or search GEO for knockdown/overexpression datasets related to your target genes.",
+    "substrates": "Substrate Predictions",
+    "no_substrates": "No substrate candidates found. Try broadening the motif pattern.",
+    "regulatory_title": "Integrated Regulatory Network",
+    "no_project_genes": "Add protein targets to your project to analyze their interaction network.",
+    "no_coexpr": "Add protein targets to your project to run co-expression analysis.",
+    "no_regulatory": "Add protein targets to build a regulatory network."
   },
   "mito": {
     "title": "Mitochondrial Function Lab",

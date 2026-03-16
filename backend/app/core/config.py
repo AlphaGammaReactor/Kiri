@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     ALPHAFOLD_API_BASE: str = "https://alphafold.ebi.ac.uk/api"
     BIOGRID_API_BASE: str = "https://webservice.thebiogrid.org"
     BIOGRID_API_KEY: str = ""  # Optional — BioGRID data skipped if empty
+    INTACT_API_BASE: str = "https://www.ebi.ac.uk/intact/ws"
     GEMINI_API_KEY: str = ""   # Required for Phase 5 AI Discovery
 
     # Authentication (JWT)

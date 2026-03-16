@@ -32,7 +32,31 @@
     "crossval": "交叉验证",
     "docking": "蛋白质对接",
     "settings": "设置",
-    "history": "项目历史"
+    "history": "项目历史",
+    "interactomics": "互作组学"
+  },
+  "interactomics": {
+    "title": "互作组学与调控网络",
+    "subtitle": "多组学整合：PPI网络、共表达、蛋白组学、底物预测与调控机制",
+    "tab_network": "网络",
+    "tab_coexpression": "共表达",
+    "tab_proteomics": "蛋白组学",
+    "tab_de": "差异表达",
+    "tab_substrates": "底物预测",
+    "tab_regulatory": "调控网络",
+    "high_confidence": "仅高置信度 (>0.7)",
+    "mito_only": "突出线粒体蛋白",
+    "coexpr_heatmap": "共表达相关性热图 (|r| ≥ 0.6)",
+    "proteomics_title": "CoIP-MS / 蛋白组学分析",
+    "proteomics_upload": "上传蛋白组学丰度矩阵 (CSV) 或搜索 PRIDE 已发表的 CoIP-MS 数据集。",
+    "de_title": "公共数据集差异表达",
+    "de_upload": "上传表达数据或在 GEO 中搜索与目标基因相关的敲低/过表达数据集。",
+    "substrates": "底物预测结果",
+    "no_substrates": "未找到底物候选者。尝试放宽模体模式。",
+    "regulatory_title": "整合调控网络",
+    "no_project_genes": "将蛋白靶标添加到项目中以分析其互作网络。",
+    "no_coexpr": "将蛋白靶标添加到项目中以运行共表达分析。",
+    "no_regulatory": "将蛋白靶标添加到项目中以构建调控网络。"
   },
   "mito": {
     "title": "线粒体功能实验室",

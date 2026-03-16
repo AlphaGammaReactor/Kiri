@@ -29,6 +29,7 @@ from app.api.docking import router as docking_router
 from app.api.dnb import dnb_router
 from app.api.uploads import upload_router
 from app.api.auth import router as auth_router
+from app.api.interactomics import interactomics_router
 
 router = APIRouter()
 
@@ -53,6 +54,7 @@ router.include_router(
 )
 router.include_router(dnb_router)
 router.include_router(upload_router)
+router.include_router(interactomics_router)
 
 
 # ══════════════════════════════
