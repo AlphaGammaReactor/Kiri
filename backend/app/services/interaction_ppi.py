@@ -240,47 +240,128 @@ async def fetch_biogrid_interactions(genes: list[str]) -> dict[str, Any]:
     return result
 
 
+# ── MitoCarta3.0 curated mitochondrial gene list (top-200 high-confidence) ──
+# Full list: https://www.broadinstitute.org/mitocarta
+# These are human genes with strong evidence for mitochondrial localization.
+MITOCARTA_GENES: set[str] = {
+    "ABCB10", "ACAT1", "ACO2", "AFG3L2", "AIFM1", "AK2", "ALDH2", "ATP5F1A",
+    "ATP5F1B", "ATP5F1C", "ATP5F1D", "ATP5F1E", "ATP5MC1", "ATP5MC2", "ATP5MC3",
+    "ATP5ME", "ATP5MF", "ATP5MG", "ATP5PB", "ATP5PD", "ATP5PF", "ATP5PO",
+    "BAX", "BCL2", "BNIP3", "BNIP3L", "BCS1L", "CLPB", "CLPP", "CLPX",
+    "COX4I1", "COX5A", "COX5B", "COX6A1", "COX6B1", "COX6C", "COX7A2",
+    "COX7B", "COX7C", "COX8A", "COX10", "COX15", "COX17", "COX20",
+    "CPT1A", "CPT2", "CS", "CYB5R3", "CYC1", "CYCS",
+    "DHODH", "DIABLO", "DLD", "DLST", "DNM1L",
+    "ETFA", "ETFB", "ETFDH",
+    "FH", "FIS1", "FUNDC1",
+    "GLUD1", "GOT2", "GPX4", "GLS",
+    "HADHA", "HADHB", "HCCS", "HK1", "HK2", "HMGCL", "HSPD1", "HSPE1",
+    "IDH2", "IDH3A", "IDH3B", "IDH3G", "IMMT",
+    "LETM1", "LONP1", "LRPPRC",
+    "MAP1LC3B", "MAVS", "MCL1", "MDH2", "ME2", "MFN1", "MFN2", "MICOS10",
+    "MICOS13", "MIEF1", "MIEF2", "MRPL3", "MRPL11", "MRPL12", "MRPL13",
+    "MRPS18B", "MRPS22", "MRPS28",
+    "NDUFA1", "NDUFA2", "NDUFA3", "NDUFA4", "NDUFA5", "NDUFA6", "NDUFA7",
+    "NDUFA8", "NDUFA9", "NDUFA10", "NDUFA11", "NDUFA12", "NDUFA13",
+    "NDUFB1", "NDUFB2", "NDUFB3", "NDUFB4", "NDUFB5", "NDUFB6", "NDUFB7",
+    "NDUFB8", "NDUFB9", "NDUFB10", "NDUFB11",
+    "NDUFC1", "NDUFC2", "NDUFS1", "NDUFS2", "NDUFS3", "NDUFS4", "NDUFS5",
+    "NDUFS6", "NDUFS7", "NDUFS8", "NDUFV1", "NDUFV2", "NDUFV3",
+    "NRF1", "OGG1", "OMA1", "OPA1", "OXPHOS",
+    "PARL", "PC", "PDHA1", "PDHB", "PDHX", "PGAM5", "PHB", "PHB2",
+    "PINK1", "PITRM1", "POLG", "POLG2", "PPARGC1A", "PPIF", "PRKN",
+    "PRDX3", "PRDX5",
+    "SDHA", "SDHB", "SDHC", "SDHD", "SLC25A1", "SLC25A3", "SLC25A4",
+    "SLC25A5", "SLC25A6", "SLC25A11", "SLC25A12", "SLC25A13",
+    "SOD1", "SOD2", "STARD7", "STOML2", "SUCLG1", "SUCLG2", "SURF1",
+    "TFAM", "TIMM13", "TIMM17A", "TIMM22", "TIMM23", "TIMM44", "TIMM50",
+    "TOMM20", "TOMM22", "TOMM40", "TOMM70",
+    "UQCR10", "UQCR11", "UQCRB", "UQCRC1", "UQCRC2", "UQCRFS1", "UQCRH",
+    "UQCRQ",
+    "VDAC1", "VDAC2", "VDAC3",
+    "YME1L1",
+}
+
+
+def _categorize_evidence(edge: dict) -> str:
+    """Categorize edge evidence type for coloring."""
+    sources = edge.get("sources", [])
+    score = edge.get("string_score", 0)
+    evidence = edge.get("evidence", [])
+
+    if len(sources) >= 3:
+        return "multi-validated"
+    if len(sources) >= 2:
+        return "cross-validated"
+    if any("physical" in str(e).lower() for e in evidence):
+        return "experimental"
+    if score >= 0.9:
+        return "high-confidence"
+    if score >= 0.7:
+        return "medium-confidence"
+    if "BioGRID" in sources or "IntAct" in sources:
+        return "experimental"
+    return "predicted"
+
+
 # ── Merge ──
 
 
 def merge_ppi_sources(
     string_data: dict[str, Any],
     biogrid_data: dict[str, Any],
+    intact_data: dict[str, Any] | None = None,
+    annotate_mito: bool = True,
+    high_confidence_only: bool = False,
 ) -> dict[str, Any]:
     """
-    Merge STRING-DB and BioGRID results into a unified Cytoscape.js graph.
+    Merge STRING-DB, BioGRID, and IntAct results into a unified Cytoscape.js graph.
+
+    Args:
+        string_data: STRING-DB network data
+        biogrid_data: BioGRID interaction data
+        intact_data: IntAct interaction data (optional, new source)
+        annotate_mito: Add is_mitochondrial flag from MitoCarta3.0
+        high_confidence_only: Filter to score > 0.7 or multi-source validated
 
     Returns:
         {
-            "nodes": [{ id, label, is_query, sources }],
-            "edges": [{ source, target, score, evidence, sources }],
-            "meta": { total_nodes, total_edges, sources_used }
+            "nodes": [{ id, label, is_query, sources, is_mitochondrial }],
+            "edges": [{ source, target, score, evidence, sources, evidence_category }],
+            "meta": { total_nodes, total_edges, sources_used, high_confidence_count }
         }
     """
-    # Merge nodes
+    if intact_data is None:
+        intact_data = {"nodes": [], "edges": [], "available": False}
+
+    # Merge nodes from all three sources
     node_map: dict[str, dict] = {}
 
-    for node in string_data.get("nodes", []):
-        nid = node["id"]
-        node_map[nid] = {
-            "id": nid,
-            "label": node.get("label", nid),
-            "is_query": node.get("is_query", False),
-            "sources": ["STRING-DB"],
-        }
+    for source_name, source_data in [
+        ("STRING-DB", string_data),
+        ("BioGRID", biogrid_data),
+        ("IntAct", intact_data),
+    ]:
+        for node in source_data.get("nodes", []):
+            nid = node["id"]
+            if nid in node_map:
+                if source_name not in node_map[nid]["sources"]:
+                    node_map[nid]["sources"].append(source_name)
+                # Preserve is_query from any source
+                if node.get("is_query"):
+                    node_map[nid]["is_query"] = True
+            else:
+                node_map[nid] = {
+                    "id": nid,
+                    "label": node.get("label", nid),
+                    "is_query": node.get("is_query", False),
+                    "sources": [source_name],
+                }
 
-    for node in biogrid_data.get("nodes", []):
-        nid = node["id"]
-        if nid in node_map:
-            if "BioGRID" not in node_map[nid]["sources"]:
-                node_map[nid]["sources"].append("BioGRID")
-        else:
-            node_map[nid] = {
-                "id": nid,
-                "label": node.get("label", nid),
-                "is_query": node.get("is_query", False),
-                "sources": ["BioGRID"],
-            }
+    # Annotate mitochondrial localization
+    if annotate_mito:
+        for nid, node in node_map.items():
+            node["is_mitochondrial"] = nid.upper() in MITOCARTA_GENES
 
     # Merge edges — dedup by (source, target) pair
     edge_key_map: dict[str, dict] = {}
@@ -297,30 +378,70 @@ def merge_ppi_sources(
             "sources": ["STRING-DB"],
         }
 
-    for edge in biogrid_data.get("edges", []):
-        key = tuple(sorted([edge["source"], edge["target"]]))
-        str_key = f"{key[0]}_{key[1]}"
-        if str_key in edge_key_map:
-            edge_key_map[str_key]["sources"].append("BioGRID")
-            if edge.get("evidence_type"):
-                edge_key_map[str_key]["evidence"].append(edge["evidence_type"])
-            if edge.get("pubmed_id"):
-                edge_key_map[str_key]["pubmed_ids"].append(edge["pubmed_id"])
-        else:
-            edge_key_map[str_key] = {
-                "source": edge["source"],
-                "target": edge["target"],
-                "string_score": 0,
-                "evidence": [edge.get("evidence_type", "")] if edge.get("evidence_type") else [],
-                "pubmed_ids": [edge.get("pubmed_id", "")] if edge.get("pubmed_id") else [],
-                "sources": ["BioGRID"],
-            }
+    for source_name, source_edges in [
+        ("BioGRID", biogrid_data.get("edges", [])),
+        ("IntAct", intact_data.get("edges", [])),
+    ]:
+        for edge in source_edges:
+            key = tuple(sorted([edge["source"], edge["target"]]))
+            str_key = f"{key[0]}_{key[1]}"
+            if str_key in edge_key_map:
+                if source_name not in edge_key_map[str_key]["sources"]:
+                    edge_key_map[str_key]["sources"].append(source_name)
+                # Merge evidence
+                ev = edge.get("evidence_type") or edge.get("detection_method", "")
+                if ev:
+                    edge_key_map[str_key]["evidence"].append(ev)
+                # Merge PMIDs
+                pmids = edge.get("pubmed_ids") or (
+                    [edge["pubmed_id"]] if edge.get("pubmed_id") else []
+                )
+                edge_key_map[str_key]["pubmed_ids"].extend(pmids)
+            else:
+                ev = edge.get("evidence_type") or edge.get("detection_method", "")
+                pmids = edge.get("pubmed_ids") or (
+                    [edge["pubmed_id"]] if edge.get("pubmed_id") else []
+                )
+                edge_key_map[str_key] = {
+                    "source": edge["source"],
+                    "target": edge["target"],
+                    "string_score": 0,
+                    "evidence": [ev] if ev else [],
+                    "pubmed_ids": list(pmids),
+                    "sources": [source_name],
+                }
+
+    # Deduplicate PMIDs per edge and add evidence category
+    for edge_data in edge_key_map.values():
+        edge_data["pubmed_ids"] = list(set(edge_data["pubmed_ids"]))
+        edge_data["evidence_category"] = _categorize_evidence(edge_data)
+
+    # High-confidence filtering
+    high_confidence_count = 0
+    if high_confidence_only:
+        filtered = {}
+        for k, edge_data in edge_key_map.items():
+            score = edge_data.get("string_score", 0)
+            n_sources = len(edge_data.get("sources", []))
+            if score >= 0.7 or n_sources >= 2:
+                filtered[k] = edge_data
+                high_confidence_count += 1
+        edge_key_map = filtered
+    else:
+        high_confidence_count = sum(
+            1 for e in edge_key_map.values()
+            if e.get("string_score", 0) >= 0.7 or len(e.get("sources", [])) >= 2
+        )
 
     sources_used = []
     if string_data.get("nodes"):
         sources_used.append("STRING-DB")
     if biogrid_data.get("nodes") and biogrid_data.get("available", True):
         sources_used.append("BioGRID")
+    if intact_data.get("nodes") and intact_data.get("available", True):
+        sources_used.append("IntAct")
+
+    mito_count = sum(1 for n in node_map.values() if n.get("is_mitochondrial"))
 
     return {
         "nodes": list(node_map.values()),
@@ -330,5 +451,7 @@ def merge_ppi_sources(
             "total_edges": len(edge_key_map),
             "sources_used": sources_used,
             "query_genes": string_data.get("query_genes", []),
+            "high_confidence_count": high_confidence_count,
+            "mitochondrial_node_count": mito_count,
         },
     }
