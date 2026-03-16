@@ -39,16 +39,30 @@ async def lifespan(app: FastAPI):
     """Initialize services on startup, clean up on shutdown."""
     # Startup
     logger.info("🌿 Kiri starting up...")
-    await cache.initialize(settings.REDIS_URL)
-    logger.info(f"   Cache: {'Redis' if cache.is_redis else 'In-Memory (dev mode)'}")
-    await init_db()
-    logger.info("   Database: connected")
+
+    # Cache — graceful (in-memory fallback built in)
+    try:
+        await cache.initialize(settings.REDIS_URL)
+        logger.info(f"   Cache: {'Redis' if cache.is_redis else 'In-Memory (dev mode)'}")
+    except Exception as e:
+        logger.warning(f"   Cache: Failed to connect ({e}), using in-memory fallback")
+
+    # Database — graceful (app runs degraded without DB)
+    try:
+        await init_db()
+        logger.info("   Database: connected")
+    except Exception as e:
+        logger.warning(f"   Database: Failed to connect ({e}). App will run in degraded mode.")
+
     logger.info(f"   CORS: {settings.CORS_ORIGINS}")
     logger.info("🌿 Kiri ready.")
     yield
     # Shutdown
     logger.info("🌿 Kiri shutting down.")
-    await close_db()
+    try:
+        await close_db()
+    except Exception:
+        pass
 
 
 app = FastAPI(
