@@ -28,8 +28,12 @@ from app.api.cross_validation import cross_validation_router
 from app.api.docking import router as docking_router
 from app.api.dnb import dnb_router
 from app.api.uploads import upload_router
+from app.api.auth import router as auth_router
 
 router = APIRouter()
+
+# ── Auth Router (unauthenticated) ──
+router.include_router(auth_router)
 
 # ── Module Routers ──
 router.include_router(interaction_router)

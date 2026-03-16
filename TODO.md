@@ -246,7 +246,7 @@
 
 ### Infrastructure Notes
 - Docker backend (api, postgres, redis) running. Frontend served locally (`npm run dev`) — Docker frontend port-conflicts; local dev server is the primary workflow.
-- PARL-MAVS is the initial test case, but the platform is fully generic: **any cancer type, any protein targets, any data sources** (see `recommendations.py` for 11 cancer types).
+- The platform is fully generic: **any cancer type, any protein targets, any data sources** (see `recommendations.py` for 11 cancer types).
 
 ### Bilingual Coverage
 - `en.json`: 602 keys ✅

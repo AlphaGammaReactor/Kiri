@@ -18,6 +18,8 @@ import { AtlasFilters } from "../components/AtlasFilters";
 import { EnrichmentPanel } from "../components/EnrichmentPanel";
 import { DNBPanel } from "../components/DNBPanel";
 import { TemporalClusterPanel } from "../components/TemporalClusterPanel";
+import { DEResultsTable } from "../components/DEResultsTable";
+import { GeneBoxplots } from "../components/GeneBoxplots";
 import { Card, StatusBadge, Stat, InfoTooltip } from "../components/ui";
 import { useProjectDataSources } from "../hooks/useProjectDataSources";
 import { usePageState } from "../hooks/usePageState";
@@ -25,7 +27,10 @@ import {
   fetchExpression,
   fetchGeoDataset,
   fetchProjectFileDetail,
+  fetchDifferentialExpression,
   type Provenance,
+  type DEResult,
+  type DEResponse,
 } from "../services/api";
 import { motion } from "framer-motion";
 
@@ -91,6 +96,11 @@ export default function AtlasPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [warnings, setWarnings] = useState<string[]>([]);
+
+  // ── Differential Expression State ──
+  const [deResults, setDeResults] = useState<DEResult[]>([]);
+  const [deResponse, setDeResponse] = useState<DEResponse | null>(null);
+  const [deLoading, setDeLoading] = useState(false);
 
   // ── Exported gene list from brush selection ──
   const [exportedGenes, setExportedGenes] = useState<string[]>([]);
@@ -187,6 +197,46 @@ export default function AtlasPage() {
       loadData();
     }
   }, [activeTab, data, loading, selectedGenes.length, loadData]);
+
+  // ── Auto-run differential expression after expression data loads ──
+  useEffect(() => {
+    if (!data || data.samples.length < 6) {
+      setDeResults([]);
+      setDeResponse(null);
+      return;
+    }
+    // Only run for datasets with both tumor and normal samples
+    const groups = data.samples.map(s => s.sample_type || "unknown");
+    const hasNormal = groups.some(g => g === "normal");
+    const hasTumor = groups.some(g => g === "tumor");
+    if (!hasNormal || !hasTumor) {
+      setDeResults([]);
+      setDeResponse(null);
+      return;
+    }
+
+    let cancelled = false;
+    const runDE = async () => {
+      setDeLoading(true);
+      try {
+        const resp = await fetchDifferentialExpression(data.values, groups, "tumor", "normal");
+        if (!cancelled && resp.status === "success" && resp.data) {
+          setDeResults(resp.data.results);
+          setDeResponse(resp.data);
+        }
+      } catch (err) {
+        console.warn("DE analysis failed:", err);
+        if (!cancelled) {
+          setDeResults([]);
+          setDeResponse(null);
+        }
+      } finally {
+        if (!cancelled) setDeLoading(false);
+      }
+    };
+    runDE();
+    return () => { cancelled = true; };
+  }, [data]);
 
   // ── Gene List Export from brush ──
   const handleGeneListExport = useCallback((genes: string[]) => {
@@ -407,6 +457,7 @@ export default function AtlasPage() {
               loading={loading}
               error={error}
               options={heatmapOptions}
+              deResults={deResults}
               onGeneListExport={handleGeneListExport}
             />
           ) : (
@@ -418,6 +469,37 @@ export default function AtlasPage() {
                 </p>
               </div>
             </Card>
+          )}
+
+          {/* Differential Expression Results Table */}
+          {deResponse && deResults.length > 0 && !deLoading && (
+            <DEResultsTable
+              results={deResults}
+              groupA={deResponse.group_a}
+              groupB={deResponse.group_b}
+              nA={deResponse.n_a}
+              nB={deResponse.n_b}
+              method={deResponse.method}
+              correction={deResponse.correction}
+            />
+          )}
+          {deLoading && (
+            <Card>
+              <div className="text-center py-6 text-kiri-text-muted text-sm">
+                ⏳ Running differential expression analysis…
+              </div>
+            </Card>
+          )}
+
+          {/* Supplementary Boxplots for Top Significant Genes */}
+          {filteredData && deResults.length > 0 && !deLoading && (
+            <GeneBoxplots
+              values={filteredData.values}
+              samples={filteredData.samples}
+              deResults={deResults}
+              topN={5}
+              provenance={provenance}
+            />
           )}
 
           {/* Exported Gene List (from brush selection) */}

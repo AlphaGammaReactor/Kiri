@@ -30,6 +30,10 @@ google-genai==0.3.*
 redis==5.*
 celery==5.*
 
+# Authentication
+python-jose[cryptography]==3.*
+passlib[bcrypt]==1.*
+
 # Utilities
 python-multipart==0.0.*
 orjson==3.*

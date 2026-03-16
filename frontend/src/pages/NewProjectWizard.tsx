@@ -329,7 +329,7 @@ export default function NewProjectWizard() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={t("projects.name_placeholder") || "e.g., PARL-MAVS CRC Study"}
+                  placeholder={t("projects.name_placeholder") || "e.g., BRCA1 Breast Cancer Study"}
                   className="w-full px-4 py-2.5 rounded-lg bg-kiri-bg border border-kiri-border text-kiri-text placeholder-kiri-text-dim focus:border-kiri-accent focus:outline-none transition-colors"
                   autoFocus
                 />

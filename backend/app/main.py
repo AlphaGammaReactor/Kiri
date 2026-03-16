@@ -1,5 +1,5 @@
 """
-Kiri PARL-MAVS Research Platform — FastAPI Application
+Kiri Research Platform — FastAPI Application
 
 The main entry point for the backend server.
 Configures CORS, mounts routers, registers error handlers,
@@ -24,6 +24,7 @@ from app.api import router as api_router
 import app.models.project  # noqa: F401
 import app.models.crash_report  # noqa: F401
 import app.models.uploaded_file  # noqa: F401
+import app.models.user  # noqa: F401
 
 # ── Structured Logging ──
 from app.core.logging import setup_logging, get_logger
@@ -52,7 +53,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Kiri API",
-    description="PARL-MAVS Research Platform — Backend API",
+    description="Kiri Research Platform — Backend API",
     version="0.1.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",

@@ -1,7 +1,7 @@
 [project]
 name = "kiri-backend"
 version = "0.1.0"
-description = "Kiri PARL-MAVS Research Platform — FastAPI Backend"
+description = "Kiri Research Platform — FastAPI Backend"
 requires-python = ">=3.11"
 readme = "README.md"
 

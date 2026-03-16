@@ -3,6 +3,23 @@
     "title": "桐",
     "subtitle": "研究平台"
   },
+  "auth": {
+    "login_title": "欢迎回来",
+    "register_title": "创建账号",
+    "email": "邮箱",
+    "email_placeholder": "you@example.com",
+    "password": "密码",
+    "password_placeholder": "至少6个字符",
+    "display_name": "显示名称",
+    "display_name_placeholder": "您的名字",
+    "login_button": "登录",
+    "register_button": "注册",
+    "no_account": "没有账号？立即注册 →",
+    "have_account": "已有账号？立即登录 →",
+    "invite_code": "邀请码",
+    "invite_code_placeholder": "请输入您的邀请码",
+    "logout": "退出登录"
+  },
   "nav": {
     "atlas": "多组学图谱",
     "mito": "线粒体实验室",
@@ -264,7 +281,20 @@
     "customSource": "自定义数据",
     "noCustomFile": "未附加自定义文件。请在“项目设置 → 文件上传”中上传 CSV/TSV 文件。",
     "fileAttached": "文件已附加",
-    "manageInSettings": "在项目设置中管理上传文件"
+    "manageInSettings": "在项目设置中管理上传文件",
+    "groupByType": "按样本类型分组",
+    "showDendrogram": "显示树形图",
+    "dendrogramWidth": "树形图宽度",
+    "colorRange": "色阶范围",
+    "colorRangeMin": "最小值",
+    "colorRangeMax": "最大值",
+    "deTable": "差异表达结果",
+    "downloadCsv": "下载 CSV",
+    "boxplots": "表达分布（最显著基因）",
+    "significance": "显著性",
+    "pathwayTag": "通路",
+    "gene": "基因",
+    "avgExpr": "平均表达"
   },
   "enrichment": {
     "title": "基因集富集分析",

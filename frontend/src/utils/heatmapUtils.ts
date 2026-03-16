@@ -2,7 +2,7 @@
  * Kiri — Heatmap Utility Functions
  *
  * Pure functions for data transformation, hierarchical clustering,
- * dendrogram rendering, and color palette definitions.
+ * dendrogram rendering, color palette definitions, and pathway tags.
  */
 
 import { agnes, type Cluster } from "ml-hclust";
@@ -163,6 +163,63 @@ function getLeafOrder(cluster: Cluster): number[] {
   return [...left, ...right];
 }
 
+
+// ══════════════════════════════
+//  Group-Then-Cluster
+// ══════════════════════════════
+
+interface SampleLike {
+  sample_type: string;
+}
+
+/**
+ * Force-group samples by type (Normal first, Tumor second),
+ * then independently cluster within each group.
+ *
+ * This produces the publication-standard layout where the two
+ * biological conditions are visually separated, with hierarchical
+ * clustering revealing structure within each group.
+ */
+export function groupThenClusterSamples<S extends SampleLike>(
+  samples: S[],
+  genes: string[],
+  values: Record<string, number[]>,
+  metric: DistanceMetric = "euclidean",
+  linkage: LinkageMethod = "ward",
+): { order: number[]; normalCount: number; tumorCount: number } {
+  // Split by group
+  const normalIndices: number[] = [];
+  const tumorIndices: number[] = [];
+  samples.forEach((s, i) => {
+    if (s.sample_type === "normal") normalIndices.push(i);
+    else tumorIndices.push(i);
+  });
+
+  // Cluster within each group
+  const clusterWithinGroup = (indices: number[]): number[] => {
+    if (indices.length < 2) return indices;
+    // Build sample matrix for this group (each sample = row of gene values)
+    const matrix = indices.map(si =>
+      genes.map(gene => (values[gene] || [])[si] ?? 0)
+    );
+    const result = performClustering(matrix, metric, linkage);
+    if (result) {
+      return result.order.map(i => indices[i]);
+    }
+    return indices;
+  };
+
+  const orderedNormal = clusterWithinGroup(normalIndices);
+  const orderedTumor = clusterWithinGroup(tumorIndices);
+
+  return {
+    order: [...orderedNormal, ...orderedTumor],
+    normalCount: orderedNormal.length,
+    tumorCount: orderedTumor.length,
+  };
+}
+
+
 // ══════════════════════════════
 //  Dendrogram → ECharts
 // ══════════════════════════════
@@ -178,7 +235,6 @@ export interface DendrogramLine {
  * @param tree - the cluster tree from agnes
  * @param leafPositions - map from leaf index to pixel position (x for row, y for column)
  * @param maxHeight - max pixel height for the dendrogram
- * @param orientation - 'horizontal' (gene rows) or 'vertical' (sample columns)
  */
 export function dendrogramToLines(
   tree: Cluster,
@@ -216,6 +272,42 @@ export function dendrogramToLines(
 }
 
 // ══════════════════════════════
+//  Pathway Tags (PARL-MAVS axis)
+// ══════════════════════════════
+
+export interface PathwayTag {
+  name: string;
+  color: string;
+  kegg?: string;
+}
+
+/** Gene → pathway annotation for the PARL-MAVS regulatory axis */
+export const PATHWAY_TAGS: Record<string, PathwayTag> = {
+  PARL:  { name: "Mitochondrial Protease", color: "#f97316", kegg: "GO:0005739" },
+  MAVS:  { name: "Innate Immunity",        color: "#22c55e", kegg: "GO:0045087" },
+  DDX58: { name: "RIG-I Signaling",        color: "#3b82f6", kegg: "hsa04622" },
+  IRF3:  { name: "Transcription Factor",   color: "#a855f7", kegg: "GO:0045087" },
+  IFNB1: { name: "Interferon Response",    color: "#ec4899", kegg: "R-HSA-168928" },
+};
+
+
+// ══════════════════════════════
+//  Significance Helpers
+// ══════════════════════════════
+
+/**
+ * Map FDR-corrected p-value to asterisk notation.
+ * Returns "" if not significant, or "*" / "**" / "***".
+ */
+export function pValueToAsterisks(adjustedPValue: number): string {
+  if (adjustedPValue < 0.001) return "***";
+  if (adjustedPValue < 0.01)  return "**";
+  if (adjustedPValue < 0.05)  return "*";
+  return "";
+}
+
+
+// ══════════════════════════════
 //  Color Palettes
 // ══════════════════════════════
 
@@ -225,6 +317,14 @@ export interface ColorPalette {
 }
 
 export const COLOR_PALETTES: Record<string, ColorPalette> = {
+  blueWhiteRed: {
+    name: "Blue–White–Red",
+    colors: [
+      "#2166ac", "#4393c3", "#92c5de", "#d1e5f0",
+      "#f7f7f7",
+      "#fddbc7", "#f4a582", "#d6604d", "#b2182b",
+    ],
+  },
   viridis: {
     name: "Viridis",
     colors: [
@@ -275,4 +375,4 @@ export const COLOR_PALETTES: Record<string, ColorPalette> = {
   },
 };
 
-export const DEFAULT_PALETTE = "viridis";
+export const DEFAULT_PALETTE = "blueWhiteRed";

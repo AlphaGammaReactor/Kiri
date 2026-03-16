@@ -1,27 +1,33 @@
 /**
  * Kiri Atlas — Expression Heatmap Component (Enhanced)
  *
- * Full-featured heatmap with:
+ * Publication-grade heatmap with:
  * - Data transformations (log2, Z-score)
  * - Hierarchical clustering with dendrograms
- * - Sample annotation color bars
- * - Differential expression highlighting
+ * - Force-group by sample type (Normal | Tumor) with within-group clustering
+ * - Multiple clinical annotation bars (type, stage, MSI)
+ * - FDR-corrected significance markers (*, **, ***)
+ * - Gene pathway tags (color blocks)
+ * - Colorblind-friendly default gradient (blue-white-red)
  * - Zoom, pan, brush selection
- * - Export (SVG/PNG)
- * - Configurable color palettes and fonts
+ * - Enhanced interactive tooltips
+ * - KiriChart export (SVG/PNG/PDF)
  */
 
 import { useMemo } from "react";
 import type { EChartsOption } from "echarts";
 import { KiriChart } from "./KiriChart";
-import type { Provenance } from "../services/api";
+import type { Provenance, DEResult } from "../services/api";
 import { useTranslation } from "react-i18next";
 import {
   applyLog2Transform,
   applyZScore,
   performClustering,
+  groupThenClusterSamples,
   COLOR_PALETTES,
   DEFAULT_PALETTE,
+  PATHWAY_TAGS,
+  pValueToAsterisks,
   type DistanceMetric,
   type LinkageMethod,
 } from "../utils/heatmapUtils";
@@ -43,6 +49,11 @@ export interface HeatmapOptions {
   colorPalette: string;
   fontSize: number;
   showAnnotations: boolean;
+  groupByType: boolean;
+  showDendrogram: boolean;
+  dendrogramWidth: number;
+  colorRangeMin?: number;
+  colorRangeMax?: number;
   deFilter?: {
     foldChangeThreshold: number;
     showOnly: boolean;
@@ -58,6 +69,9 @@ export const DEFAULT_HEATMAP_OPTIONS: HeatmapOptions = {
   colorPalette: DEFAULT_PALETTE,
   fontSize: 11,
   showAnnotations: true,
+  groupByType: true,
+  showDendrogram: false,
+  dendrogramWidth: 40,
 };
 
 interface ExpressionHeatmapProps {
@@ -71,6 +85,8 @@ interface ExpressionHeatmapProps {
   error?: string;
   className?: string;
   options?: HeatmapOptions;
+  /** DE results for real significance markers (FDR-corrected p-values) */
+  deResults?: DEResult[];
   onGeneListExport?: (genes: string[]) => void;
 }
 
@@ -102,6 +118,7 @@ export function ExpressionHeatmap({
   error,
   className,
   options = DEFAULT_HEATMAP_OPTIONS,
+  deResults,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onGeneListExport: _onGeneListExport,
 }: ExpressionHeatmapProps) {
@@ -118,10 +135,22 @@ export function ExpressionHeatmap({
     return v;
   }, [values, options.transform]);
 
+  // ── Build DE lookup map ──
+  const deLookup = useMemo(() => {
+    const map = new Map<string, DEResult>();
+    if (deResults) {
+      for (const r of deResults) {
+        map.set(r.gene, r);
+      }
+    }
+    return map;
+  }, [deResults]);
+
   // ── Clustering ──
-  const { orderedGenes, orderedSamples, orderedIndices } = useMemo(() => {
+  const { orderedGenes, orderedSamples, orderedIndices, normalCount: groupedNormalCount } = useMemo(() => {
     let geneOrder = genes.map((_, i) => i);
     let sampleOrder = samples.map((_, i) => i);
+    let nCount = 0;
 
     // Row clustering (genes)
     if (options.clusterRows && genes.length >= 2) {
@@ -130,18 +159,27 @@ export function ExpressionHeatmap({
       if (result) geneOrder = result.order;
     }
 
-    // Column clustering (samples)
-    if (options.clusterCols && samples.length >= 2) {
-      // Transpose: each sample becomes a row
+    // Column ordering
+    if (options.groupByType) {
+      // Force-group by type, then cluster within each group
+      const grouped = groupThenClusterSamples(
+        samples,
+        genes,
+        transformedValues,
+        options.distanceMetric,
+        options.linkageMethod,
+      );
+      sampleOrder = grouped.order;
+      nCount = grouped.normalCount;
+    } else if (options.clusterCols && samples.length >= 2) {
+      // Free clustering
       const sampleMatrix = samples.map((_, si) =>
         genes.map((gene) => (transformedValues[gene] || [])[si] ?? 0)
       );
       const result = performClustering(sampleMatrix, options.distanceMetric, options.linkageMethod);
       if (result) sampleOrder = result.order;
-    }
-
-    // If not clustering columns, sort: Normal first, then Tumor
-    if (!options.clusterCols) {
+    } else {
+      // Default sort: Normal first, then Tumor
       sampleOrder = samples
         .map((s, i) => ({ sample: s, idx: i }))
         .sort((a, b) => {
@@ -150,39 +188,54 @@ export function ExpressionHeatmap({
           return 0;
         })
         .map((s) => s.idx);
+      nCount = samples.filter(s => s.sample_type === "normal").length;
     }
 
     return {
       orderedGenes: geneOrder.map((i) => genes[i]),
       orderedSamples: sampleOrder.map((i) => samples[i]),
       orderedIndices: { genes: geneOrder, samples: sampleOrder },
+      normalCount: nCount || samples.filter(s => s.sample_type === "normal").length,
     };
-  }, [genes, samples, transformedValues, options.clusterRows, options.clusterCols, options.distanceMetric, options.linkageMethod]);
+  }, [genes, samples, transformedValues, options.clusterRows, options.clusterCols, options.groupByType, options.distanceMetric, options.linkageMethod]);
 
-  // ── Fold-change based DE highlighting ──
+  // ── Gene significance (from real DE or fallback fold-change) ──
   const geneSignificance = useMemo(() => {
-    const result: Record<string, { fc: number; significant: boolean }> = {};
+    const result: Record<string, { fc: number; significant: boolean; stars: string; adjustedP?: number }> = {};
     for (const gene of orderedGenes) {
-      const geneVals = transformedValues[gene] || [];
-      const tumorVals: number[] = [];
-      const normalVals: number[] = [];
-      orderedIndices.samples.forEach((si) => {
-        const sample = samples[si];
-        const val = geneVals[si] ?? 0;
-        if (sample.sample_type === "tumor") tumorVals.push(val);
-        else normalVals.push(val);
-      });
-      const tumorMean = tumorVals.length ? tumorVals.reduce((a, b) => a + b, 0) / tumorVals.length : 0;
-      const normalMean = normalVals.length ? normalVals.reduce((a, b) => a + b, 0) / normalVals.length : 0;
-      const fc = normalMean > 0 ? tumorMean / normalMean : 0;
-      const deThreshold = options.deFilter?.foldChangeThreshold ?? 1.5;
-      result[gene] = {
-        fc,
-        significant: fc > deThreshold || (fc > 0 && fc < 1 / deThreshold),
-      };
+      const de = deLookup.get(gene);
+      if (de) {
+        const stars = pValueToAsterisks(de.adjusted_p_value);
+        result[gene] = {
+          fc: Math.pow(2, de.log2_fold_change), // Convert log2FC back to FC for display
+          significant: de.adjusted_p_value < 0.05,
+          stars,
+          adjustedP: de.adjusted_p_value,
+        };
+      } else {
+        // Fallback: compute simple fold-change
+        const geneVals = transformedValues[gene] || [];
+        const tumorVals: number[] = [];
+        const normalVals: number[] = [];
+        orderedIndices.samples.forEach((si) => {
+          const sample = samples[si];
+          const val = geneVals[si] ?? 0;
+          if (sample.sample_type === "tumor") tumorVals.push(val);
+          else normalVals.push(val);
+        });
+        const tumorMean = tumorVals.length ? tumorVals.reduce((a, b) => a + b, 0) / tumorVals.length : 0;
+        const normalMean = normalVals.length ? normalVals.reduce((a, b) => a + b, 0) / normalVals.length : 0;
+        const fc = normalMean > 0 ? tumorMean / normalMean : 0;
+        const deThreshold = options.deFilter?.foldChangeThreshold ?? 1.5;
+        result[gene] = {
+          fc,
+          significant: fc > deThreshold || (fc > 0 && fc < 1 / deThreshold),
+          stars: "",
+        };
+      }
     }
     return result;
-  }, [orderedGenes, transformedValues, samples, orderedIndices.samples, options.deFilter]);
+  }, [orderedGenes, transformedValues, samples, orderedIndices.samples, options.deFilter, deLookup]);
 
   // ── Build ECharts Option ──
   const option: EChartsOption = useMemo(() => {
@@ -191,13 +244,17 @@ export function ExpressionHeatmap({
     const palette = COLOR_PALETTES[options.colorPalette] || COLOR_PALETTES[DEFAULT_PALETTE];
     const showOnlySig = options.deFilter?.showOnly ?? false;
 
+    // Filter genes if showOnly is set
+    const displayGenes = showOnlySig
+      ? orderedGenes.filter(g => geneSignificance[g]?.significant)
+      : orderedGenes;
+
     // Build heatmap data
     const heatmapData: [number, number, number][] = [];
     let minVal = Infinity;
     let maxVal = -Infinity;
 
-    orderedGenes.forEach((gene, yIdx) => {
-      if (showOnlySig && !geneSignificance[gene]?.significant) return;
+    displayGenes.forEach((gene, yIdx) => {
       const geneVals = transformedValues[gene] || [];
       orderedIndices.samples.forEach((origIdx, xIdx) => {
         const val = geneVals[origIdx] ?? 0;
@@ -207,40 +264,73 @@ export function ExpressionHeatmap({
       });
     });
 
+    // Apply custom color range if set
+    const vmMin = options.colorRangeMin ?? (isFinite(minVal) ? minVal : 0);
+    const vmMax = options.colorRangeMax ?? (isFinite(maxVal) ? maxVal : 1);
+
     // Sample labels
     const sampleLabels = orderedSamples.map((s) =>
       `${s.sample_id.slice(-6)} (${s.sample_type === "normal" ? "N" : "T"})`
     );
 
-    // Gene labels with DE asterisks
-    const geneLabels = orderedGenes.map((gene) => {
+    // Gene labels with significance asterisks and pathway tags
+    const geneLabels = displayGenes.map((gene) => {
       const sig = geneSignificance[gene];
-      return sig?.significant ? `${gene} *` : gene;
+      const stars = sig?.stars || "";
+      const tag = PATHWAY_TAGS[gene];
+      const suffix = tag ? ` [${tag.name.slice(0, 6)}]` : "";
+      return stars ? `${stars} ${gene}${suffix}` : `${gene}${suffix}`;
     });
 
-    // Normal/Tumor split line
-    const normalCount = orderedSamples.filter((s) => s.sample_type === "normal").length;
-
-    // Annotation bar data (sample type, stage, MSI)
-    const annotationSeries: EChartsOption["series"] = [];
+    // Annotation bar series
+    const annotationSeries: NonNullable<EChartsOption["series"]> = [];
 
     if (options.showAnnotations) {
-      // Sample type bar
+      // Sample type bar (row -1)
       const typeBarData = orderedSamples.map((s, i) => ({
-        value: [i, -0.5, 0] as [number, number, number],
+        value: [i, -1, 0] as [number, number, number],
         itemStyle: { color: SAMPLE_TYPE_COLORS[s.sample_type] || "#64748b" },
       }));
       annotationSeries.push({
         type: "heatmap",
         data: typeBarData,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tooltip: { formatter: (p: any) => orderedSamples[p.data.value[0]]?.sample_type || "" } as any,
+        tooltip: { formatter: (p: any) => `Type: ${orderedSamples[p.data.value[0]]?.sample_type || "—"}` } as any,
+        silent: true,
+      });
+
+      // Stage bar (row -2)
+      const stageBarData = orderedSamples.map((s, i) => ({
+        value: [i, -2, 0] as [number, number, number],
+        itemStyle: { color: STAGE_COLORS[s.stage] || "#334155" },
+      }));
+      annotationSeries.push({
+        type: "heatmap",
+        data: stageBarData,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tooltip: { formatter: (p: any) => `Stage: ${orderedSamples[p.data.value[0]]?.stage || "—"}` } as any,
+        silent: true,
+      });
+
+      // MSI bar (row -3)
+      const msiBarData = orderedSamples.map((s, i) => ({
+        value: [i, -3, 0] as [number, number, number],
+        itemStyle: { color: MSI_COLORS[s.msi_status] || "#334155" },
+      }));
+      annotationSeries.push({
+        type: "heatmap",
+        data: msiBarData,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tooltip: { formatter: (p: any) => `MSI: ${orderedSamples[p.data.value[0]]?.msi_status || "—"}` } as any,
         silent: true,
       });
     }
 
     // Determine dynamic grid to accommodate annotations
-    const annotationOffset = options.showAnnotations ? 16 : 0;
+    const annotationOffset = options.showAnnotations ? 40 : 0;
+
+    // Normal/Tumor split line position
+    const normalCount = groupedNormalCount;
 
     return {
       tooltip: {
@@ -253,27 +343,34 @@ export function ExpressionHeatmap({
           if (!d || d.length < 3) return "";
           const xIdx = d[0];
           const yIdx = d[1];
+          if (yIdx < 0) return ""; // annotation bar
           const sample = orderedSamples[xIdx];
-          const gene = orderedGenes[yIdx];
+          const gene = displayGenes[yIdx];
           if (!sample || !gene) return "";
           const expr = d[2];
           const sig = geneSignificance[gene];
           const transformLabel = options.transform === "log2" ? "log₂" : options.transform === "zscore" ? "Z" : normalization.toUpperCase();
+          const de = deLookup.get(gene);
+          const pStr = de ? `FDR: <b>${de.adjusted_p_value < 0.001 ? de.adjusted_p_value.toExponential(2) : de.adjusted_p_value.toFixed(4)}</b>` : "";
+          const pathwayTag = PATHWAY_TAGS[gene];
+          const pathwayStr = pathwayTag ? `Pathway: ${pathwayTag.name}` : "";
           return `
-            <div style="font-size:11px; max-width: 240px">
-              <b>${gene}</b>${sig?.significant ? " ★" : ""}<br/>
+            <div style="font-size:11px; max-width: 260px">
+              <b style="font-style:italic">${gene}</b>${sig?.stars ? ` <span style="color:#f59e0b">${sig.stars}</span>` : ""}<br/>
               ${t("atlas.sample", "Sample")}: ${sample.sample_id}<br/>
               ${t("atlas.type", "Type")}: ${sample.sample_type}<br/>
               ${t("atlas.stage", "Stage")}: ${sample.stage || "—"}<br/>
               MSI: ${sample.msi_status || "—"}<br/>
               ${t("atlas.expression", "Expression")}: <b>${expr.toFixed(2)}</b> ${transformLabel}<br/>
               ${sig ? `FC: ${sig.fc.toFixed(2)}×` : ""}
+              ${pStr ? `<br/>${pStr}` : ""}
+              ${pathwayStr ? `<br/><span style="color:${pathwayTag?.color}">${pathwayStr}</span>` : ""}
             </div>
           `;
         },
       },
       grid: {
-        left: 100,
+        left: 120,
         right: 24,
         top: 48 + annotationOffset,
         bottom: 80,
@@ -305,7 +402,7 @@ export function ExpressionHeatmap({
         data: geneLabels,
         name: "Gene Targets",
         nameLocation: "center" as const,
-        nameGap: 80,
+        nameGap: 100,
         nameTextStyle: {
           fontSize: 10,
           color: "#94a3b8",
@@ -319,9 +416,19 @@ export function ExpressionHeatmap({
           fontStyle: "italic",
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           formatter: (value: any) => {
-            const gene = String(value).replace(" *", "");
-            const sig = geneSignificance[gene];
-            return sig?.significant ? `{sig|${value}}` : value;
+            const str = String(value);
+            // Check if this gene is significant (starts with asterisks)
+            const hasStars = str.startsWith("*");
+            if (hasStars) {
+              return `{sig|${str}}`;
+            }
+            // Check for pathway tag
+            const baseGene = str.split(" [")[0];
+            const tag = PATHWAY_TAGS[baseGene];
+            if (tag) {
+              return `{tag|${str}}`;
+            }
+            return str;
           },
           rich: {
             sig: {
@@ -330,12 +437,17 @@ export function ExpressionHeatmap({
               fontStyle: "italic" as const,
               fontSize: options.fontSize,
             },
+            tag: {
+              color: "#60a5fa",
+              fontStyle: "italic" as const,
+              fontSize: options.fontSize,
+            },
           },
         },
       },
       visualMap: {
-        min: isFinite(minVal) ? minVal : 0,
-        max: isFinite(maxVal) ? maxVal : 1,
+        min: vmMin,
+        max: vmMax,
         calculable: true,
         orient: "horizontal" as const,
         left: "center",
@@ -406,7 +518,7 @@ export function ExpressionHeatmap({
             },
           },
           markLine:
-            normalCount > 0 && normalCount < orderedSamples.length && !options.clusterCols
+            normalCount > 0 && normalCount < orderedSamples.length
               ? {
                   silent: false,
                   symbol: "none",
@@ -431,7 +543,7 @@ export function ExpressionHeatmap({
                         <b>Sample Type Boundary</b><br/>
                         Normal samples: <b>${normalCount}</b> (left)<br/>
                         Tumor samples: <b>${orderedSamples.length - normalCount}</b> (right)<br/>
-                        <span style="color:#94a3b8;font-size:9px">Sorted Normal → Tumor</span>
+                        <span style="color:#94a3b8;font-size:9px">${options.groupByType ? "Grouped + within-group clustering" : "Sorted Normal → Tumor"}</span>
                       </div>`;
                     },
                   },
@@ -442,14 +554,14 @@ export function ExpressionHeatmap({
         ...annotationSeries,
       ],
     };
-  }, [orderedGenes, orderedSamples, orderedIndices, transformedValues, options, geneSignificance, normalization, t, source]);
+  }, [orderedGenes, orderedSamples, orderedIndices, transformedValues, options, geneSignificance, normalization, t, source, deLookup, groupedNormalCount]);
 
 
   // ── Title ──
   const normalCount = samples.filter((s) => s.sample_type === "normal").length;
   const tumorCount = samples.filter((s) => s.sample_type === "tumor").length;
   const transformSuffix = options.transform !== "none" ? ` [${options.transform.toUpperCase()}]` : "";
-  const clusterSuffix = options.clusterRows || options.clusterCols ? " 🌲" : "";
+  const clusterSuffix = options.clusterRows || options.clusterCols || options.groupByType ? " 🌲" : "";
   const parsedSource = source.includes("GDC") || source.includes("TCGA") ? "TCGA-COAD+READ" : source;
   const title = `${t("atlas.heatmapTitle", "Expression Heatmap")} — ${parsedSource} (n=${samples.length}: ${tumorCount}T / ${normalCount}N)${transformSuffix}${clusterSuffix}`;
 
@@ -457,9 +569,9 @@ export function ExpressionHeatmap({
     <div className="relative">
       {/* Sample Annotation Legend */}
       {options.showAnnotations && samples.length > 0 && (
-        <div className="flex items-center gap-4 mb-2 px-2">
+        <div className="flex flex-wrap items-center gap-4 mb-2 px-2">
           <span className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Annotations:</span>
-          <div className="flex items-center gap-3 text-[10px] text-kiri-text-muted">
+          <div className="flex flex-wrap items-center gap-3 text-[10px] text-kiri-text-muted">
             {Object.entries(SAMPLE_TYPE_COLORS).map(([type, color]) => (
               <span key={type} className="flex items-center gap-1">
                 <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
@@ -481,10 +593,41 @@ export function ExpressionHeatmap({
               </span>
             ))}
           </div>
+
+          {/* Pathway tags legend */}
+          {orderedGenes.some(g => PATHWAY_TAGS[g]) && (
+            <>
+              <span className="text-kiri-border">|</span>
+              <span className="text-[10px] text-kiri-text-dim uppercase tracking-wider">
+                {t("atlas.pathwayTag", "Pathways")}:
+              </span>
+              <div className="flex flex-wrap items-center gap-3 text-[10px]">
+                {Object.entries(PATHWAY_TAGS)
+                  .filter(([gene]) => orderedGenes.includes(gene))
+                  .map(([gene, tag]) => (
+                    <span key={gene} className="flex items-center gap-1 text-kiri-text-muted">
+                      <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                      <span className="italic">{gene}</span>: {tag.name}
+                    </span>
+                  ))}
+              </div>
+            </>
+          )}
+
+          {/* Significance legend when DE results available */}
+          {deResults && deResults.length > 0 && (
+            <>
+              <span className="text-kiri-border">|</span>
+              <div className="flex items-center gap-2 text-[10px] text-amber-400">
+                <span>* p&lt;0.05</span>
+                <span>** p&lt;0.01</span>
+                <span>*** p&lt;0.001</span>
+                <span className="text-kiri-text-dim">(FDR)</span>
+              </div>
+            </>
+          )}
         </div>
       )}
-
-
 
       <KiriChart
         title={title}

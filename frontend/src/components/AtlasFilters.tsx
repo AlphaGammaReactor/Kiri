@@ -211,6 +211,17 @@ export function AtlasFilters({
           {t("atlas.clustering", "Clustering")}
         </h3>
         <div className="space-y-2">
+          {/* Force-group by type */}
+          <label className="flex items-center gap-2 text-xs text-kiri-text-muted hover:text-kiri-text cursor-pointer">
+            <input
+              type="checkbox"
+              checked={heatmapOptions.groupByType}
+              onChange={(e) => updateOption("groupByType", e.target.checked)}
+              className="rounded border-kiri-border bg-kiri-bg accent-kiri-accent w-3.5 h-3.5"
+            />
+            <span>{t("atlas.groupByType", "Group by sample type")}</span>
+          </label>
+
           <label className="flex items-center gap-2 text-xs text-kiri-text-muted hover:text-kiri-text cursor-pointer">
             <input
               type="checkbox"
@@ -224,13 +235,17 @@ export function AtlasFilters({
             <input
               type="checkbox"
               checked={heatmapOptions.clusterCols}
-              onChange={(e) => updateOption("clusterCols", e.target.checked)}
+              onChange={(e) => {
+                updateOption("clusterCols", e.target.checked);
+                // If turning on free clustering, turn off force-grouping
+                if (e.target.checked) updateOption("groupByType", false);
+              }}
               className="rounded border-kiri-border bg-kiri-bg accent-kiri-accent w-3.5 h-3.5"
             />
             <span>{t("atlas.clusterSamples", "Cluster samples (cols)")}</span>
           </label>
 
-          {(heatmapOptions.clusterRows || heatmapOptions.clusterCols) && (
+          {(heatmapOptions.clusterRows || heatmapOptions.clusterCols || heatmapOptions.groupByType) && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
@@ -262,6 +277,70 @@ export function AtlasFilters({
               </div>
             </motion.div>
           )}
+
+          {/* Dendrogram controls */}
+          <div className="pt-1 space-y-1">
+            <label className="flex items-center gap-2 text-xs text-kiri-text-muted hover:text-kiri-text cursor-pointer">
+              <input
+                type="checkbox"
+                checked={heatmapOptions.showDendrogram}
+                onChange={(e) => updateOption("showDendrogram", e.target.checked)}
+                className="rounded border-kiri-border bg-kiri-bg accent-kiri-accent w-3.5 h-3.5"
+              />
+              <span>{t("atlas.showDendrogram", "Show dendrograms")}</span>
+            </label>
+            {heatmapOptions.showDendrogram && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="pl-2 border-l-2 border-kiri-border ml-1"
+              >
+                <p className="text-[10px] text-kiri-text-dim mb-1">
+                  {t("atlas.dendrogramWidth", "Width")}: {heatmapOptions.dendrogramWidth}px
+                </p>
+                <input
+                  type="range"
+                  min={20}
+                  max={80}
+                  step={5}
+                  value={heatmapOptions.dendrogramWidth}
+                  onChange={(e) => updateOption("dendrogramWidth", Number(e.target.value))}
+                  className="w-full h-1 bg-kiri-border rounded-lg appearance-none cursor-pointer accent-kiri-accent"
+                />
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Color Range ── */}
+      <section>
+        <h3 className="text-xs font-semibold text-kiri-text-dim uppercase tracking-wider mb-2.5">
+          {t("atlas.colorRange", "Color Scale Range")}
+        </h3>
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <p className="text-[10px] text-kiri-text-dim mb-0.5">{t("atlas.colorRangeMin", "Min")}</p>
+            <input
+              type="number"
+              step="0.5"
+              value={heatmapOptions.colorRangeMin ?? ""}
+              placeholder="auto"
+              onChange={(e) => updateOption("colorRangeMin", e.target.value ? Number(e.target.value) : undefined)}
+              className="w-full text-xs bg-kiri-bg border border-kiri-border rounded px-2 py-1 text-kiri-text focus:border-kiri-accent outline-none placeholder:text-kiri-text-dim/50"
+            />
+          </div>
+          <div className="flex-1">
+            <p className="text-[10px] text-kiri-text-dim mb-0.5">{t("atlas.colorRangeMax", "Max")}</p>
+            <input
+              type="number"
+              step="0.5"
+              value={heatmapOptions.colorRangeMax ?? ""}
+              placeholder="auto"
+              onChange={(e) => updateOption("colorRangeMax", e.target.value ? Number(e.target.value) : undefined)}
+              className="w-full text-xs bg-kiri-bg border border-kiri-border rounded px-2 py-1 text-kiri-text focus:border-kiri-accent outline-none placeholder:text-kiri-text-dim/50"
+            />
+          </div>
         </div>
       </section>
 

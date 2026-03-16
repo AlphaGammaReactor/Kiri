@@ -7,6 +7,8 @@ import { Suspense, lazy, useEffect } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastContainer } from "./components/Toast";
 import { LanguageFloatingButton } from "./components/LanguageFloatingButton";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { refreshToken } from "./store/authSlice";
 import { fetchProject } from "./store/projectSlice";
 import { loadPublicationState, rehydratePublication } from "./store/publicationSlice";
 import { getProjectRehydration } from "./store/persistence";
@@ -28,6 +30,7 @@ const PDMVault = lazy(() => import("./pages/PDMVault"));
 const CrossValidation = lazy(() => import("./pages/CrossValidation"));
 const ProjectHistory = lazy(() => import("./pages/ProjectHistory"));
 const MitoAnalysisPage = lazy(() => import("./pages/MitoAnalysisPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
 
 /* ── Page placeholder components ── */
 const PageShell = ({
@@ -216,27 +219,44 @@ function ProjectLayout() {
   );
 }
 
+/* ── Auth Initializer — attempts refresh on mount ── */
+function AuthInitializer({ children }: { children: React.ReactNode }) {
+  const dispatch = useAppDispatch();
+  const initialized = useAppSelector((s: RootState) => s.auth.initialized);
+
+  useEffect(() => {
+    if (!initialized) {
+      dispatch(refreshToken());
+    }
+  }, [dispatch, initialized]);
+
+  return <>{children}</>;
+}
+
 /* ── App Root ── */
 function App() {
   return (
     <ErrorBoundary moduleName="App">
       <BrowserRouter>
-        <ToastContainer />
-        <LanguageFloatingButton />
-        <Suspense fallback={<div className="min-h-screen bg-kiri-bg flex items-center justify-center"><div className="w-8 h-8 rounded-full border-2 border-kiri-accent border-r-transparent animate-spin" /></div>}>
-          <Routes>
-            {/* Project management routes */}
-            <Route path="/projects" element={<ProjectDashboard />} />
-            <Route path="/projects/new" element={<NewProjectWizard />} />
+        <AuthInitializer>
+          <ToastContainer />
+          <LanguageFloatingButton />
+          <Suspense fallback={<div className="min-h-screen bg-kiri-bg flex items-center justify-center"><div className="w-8 h-8 rounded-full border-2 border-kiri-accent border-r-transparent animate-spin" /></div>}>
+            <Routes>
+              {/* Public route */}
+              <Route path="/login" element={<LoginPage />} />
 
-            {/* Project-scoped module routes */}
-            <Route path="/projects/:projectId/*" element={<ProjectLayout />} />
+              {/* Protected routes */}
+              <Route path="/projects" element={<ProtectedRoute><ProjectDashboard /></ProtectedRoute>} />
+              <Route path="/projects/new" element={<ProtectedRoute><NewProjectWizard /></ProtectedRoute>} />
+              <Route path="/projects/:projectId/*" element={<ProtectedRoute><ProjectLayout /></ProtectedRoute>} />
 
-            {/* Root redirect */}
-            <Route path="/" element={<Navigate to="/projects" replace />} />
-            <Route path="*" element={<Navigate to="/projects" replace />} />
-          </Routes>
-        </Suspense>
+              {/* Root redirect */}
+              <Route path="/" element={<Navigate to="/projects" replace />} />
+              <Route path="*" element={<Navigate to="/projects" replace />} />
+            </Routes>
+          </Suspense>
+        </AuthInitializer>
       </BrowserRouter>
     </ErrorBoundary>
   );
