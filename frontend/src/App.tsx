@@ -30,6 +30,7 @@ const PDMVault = lazy(() => import("./pages/PDMVault"));
 const CrossValidation = lazy(() => import("./pages/CrossValidation"));
 const ProjectHistory = lazy(() => import("./pages/ProjectHistory"));
 const MitoAnalysisPage = lazy(() => import("./pages/MitoAnalysisPage"));
+const InteractomicsPage = lazy(() => import("./pages/InteractomicsPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 
 /* ── Page placeholder components ── */
@@ -55,6 +56,7 @@ const navItems = [
   { path: "atlas", key: "atlas", icon: "🧬" },
   { path: "mito", key: "mito", icon: "⚡" },
   { path: "interaction", key: "interaction", icon: "🔗" },
+  { path: "interactomics", key: "interactomics", icon: "🕸️" },
   { path: "docking", key: "docking", icon: "🧩" },
   { path: "clinical", key: "clinical", icon: "📊" },
   { path: "pdm", key: "pdm", icon: "🧪" },
@@ -202,6 +204,7 @@ function ProjectLayout() {
             <Route path="atlas" element={<ErrorBoundary moduleName="Atlas"><AtlasPage /></ErrorBoundary>} />
             <Route path="mito" element={<ErrorBoundary moduleName="Mito Lab"><MitoAnalysisPage /></ErrorBoundary>} />
             <Route path="interaction" element={<ErrorBoundary moduleName="Interaction Lab"><InteractionLab /></ErrorBoundary>} />
+            <Route path="interactomics" element={<ErrorBoundary moduleName="Interactomics"><InteractomicsPage /></ErrorBoundary>} />
             <Route path="docking" element={<ErrorBoundary moduleName="Protein Docking"><ProteinDocking /></ErrorBoundary>} />
             <Route path="clinical" element={<ErrorBoundary moduleName="Clinical Suite"><ClinicalSuite /></ErrorBoundary>} />
             <Route path="discovery" element={<ErrorBoundary moduleName="AI Discovery"><DiscoveryPage /></ErrorBoundary>} />
