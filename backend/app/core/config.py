@@ -4,7 +4,7 @@ Kiri — Application Configuration
 Reads environment variables with sensible defaults for local development.
 """
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -18,12 +18,21 @@ class Settings(BaseSettings):
     PORT: int = 8000
     DEBUG: bool = True
 
-    # CORS
+    # CORS — accepts comma-separated string from env, e.g.:
+    # CORS_ORIGINS="https://frontend.up.railway.app,http://localhost:5173"
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",  # Vite dev server
         "http://localhost:5174",  # Vite fallback port
         "http://localhost:3000",
     ]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Accept comma-separated string or list."""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://kiri:kiri@localhost:5432/kiri"

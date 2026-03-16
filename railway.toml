@@ -1,0 +1,12 @@
+# Kiri Research Platform — Railway Configuration
+# This file helps Railway understand the mono-repo structure.
+# Each service should be configured in the Railway dashboard to
+# point to its respective root directory (backend/ or frontend/).
+
+[build]
+# Railway auto-detects Dockerfiles when rootDirectory is set per-service
+
+[deploy]
+healthcheckPath = "/api/health"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
