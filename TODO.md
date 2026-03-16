@@ -232,13 +232,21 @@
 - [x] `/sync` workflow (reconcile dev log with codebase, fixed locale paths)
 - [x] Enhanced `/fix` workflow (crash report integration)
 
-### Future: Auth & Collaboration
-- [ ] User registration / login (JWT or OAuth)
+### Deployment & Infrastructure
+- [x] Production Dockerfiles (backend: 2 workers, frontend: multi-stage nginx)
+- [x] Railway config (`railway.toml`, `nginx.conf`, env-aware CORS)
+- [x] Branch topology: `main` → `ag-docker-dev` → `deploy/railway-production`
+- [x] GitHub sync — all branches pushed
+- [/] Railway project setup (PostgreSQL plugin, env vars, domain generation)
+- [ ] CI/CD: GitHub Actions pipeline
+
+### Auth & Collaboration
+- [x] JWT auth backend (`auth.py`, `user.py`)
+- [x] Login page frontend (`LoginPage.tsx`, `ProtectedRoute.tsx`, `authSlice.ts`)
+- [ ] User registration / login fully wired
 - [ ] Project ownership (fill `owner_id`)
 - [ ] Invite collaborators by email
 - [ ] Role-based access (owner / editor / viewer)
-
----
 
 ### Blockers
 - ~~Celery still stubbed~~ ✅ Fixed: Celery + Redis with graceful fallback

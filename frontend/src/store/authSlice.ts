@@ -35,6 +35,7 @@ interface AuthState {
 const authClient = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
+  timeout: 10000,  // 10s — fail fast if backend is unreachable
   headers: { "Content-Type": "application/json" },
 });
 
