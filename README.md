@@ -83,10 +83,40 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload   # → http://localhost:8000
 ```
 
-### Docker (both services)
+### Docker (dev — all services)
 ```bash
-docker-compose up
+docker-compose up --build
 ```
+
+## Deployment
+
+### Branch Topology
+```
+main                         ← stable baseline
+  └── ag-docker-dev          ← latest development (all features)
+        └── deploy/railway-production  ← production-ready Docker configs
+```
+
+### Railway (Production)
+
+The `deploy/railway-production` branch includes production-hardened Dockerfiles and Railway configs.
+
+**Architecture:** 2 Railway services from 1 repo
+| Service | Root Dir | Build | Serves |
+|---------|----------|-------|--------|
+| Backend (FastAPI) | `backend/` | Dockerfile (Python 3.11, 2 workers) | `/api/*` |
+| Frontend (Vite→nginx) | `frontend/` | Dockerfile (multi-stage: build → nginx) | SPA + proxy to backend |
+
+**Required env vars (set in Railway dashboard, never committed):**
+| Variable | Service | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | Backend | Auto-injected by Railway PostgreSQL plugin |
+| `JWT_SECRET_KEY` | Backend | Strong random secret for auth |
+| `CORS_ORIGINS` | Backend | Comma-separated: `https://<frontend>.up.railway.app` |
+| `INVITE_CODE` | Backend | Registration gate code |
+| `DEBUG` | Backend | Set to `false` |
+| `BACKEND_URL` | Frontend | `https://<backend>.up.railway.app` |
+
 
 ## Data Sources
 

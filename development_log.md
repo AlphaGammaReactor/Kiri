@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-03-17 — 🚀 Railway Production Deployment Prep
+
+- **Context:** Prepared Kiri for Railway cloud deployment. All pending changes (auth, atlas heatmap, rebranding, chart exports, clinical suite, mito lab, drug discovery) committed and synced.
+- **Branch Topology:** `main` → `ag-docker-dev` (28 files, 1949 insertions) → `deploy/railway-production` (+ production configs).
+- **Production Changes:**
+  - `backend/Dockerfile` — removed `--reload`, added 2 workers, dynamic `$PORT` via Railway env
+  - `frontend/Dockerfile` — multi-stage build: Vite → nginx (SPA serving)
+  - `frontend/nginx.conf` — SPA catch-all, `/api` reverse proxy via `$BACKEND_URL`, gzip, 1y asset caching
+  - `backend/app/core/config.py` — `CORS_ORIGINS` now accepts comma-separated env var string (field_validator)
+  - `frontend/vite.config.ts` — proxy target env-aware via `VITE_API_URL`
+  - `railway.toml` — healthcheck `/api/health`, restart-on-failure policy
+- **Architecture:** 2 Railway services (Backend + Frontend) + PostgreSQL plugin. Redis optional (in-memory fallback).
+- **Security:** Sensitive values (JWT_SECRET_KEY, INVITE_CODE, API keys) set as Railway env vars, never committed.
+- **Bilingual State:** Unchanged — 602/602 parity.
+- **PRD Reference:** §4 (Non-Functional — deployment, infrastructure).
+
+---
+
 ## 2026-03-16 — 🔧 External API Resilience: Retry Logic for UniProt + STRING-DB
 
 - **Context:** 35 `KiriExternalAPIError` crash reports in a 6-hour window (03:00–09:23 UTC). Both UniProt and STRING-DB were transiently unreachable. The services had **no retry logic**, violating PRD §4 ("exponential backoff, max 3 attempts").
