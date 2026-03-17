@@ -1,3 +1,3 @@
-data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%221168%22%20height%3D%22450%22%20xmlns%3D%22http%
+data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%221312%22%20height%3D%22450%22%20xmlns%3D%22http%
 ...
-Total length: 266593
+Total length: 157022

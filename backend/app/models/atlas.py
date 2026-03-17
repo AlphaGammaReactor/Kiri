@@ -407,3 +407,33 @@ class MitoScoreRequest(BaseModel):
         default=None,
         description="Optional Kiri Project ID",
     )
+
+
+# ── Major TCGA Cancer Types for Pan-Cancer Analysis ──
+
+TCGA_PAN_CANCER_PROJECTS: list[str] = [
+    "TCGA-ACC", "TCGA-BLCA", "TCGA-BRCA", "TCGA-CESC", "TCGA-CHOL",
+    "TCGA-COAD", "TCGA-DLBC", "TCGA-ESCA", "TCGA-GBM", "TCGA-HNSC",
+    "TCGA-KICH", "TCGA-KIRC", "TCGA-KIRP", "TCGA-LAML", "TCGA-LGG",
+    "TCGA-LIHC", "TCGA-LUAD", "TCGA-LUSC", "TCGA-MESO", "TCGA-OV",
+    "TCGA-PAAD", "TCGA-PCPG", "TCGA-PRAD", "TCGA-READ", "TCGA-SARC",
+    "TCGA-SKCM", "TCGA-STAD", "TCGA-TGCT", "TCGA-THCA", "TCGA-THYM",
+    "TCGA-UCEC", "TCGA-UCS", "TCGA-UVM",
+]
+
+
+class PanCancerRequest(BaseModel):
+    """Request for pan-cancer expression boxplot data."""
+
+    genes: list[str] = Field(
+        ..., description="Gene symbols to query across cancer types",
+        min_length=1,
+    )
+    cancer_projects: list[str] | None = Field(
+        default=None,
+        description="TCGA project IDs to query. Defaults to all 33 major types.",
+    )
+    project_id: str | None = Field(
+        default=None,
+        description="Optional Kiri Project ID to load genes from",
+    )

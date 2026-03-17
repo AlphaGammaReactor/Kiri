@@ -34,9 +34,11 @@ export function CoexpressionGSEAPlot({
 
   const option = useMemo((): EChartsOption => {
     // Use highlighted terms if available, otherwise top 15 terms
-    const displayTerms = highlightedTerms.length > 0
-      ? highlightedTerms
-      : terms.slice(0, 15);
+    const safeTerms = terms ?? [];
+    const safeHighlighted = highlightedTerms ?? [];
+    const displayTerms = safeHighlighted.length > 0
+      ? safeHighlighted
+      : safeTerms.slice(0, 15);
 
     if (displayTerms.length === 0) {
       return { title: { text: "No GSEA results", left: "center", top: "center", textStyle: { color: "#64748b", fontSize: 14 } } };

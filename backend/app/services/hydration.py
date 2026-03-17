@@ -11,6 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project, ProjectDataSource
@@ -18,11 +19,12 @@ from app.services.drugs import fetch_drug_interactions
 from app.services.pubchem import get_compounds_for_gene
 from app.services.chembl import get_bioactivities_multi
 from app.services.targets import rank_targets
+from app.core.config import settings
 
 logger = logging.getLogger("kiri.hydration")
 
 # Source types that need hydration (download from external APIs)
-HYDRATABLE_SOURCES = {"drugbank", "pubchem", "chembl"}
+HYDRATABLE_SOURCES = {"drugbank", "pubchem", "chembl", "massive", "proteomecentral"}
 
 
 async def hydrate_source(
@@ -89,6 +91,10 @@ async def _fetch_for_source_type(
         return await _hydrate_pubchem(gene_symbols)
     elif source_type == "chembl":
         return await _hydrate_chembl(gene_symbols)
+    elif source_type == "massive":
+        return await _hydrate_massive(gene_symbols)
+    elif source_type == "proteomecentral":
+        return await _hydrate_proteomecentral(gene_symbols)
     else:
         # Non-hydratable sources (tcga, geo, string, etc.)
         return {"status": "passthrough", "source_type": source_type}
@@ -156,3 +162,81 @@ async def _hydrate_chembl(genes: list[str]) -> dict[str, Any]:
         "total_count": total_count,
         "gene_count": len(genes),
     }
+
+
+async def _hydrate_massive(genes: list[str]) -> dict[str, Any]:
+    """Fetch MassIVE proteomics datasets matching project genes via PROXI API."""
+    datasets: list[dict[str, Any]] = []
+    total_count = 0
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for gene in genes:
+            try:
+                resp = await client.get(
+                    f"{settings.MASSIVE_API_BASE}/datasets",
+                    params={"resultType": "compact", "pageSize": "10", "title": gene},
+                )
+                if resp.status_code == 200:
+                    results = resp.json() if isinstance(resp.json(), list) else []
+                    for ds in results[:5]:
+                        datasets.append({
+                            "accession": ds.get("accession", ""),
+                            "title": ds.get("title", ""),
+                            "species": ds.get("species", []),
+                            "instrument": ds.get("instruments", []),
+                            "gene_query": gene,
+                        })
+                    total_count += len(results)
+            except Exception as e:
+                logger.warning(f"MassIVE fetch failed for {gene}: {e}")
+
+    return {
+        "source_type": "massive",
+        "datasets": datasets,
+        "total_count": total_count,
+        "gene_count": len(genes),
+    }
+
+
+async def _hydrate_proteomecentral(genes: list[str]) -> dict[str, Any]:
+    """Fetch ProteomeCentral datasets matching project genes."""
+    datasets: list[dict[str, Any]] = []
+    total_count = 0
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for gene in genes:
+            try:
+                resp = await client.get(
+                    settings.PROTEOMECENTRAL_API_BASE,
+                    params={
+                        "action": "search",
+                        "keywords": gene,
+                        "outputMode": "json",
+                        "pageSize": "10",
+                    },
+                )
+                if resp.status_code == 200:
+                    try:
+                        data = resp.json()
+                        results = data if isinstance(data, list) else data.get("datasets", [])
+                    except Exception:
+                        results = []
+                    for ds in results[:5]:
+                        datasets.append({
+                            "accession": ds.get("accession", ds.get("datasetIdentifier", "")),
+                            "title": ds.get("title", ""),
+                            "species": ds.get("species", ""),
+                            "repository": ds.get("HostingRepository", ds.get("repository", "")),
+                            "gene_query": gene,
+                        })
+                    total_count += len(results)
+            except Exception as e:
+                logger.warning(f"ProteomeCentral fetch failed for {gene}: {e}")
+
+    return {
+        "source_type": "proteomecentral",
+        "datasets": datasets,
+        "total_count": total_count,
+        "gene_count": len(genes),
+    }
+

@@ -318,7 +318,15 @@
     "significance": "Sig.",
     "pathwayTag": "Pathways",
     "gene": "Gene",
-    "avgExpr": "Avg Expr"
+    "avgExpr": "Avg Expr",
+    "panCancerTab": "Pan-Cancer",
+    "panCancerTitle": "Pan-Cancer Expression",
+    "panCancerSubtitle": "Expression across TCGA cancer types (Normal vs Tumor)",
+    "panCancerLoading": "Fetching expression data across cancer types...",
+    "panCancerLoadingHint": "This may take a moment as we query multiple TCGA cohorts",
+    "panCancerEmpty": "No pan-cancer expression data available. Ensure genes are selected.",
+    "selectGene": "Select Gene",
+    "cancerTypes": "cancer types"
   },
   "enrichment": {
     "title": "Gene Set Enrichment Analysis",

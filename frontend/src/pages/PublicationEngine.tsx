@@ -46,6 +46,7 @@ export default function PublicationEngine() {
   const dispatch = useAppDispatch();
   const { panels, options, isExporting, exportError, isLoading, isSaving, lastSavedAt } = useAppSelector(s => s.publication);
   const activeProjectId = useAppSelector(s => s.project.activeProject?.id);
+  const authUser = useAppSelector(s => s.auth.user);
 
   // ── Drag state for cart sidebar ──
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -109,10 +110,24 @@ export default function PublicationEngine() {
     try {
       const response = await generatePublicationFigure({ panels, options });
 
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: options.format === 'svg' ? 'image/svg+xml' : 'application/pdf' }));
+      // Validate response before creating blob
+      if (response.status !== 200) {
+        throw new Error(`Export failed with status ${response.status}`);
+      }
+
+      const ext = options.format || 'pdf';
+      const mimeType = ext === 'svg' ? 'image/svg+xml' : 'application/pdf';
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }));
+
+      // Build filename: kiriresearch_username_serial.format
+      const rawName = authUser?.display_name || authUser?.email?.split('@')[0] || 'export';
+      const safeName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const serial = String(Date.now()).slice(-6);
+      const filename = `kiriresearch_${safeName}_${serial}.${ext}`;
+
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `kiri_figure_${activeProjectId || 'export'}.${options.format}`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       window.URL.revokeObjectURL(url);
@@ -124,6 +139,7 @@ export default function PublicationEngine() {
       dispatch(setExporting(false));
     }
   };
+
 
   // ── Cart drag handlers ──
   const onCartDragStart = (index: number) => (e: React.DragEvent) => {

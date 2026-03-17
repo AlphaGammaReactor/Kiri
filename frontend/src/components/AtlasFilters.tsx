@@ -13,7 +13,7 @@
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import type { AvailableSource } from "../hooks/useProjectDataSources";
-import type { HeatmapOptions } from "./ExpressionHeatmap";
+import type { HeatmapOptions, SampleLabelMode } from "./ExpressionHeatmap";
 import { COLOR_PALETTES, type DistanceMetric, type LinkageMethod } from "../utils/heatmapUtils";
 import { DataSourceBadge } from "./ui";
 
@@ -325,7 +325,7 @@ export function AtlasFilters({
               type="number"
               step="0.5"
               value={heatmapOptions.colorRangeMin ?? ""}
-              placeholder="auto"
+              placeholder={heatmapOptions.transform === "log2" ? "2" : heatmapOptions.transform === "zscore" ? "-2" : "auto"}
               onChange={(e) => updateOption("colorRangeMin", e.target.value ? Number(e.target.value) : undefined)}
               className="w-full text-xs bg-kiri-bg border border-kiri-border rounded px-2 py-1 text-kiri-text focus:border-kiri-accent outline-none placeholder:text-kiri-text-dim/50"
             />
@@ -336,12 +336,23 @@ export function AtlasFilters({
               type="number"
               step="0.5"
               value={heatmapOptions.colorRangeMax ?? ""}
-              placeholder="auto"
+              placeholder={heatmapOptions.transform === "log2" ? "5" : heatmapOptions.transform === "zscore" ? "2" : "auto"}
               onChange={(e) => updateOption("colorRangeMax", e.target.value ? Number(e.target.value) : undefined)}
               className="w-full text-xs bg-kiri-bg border border-kiri-border rounded px-2 py-1 text-kiri-text focus:border-kiri-accent outline-none placeholder:text-kiri-text-dim/50"
             />
           </div>
         </div>
+        <button
+          onClick={() => {
+            const tr = heatmapOptions.transform;
+            const suggestedMin = tr === "log2" ? 2 : tr === "zscore" ? -2 : undefined;
+            const suggestedMax = tr === "log2" ? 5 : tr === "zscore" ? 2 : undefined;
+            onHeatmapOptionsChange({ ...heatmapOptions, colorRangeMin: suggestedMin, colorRangeMax: suggestedMax });
+          }}
+          className="mt-1.5 text-[10px] text-kiri-accent hover:text-white px-2 py-0.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors"
+        >
+          ↺ {t("atlas.resetRange", "Reset to suggested")}
+        </button>
       </section>
 
       {/* ── Stage Filter ── */}
@@ -446,6 +457,34 @@ export function AtlasFilters({
             />
             <span>{t("atlas.showAnnotations", "Sample annotations")}</span>
           </label>
+
+          {/* Sample Label Mode */}
+          <div className="pt-1">
+            <p className="text-[10px] text-kiri-text-dim mb-1.5">
+              {t("atlas.sampleLabels", "Sample labels")}
+            </p>
+            <div className="space-y-1">
+              {([
+                { value: "full" as SampleLabelMode, label: t("atlas.labelFull", "Full Labels") },
+                { value: "group" as SampleLabelMode, label: t("atlas.labelGroup", "Group Only (N/T)") },
+                { value: "colorbar" as SampleLabelMode, label: t("atlas.labelColorbar", "Color Bars Only") },
+              ]).map((mode) => (
+                <label
+                  key={mode.value}
+                  className="flex items-center gap-2 text-xs text-kiri-text-muted hover:text-kiri-text cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    name="sampleLabelMode"
+                    checked={heatmapOptions.sampleLabelMode === mode.value}
+                    onChange={() => updateOption("sampleLabelMode", mode.value)}
+                    className="w-3 h-3 accent-kiri-accent"
+                  />
+                  <span>{mode.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 

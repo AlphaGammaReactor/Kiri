@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -6,8 +6,9 @@ import {
   FlaskConical, BarChart3, Settings, X, ExternalLink, Copy, Check
 } from "lucide-react";
 import { InfoTooltip } from "../components/ui";
-import { useAppSelector } from "../store";
+import { useAppSelector, useAppDispatch } from "../store";
 import type { RootState } from "../store";
+import { hydrateSource } from "../store/dataSourceSlice";
 import { fetchSourceCachedData, fetchCompoundDescription } from "../services/api";
 import { useNavigate } from "react-router-dom";
 
@@ -548,6 +549,7 @@ function RankingDetailDialog({ ranking, onClose }: { ranking: Ranking; onClose: 
 export default function DrugDiscovery() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const activeProject = useAppSelector((s: RootState) => s.project.activeProject);
 
   const [activeTab, setActiveTab] = useState<"interactions" | "ranking" | "compounds" | "bioactivity">("interactions");
@@ -587,6 +589,20 @@ export default function DrugDiscovery() {
   const hasAnyDrugConfig = activeProject?.data_sources.some(
     (ds) => ["drugbank", "pubchem", "chembl"].includes(ds.source_type)
   );
+
+  // Auto-hydrate pending drug sources on first visit
+  const hydratedRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!activeProject) return;
+    const pendingDrugSources = activeProject.data_sources.filter(
+      (ds) => ["drugbank", "pubchem", "chembl"].includes(ds.source_type) &&
+        ds.status === "pending" && !hydratedRef.current.has(ds.id)
+    );
+    for (const ds of pendingDrugSources) {
+      hydratedRef.current.add(ds.id);
+      dispatch(hydrateSource({ projectId: activeProject.id, sourceId: ds.id }));
+    }
+  }, [activeProject, dispatch]);
 
   // Load cached data from backend when available sources are present
   const loadCachedData = useCallback(async () => {

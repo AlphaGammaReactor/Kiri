@@ -141,7 +141,7 @@ async def compute_coexpression_gsea(
     curves for mitochondrial-related pathways.
     """
     if not ranked_genes or len(ranked_genes) < 15:
-        return {"results": {}, "error": "Need ≥15 ranked genes for GSEA"}
+        return {"all_terms": [], "highlighted_terms": [], "total_terms": 0, "total_significant": 0, "method": "GSEA Pre-Ranked (MSigDB Hallmark)", "gene_count": 0, "error": "Need ≥15 ranked genes for GSEA"}
 
     if pathways_of_interest is None:
         pathways_of_interest = MITO_PATHWAYS_OF_INTEREST
@@ -150,7 +150,7 @@ async def compute_coexpression_gsea(
         import gseapy as gp
     except ImportError:
         logger.error("gseapy not installed — GSEA unavailable")
-        return {"results": {}, "error": "gseapy not installed"}
+        return {"all_terms": [], "highlighted_terms": [], "total_terms": 0, "total_significant": 0, "method": "GSEA Pre-Ranked (MSigDB Hallmark)", "gene_count": 0, "error": "gseapy not installed"}
 
     # Build ranked Series
     rnk = pd.Series(ranked_genes).sort_values(ascending=False)
@@ -169,7 +169,7 @@ async def compute_coexpression_gsea(
         )
     except Exception as e:
         logger.warning(f"GSEA pre-ranked failed: {e}")
-        return {"results": {}, "error": str(e)}
+        return {"all_terms": [], "highlighted_terms": [], "total_terms": 0, "total_significant": 0, "method": "GSEA Pre-Ranked (MSigDB Hallmark)", "gene_count": 0, "error": str(e)}
 
     all_terms = []
     highlighted_terms = []

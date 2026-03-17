@@ -15,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.responses import success_response, error_response
+from app.core.auth import get_current_user
+from app.models.user import User
 from app.models.project import Project, ProjectProtein, ProjectDataSource, Snapshot
 from app.services.uniprot import fetch_protein_by_gene
 from app.services.protein_suggest import suggest_related_proteins
@@ -53,7 +55,7 @@ class AddProteinRequest(BaseModel):
 class AddDataSourceRequest(BaseModel):
     source_type: str = Field(
         ...,
-        pattern=r"^(tcga|geo|custom|cptac|scrna|drugbank|pubchem|chembl|string)$",
+        pattern=r"^(tcga|geo|custom|cptac|scrna|drugbank|pubchem|chembl|string|massive|proteomecentral)$",
     )
     label: str = Field(default="")
     config: dict = Field(default_factory=dict)
@@ -106,11 +108,17 @@ def _serialize_project(project: Project) -> dict[str, Any]:
 
 
 @projects_router.get("")
-async def list_projects(db: AsyncSession = Depends(get_db)):
-    """List all projects (excluding soft-deleted)."""
+async def list_projects(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List projects owned by the authenticated user (excluding soft-deleted)."""
     stmt = (
         select(Project)
-        .where(Project.is_deleted == False)  # noqa: E712
+        .where(
+            Project.is_deleted == False,  # noqa: E712
+            Project.owner_id == current_user.id,
+        )
         .order_by(Project.updated_at.desc())
     )
     result = await db.execute(stmt)
@@ -127,18 +135,49 @@ async def list_projects(db: AsyncSession = Depends(get_db)):
 async def create_project(
     body: CreateProjectRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Create a new research project."""
+    """Create a new research project with auto-loaded data sources."""
     project = Project(
         name=body.name,
         description=body.description,
         cancer_type=body.cancer_type,
+        owner_id=current_user.id,
     )
     db.add(project)
     await db.flush()  # Get the generated ID
     await db.refresh(project)
 
-    logger.info(f"Created project '{project.name}' ({project.id})")
+    # ── Auto-register recommended data sources ──
+    rec = get_recommendations(body.cancer_type or "OTHER")
+    tcga_mapping: dict[str, str] = {
+        "COAD": "TCGA-COAD,TCGA-READ", "READ": "TCGA-COAD,TCGA-READ",
+        "CRC": "TCGA-COAD,TCGA-READ", "BRCA": "TCGA-BRCA",
+        "LUAD": "TCGA-LUAD", "LUSC": "TCGA-LUSC", "PRAD": "TCGA-PRAD",
+        "LIHC": "TCGA-LIHC", "STAD": "TCGA-STAD", "OV": "TCGA-OV",
+        "GBM": "TCGA-GBM",
+    }
+    for source_type in rec.get("recommended_sources", []):
+        config: dict[str, Any] = {}
+        if source_type == "tcga":
+            config["project_id"] = tcga_mapping.get(body.cancer_type, body.cancer_type)
+        ds = ProjectDataSource(
+            project_id=project.id,
+            source_type=source_type,
+            label=_default_label(source_type, config),
+            config=config,
+            status="pending",
+        )
+        db.add(ds)
+    await db.flush()
+
+    # Re-fetch with selectin loading so data_sources are populated in response
+    result = await db.execute(
+        select(Project).where(Project.id == project.id)
+    )
+    project = result.scalar_one()
+
+    logger.info(f"Created project '{project.name}' ({project.id}) with {len(rec.get('recommended_sources', []))} auto-loaded sources")
 
     return success_response(
         data=_serialize_project(project),
@@ -160,13 +199,73 @@ async def data_source_recommendations(
     )
 
 
+@projects_router.post("/{project_id}/backfill-sources")
+async def backfill_sources(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retroactively add recommended data sources to an existing project.
+    Skips source types already attached. Used for projects created
+    before the auto-load feature.
+    """
+    project = await _get_project_or_404(project_id, db, current_user.id)
+    cancer_type = (project.cancer_type or "OTHER").strip().upper()
+    rec = get_recommendations(cancer_type)
+
+    existing_types = {ds.source_type for ds in project.data_sources}
+    tcga_mapping: dict[str, str] = {
+        "COAD": "TCGA-COAD,TCGA-READ", "READ": "TCGA-COAD,TCGA-READ",
+        "CRC": "TCGA-COAD,TCGA-READ", "BRCA": "TCGA-BRCA",
+        "LUAD": "TCGA-LUAD", "LUSC": "TCGA-LUSC", "PRAD": "TCGA-PRAD",
+        "LIHC": "TCGA-LIHC", "STAD": "TCGA-STAD", "OV": "TCGA-OV",
+        "GBM": "TCGA-GBM",
+    }
+
+    added = 0
+    for source_type in rec.get("recommended_sources", []):
+        if source_type in existing_types:
+            continue
+        config: dict[str, Any] = {}
+        if source_type == "tcga":
+            config["project_id"] = tcga_mapping.get(cancer_type, cancer_type)
+        ds = ProjectDataSource(
+            project_id=project.id,
+            source_type=source_type,
+            label=_default_label(source_type, config),
+            config=config,
+            status="pending",
+        )
+        db.add(ds)
+        added += 1
+
+    if added > 0:
+        await db.flush()
+
+    # Re-fetch with relationships
+    result = await db.execute(
+        select(Project).where(Project.id == project.id)
+    )
+    project = result.scalar_one()
+
+    logger.info(f"Backfilled {added} sources for project {project.id}")
+
+    return success_response(
+        data=_serialize_project(project),
+        source="kiri-projects",
+        method="backfill",
+    )
+
+
 @projects_router.get("/{project_id}")
 async def get_project(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a project with its proteins and data sources."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
     return success_response(
         data=_serialize_project(project),
         source="kiri-projects",
@@ -179,9 +278,10 @@ async def update_project(
     project_id: uuid.UUID,
     body: UpdateProjectRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update project metadata."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
 
     if body.name is not None:
         project.name = body.name
@@ -204,9 +304,10 @@ async def update_project(
 async def delete_project(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a project."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
     project.is_deleted = True
     await db.flush()
 
@@ -227,13 +328,14 @@ async def add_protein(
     project_id: uuid.UUID,
     body: AddProteinRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Add a protein target to a project.
     If the gene is in the pre-loaded catalog, uses cached metadata (instant).
     Otherwise validates via HGNC and enriches with UniProt metadata.
     """
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
 
     # Check duplicate
     for existing in project.proteins:
@@ -308,9 +410,10 @@ async def remove_protein(
     project_id: uuid.UUID,
     protein_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Remove a protein target from a project."""
-    await _get_project_or_404(project_id, db)
+    await _get_project_or_404(project_id, db, current_user.id)
 
     stmt = select(ProjectProtein).where(
         ProjectProtein.id == protein_id,
@@ -335,9 +438,10 @@ async def remove_protein(
 async def suggest_proteins(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Suggest related proteins based on PubMed co-occurrence with project targets."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
 
     if not project.proteins:
         return success_response(data=[], source="PubMed")
@@ -366,9 +470,10 @@ async def add_data_source(
     project_id: uuid.UUID,
     body: AddDataSourceRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Add a data source to a project."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
 
     source = ProjectDataSource(
         project_id=project.id,
@@ -401,9 +506,10 @@ async def remove_data_source(
     project_id: uuid.UUID,
     source_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Remove a data source from a project."""
-    await _get_project_or_404(project_id, db)
+    await _get_project_or_404(project_id, db, current_user.id)
 
     stmt = select(ProjectDataSource).where(
         ProjectDataSource.id == source_id,
@@ -429,9 +535,10 @@ async def hydrate_data_source(
     project_id: uuid.UUID,
     source_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Hydrate a data source by fetching data from external APIs."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
 
     stmt = select(ProjectDataSource).where(
         ProjectDataSource.id == source_id,
@@ -478,9 +585,10 @@ async def get_source_data(
     project_id: uuid.UUID,
     source_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get cached data for a data source."""
-    await _get_project_or_404(project_id, db)
+    await _get_project_or_404(project_id, db, current_user.id)
 
     stmt = select(ProjectDataSource).where(
         ProjectDataSource.id == source_id,
@@ -510,9 +618,10 @@ async def get_source_status(
     project_id: uuid.UUID,
     source_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get current status of a data source (for polling during hydration)."""
-    await _get_project_or_404(project_id, db)
+    await _get_project_or_404(project_id, db, current_user.id)
 
     stmt = select(ProjectDataSource).where(
         ProjectDataSource.id == source_id,
@@ -594,9 +703,10 @@ class SavePublicationStateRequest(BaseModel):
 async def get_publication_state(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get the saved publication engine state for a project."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
     return success_response(
         data=project.publication_state or {"panels": [], "options": {}},
         source="kiri-projects",
@@ -609,9 +719,10 @@ async def save_publication_state(
     project_id: uuid.UUID,
     body: SavePublicationStateRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Save the publication engine state (panels + options) for a project."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
     project.publication_state = {"panels": body.panels, "options": body.options}
     await db.flush()
 
@@ -633,9 +744,10 @@ async def save_publication_state(
 async def get_ui_state(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get all saved per-page UI state for a project."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
     return success_response(
         data=getattr(project, "ui_state", None) or {},
         source="kiri-projects",
@@ -648,12 +760,13 @@ async def patch_ui_state(
     project_id: uuid.UUID,
     body: dict,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Merge per-page UI state. Body keys are page names, values are state dicts.
     Example: {"atlas": {"normalization": "tpm"}, "interaction": {"confidence": 0.7}}
     """
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
     current = getattr(project, "ui_state", None) or {}
     current.update(body)
     project.ui_state = current
@@ -681,9 +794,10 @@ async def create_snapshot(
     project_id: uuid.UUID,
     body: CreateSnapshotRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Create a snapshot of the current project state."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
 
     state = _serialize_project(project)
 
@@ -717,9 +831,10 @@ async def create_snapshot(
 async def list_snapshots(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all snapshots for a project."""
-    await _get_project_or_404(project_id, db)
+    await _get_project_or_404(project_id, db, current_user.id)
 
     stmt = (
         select(Snapshot)
@@ -751,9 +866,10 @@ async def restore_snapshot(
     project_id: uuid.UUID,
     snapshot_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Restore a project to a previous snapshot state."""
-    project = await _get_project_or_404(project_id, db)
+    project = await _get_project_or_404(project_id, db, current_user.id)
 
     stmt = select(Snapshot).where(
         Snapshot.id == snapshot_id,
@@ -820,14 +936,16 @@ async def restore_snapshot(
 async def duplicate_project(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Clone a project with all its proteins and data sources."""
-    source_project = await _get_project_or_404(project_id, db)
+    source_project = await _get_project_or_404(project_id, db, current_user.id)
 
     new_project = Project(
         name=f"{source_project.name} (Copy)",
         description=source_project.description,
         cancer_type=source_project.cancer_type,
+        owner_id=current_user.id,
     )
     db.add(new_project)
     await db.flush()
@@ -876,12 +994,15 @@ async def duplicate_project(
 async def _get_project_or_404(
     project_id: uuid.UUID,
     db: AsyncSession,
+    owner_id: uuid.UUID | None = None,
 ) -> Project:
-    """Fetch a project or raise 404."""
+    """Fetch a project or raise 404. Optionally scope by owner."""
     stmt = select(Project).where(
         Project.id == project_id,
         Project.is_deleted == False,  # noqa: E712
     )
+    if owner_id is not None:
+        stmt = stmt.where(Project.owner_id == owner_id)
     result = await db.execute(stmt)
     project = result.scalar_one_or_none()
 
@@ -907,5 +1028,7 @@ def _default_label(source_type: str, config: dict) -> str:
         "pubchem": "PubChem (NIH)",
         "chembl": "ChEMBL (EMBL-EBI)",
         "string": "STRING-DB",
+        "massive": "MassIVE (UCSD)",
+        "proteomecentral": "ProteomeCentral",
     }
     return labels.get(source_type, source_type.upper())

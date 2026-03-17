@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     BIOGRID_API_BASE: str = "https://webservice.thebiogrid.org"
     BIOGRID_API_KEY: str = ""  # Optional — BioGRID data skipped if empty
     INTACT_API_BASE: str = "https://www.ebi.ac.uk/intact/ws"
+    MASSIVE_API_BASE: str = "https://massive.ucsd.edu/ProteoSAFe/proxi/v0.1"
+    PROTEOMECENTRAL_API_BASE: str = "http://proteomecentral.proteomexchange.org/cgi/GetDataset"
     GEMINI_API_KEY: str = ""   # Required for Phase 5 AI Discovery
 
     # Authentication (JWT)

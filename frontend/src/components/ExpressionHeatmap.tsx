@@ -40,6 +40,8 @@ interface Sample {
   project: string;
 }
 
+export type SampleLabelMode = "full" | "group" | "colorbar";
+
 export interface HeatmapOptions {
   transform: "none" | "log2" | "zscore";
   clusterRows: boolean;
@@ -54,6 +56,7 @@ export interface HeatmapOptions {
   dendrogramWidth: number;
   colorRangeMin?: number;
   colorRangeMax?: number;
+  sampleLabelMode: SampleLabelMode;
   deFilter?: {
     foldChangeThreshold: number;
     showOnly: boolean;
@@ -72,6 +75,7 @@ export const DEFAULT_HEATMAP_OPTIONS: HeatmapOptions = {
   groupByType: true,
   showDendrogram: false,
   dendrogramWidth: 40,
+  sampleLabelMode: "full",
 };
 
 interface ExpressionHeatmapProps {
@@ -264,14 +268,27 @@ export function ExpressionHeatmap({
       });
     });
 
-    // Apply custom color range if set
-    const vmMin = options.colorRangeMin ?? (isFinite(minVal) ? minVal : 0);
-    const vmMax = options.colorRangeMax ?? (isFinite(maxVal) ? maxVal : 1);
+    // Apply custom color range if set — smart defaults for log2 and zscore
+    const getDefaultMin = () => {
+      if (options.transform === "log2") return 2;
+      if (options.transform === "zscore") return -2;
+      return isFinite(minVal) ? minVal : 0;
+    };
+    const getDefaultMax = () => {
+      if (options.transform === "log2") return 5;
+      if (options.transform === "zscore") return 2;
+      return isFinite(maxVal) ? maxVal : 1;
+    };
+    const vmMin = options.colorRangeMin ?? getDefaultMin();
+    const vmMax = options.colorRangeMax ?? getDefaultMax();
 
-    // Sample labels
-    const sampleLabels = orderedSamples.map((s) =>
-      `${s.sample_id.slice(-6)} (${s.sample_type === "normal" ? "N" : "T"})`
-    );
+    // Sample labels based on display mode
+    const labelMode = options.sampleLabelMode || "full";
+    const sampleLabels = orderedSamples.map((s) => {
+      if (labelMode === "group") return s.sample_type === "normal" ? "N" : "T";
+      return `${s.sample_id.slice(-6)} (${s.sample_type === "normal" ? "N" : "T"})`;
+    });
+    const showAxisLabels = labelMode !== "colorbar";
 
     // Gene labels with significance asterisks and pathway tags
     const geneLabels = displayGenes.map((gene) => {
@@ -373,24 +390,26 @@ export function ExpressionHeatmap({
         left: 120,
         right: 24,
         top: 48 + annotationOffset,
-        bottom: 80,
+        bottom: labelMode === "colorbar" ? 24 : (labelMode === "group" ? 36 : 80),
       },
       xAxis: {
         type: "category" as const,
         data: sampleLabels,
         axisLabel: {
-          show: true,
-          rotate: 45,
-          fontSize: 7,
+          show: showAxisLabels,
+          rotate: labelMode === "group" ? 0 : 45,
+          fontSize: labelMode === "group" ? 9 : 7,
           color: "#64748b",
-          interval: Math.max(0, Math.floor(sampleLabels.length / 30) - 1),
-          formatter: (v: string) => (v as string).slice(0, 12),
+          interval: labelMode === "group"
+            ? Math.max(0, Math.floor(sampleLabels.length / 40) - 1)
+            : Math.max(0, Math.floor(sampleLabels.length / 30) - 1),
+          formatter: labelMode === "group" ? undefined : ((v: string) => (v as string).slice(0, 12)),
         },
-        axisTick: { show: true, length: 2, lineStyle: { color: "#334155" } },
+        axisTick: { show: showAxisLabels, length: 2, lineStyle: { color: "#334155" } },
         splitArea: { show: false },
         name: `Samples (n=${orderedSamples.length})`,
         nameLocation: "center" as const,
-        nameGap: 45,
+        nameGap: labelMode === "colorbar" ? 12 : (labelMode === "group" ? 25 : 45),
         nameTextStyle: {
           fontSize: 10,
           color: "#94a3b8",

@@ -21,23 +21,21 @@ async def generate_figure(body: ExportRequest):
     # Initialize engine
     engine = FigureLayoutEngine(panels=body.panels, options=body.options)
     
-    if body.panels:
-        with open("debug_b64.txt", "w") as f:
-            f.write(body.panels[0].data[:100] + "\n...\nTotal length: " + str(len(body.panels[0].data)))
+
     
     if body.options.format == "svg":
         svg_content = engine.generate_svg()
         return Response(
             content=svg_content.encode("utf-8"),
             media_type="image/svg+xml",
-            headers={"Content-Disposition": "attachment; filename=kiri_figure.svg"},
+            headers={"Content-Disposition": "attachment; filename=kiriresearch_export.svg"},
         )
     else:
         pdf_bytes = engine.generate_pdf()
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=kiri_figure.pdf"},
+            headers={"Content-Disposition": "attachment; filename=kiriresearch_export.pdf"},
         )
 
 
