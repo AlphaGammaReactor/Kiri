@@ -8,6 +8,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+
+# In production, API calls go through nginx proxy at /api
+ENV VITE_API_BASE=/api
 RUN npm run build
 
 # Stage 2: Serve with nginx
