@@ -318,7 +318,17 @@
     "significance": "显著性",
     "pathwayTag": "通路",
     "gene": "基因",
-    "avgExpr": "平均表达"
+    "avgExpr": "平均表达",
+    "panCancerTab": "泛癌分析",
+    "panCancerTitle": "泛癌表达分析",
+    "panCancerSubtitle": "跨 TCGA 癌型的基因表达（正常 vs 肿瘤）",
+    "panCancerLoading": "正在获取各癌型表达数据……",
+    "panCancerLoadingHint": "需要查询多个 TCGA 队列，可能需要一些时间",
+    "panCancerEmpty": "暂无泛癌表达数据。请确保已选择基因。",
+    "panCancerDesc": "对比您的靶标基因在33种TCGA癌型中的表达差异，并进行统计显著性检验。",
+    "runPanCancer": "运行泛癌分析",
+    "selectGene": "选择基因",
+    "cancerTypes": "种癌型"
   },
   "enrichment": {
     "title": "基因集富集分析",

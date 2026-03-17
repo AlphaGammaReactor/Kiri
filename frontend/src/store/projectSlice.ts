@@ -83,8 +83,21 @@ export const createProject = createAsyncThunk(
 
 export const fetchProject = createAsyncThunk(
   "project/fetchOne",
-  async (id: string) => {
+  async (id: string, { dispatch }) => {
     const resp = await apiClient.get(`/v1/projects/${id}`);
+    const project = resp.data.data;
+    // Auto-backfill sources for projects created before auto-load
+    if (project && (!project.data_sources || project.data_sources.length === 0) && project.cancer_type) {
+      dispatch(backfillSources(project.id));
+    }
+    return project;
+  }
+);
+
+export const backfillSources = createAsyncThunk(
+  "project/backfillSources",
+  async (projectId: string) => {
+    const resp = await apiClient.post(`/v1/projects/${projectId}/backfill-sources`);
     return resp.data.data;
   }
 );
@@ -245,6 +258,14 @@ const projectSlice = createSlice({
     builder
       .addCase(fetchProject.fulfilled, (state, action) => {
         state.activeProject = action.payload;
+      });
+
+    // backfillSources
+    builder
+      .addCase(backfillSources.fulfilled, (state, action) => {
+        if (state.activeProject && action.payload) {
+          state.activeProject = action.payload;
+        }
       });
 
     // addProtein

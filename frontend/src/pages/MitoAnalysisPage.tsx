@@ -275,10 +275,10 @@ function MitoAnalysisPage() {
                     return gsea ? (
                       <CoexpressionGSEAPlot
                         key={gene}
-                        terms={gsea.all_terms}
-                        highlightedTerms={gsea.highlighted_terms}
+                        terms={gsea.all_terms ?? []}
+                        highlightedTerms={gsea.highlighted_terms ?? []}
                         targetGene={geneUpper}
-                        totalSignificant={gsea.total_significant}
+                        totalSignificant={gsea.total_significant ?? 0}
                       />
                     ) : null;
                   })}

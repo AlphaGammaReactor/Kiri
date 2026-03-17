@@ -8,6 +8,7 @@ All endpoints use the standard response envelope with Provenance.
 Mounted at /api/v1/atlas/
 """
 
+import asyncio
 import csv
 import io
 import logging
@@ -37,6 +38,8 @@ from app.models.atlas import (
     CoexpressionRequest,
     MitoCorrelationRequest,
     MitoScoreRequest,
+    PanCancerRequest,
+    TCGA_PAN_CANCER_PROJECTS,
 )
 from app.models.project import Project, ProjectDataSource, ProjectProtein
 from app.services.gdc import fetch_expression, fetch_clinical
@@ -752,4 +755,132 @@ async def run_mito_score_analysis(body: MitoScoreRequest, db: AsyncSession = Dep
         source="TCGA-COAD/READ (GDC)",
         method="ssGSEA + maxstat cutpoint",
         sample_count=result.get("sample_count", 0),
+    )
+
+
+# ══════════════════════════════
+#  Pan-Cancer Expression Boxplot
+# ══════════════════════════════
+
+
+@atlas_router.post("/pan-cancer-expression")
+async def get_pan_cancer_expression(body: PanCancerRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Fetch expression data for gene(s) across all major TCGA cancer types.
+
+    For each cancer type, returns Normal vs Tumor expression values
+    with Wilcoxon rank-sum p-value and log2 fold change.
+    Used for GEPIA-style pan-cancer boxplot visualization.
+    """
+    await _enrich_from_project(body, db)
+
+    if not body.genes:
+        raise KiriValidationError("No genes specified.", source="atlas")
+
+    cancer_projects = body.cancer_projects or TCGA_PAN_CANCER_PROJECTS
+
+    from scipy import stats as scipy_stats
+    import numpy as np
+
+    async def _fetch_one_project(project_id: str):
+        """Fetch expression for a single TCGA project and compute stats."""
+        try:
+            result = await fetch_expression(
+                genes=body.genes,
+                project_ids=[project_id],
+            )
+            if not result or not result.get("samples"):
+                return None
+
+            samples = result["samples"]
+            values = result["values"]
+
+            # Split samples into normal vs tumor
+            normal_idx = [i for i, s in enumerate(samples) if s.get("sample_type") == "normal"]
+            tumor_idx = [i for i, s in enumerate(samples) if s.get("sample_type") == "tumor"]
+
+            if not tumor_idx:
+                return None  # No tumor samples → skip
+
+            # Build per-gene stats
+            gene_stats = []
+            for gene in body.genes:
+                gene_vals = values.get(gene.upper(), values.get(gene, []))
+                if not gene_vals:
+                    continue
+
+                normal_vals = [gene_vals[i] for i in normal_idx] if normal_idx else []
+                tumor_vals = [gene_vals[i] for i in tumor_idx]
+
+                # Wilcoxon rank-sum test (lightweight, fast)
+                p_value = 1.0
+                if len(normal_vals) >= 3 and len(tumor_vals) >= 3:
+                    try:
+                        _, p_value = scipy_stats.ranksums(
+                            np.array(tumor_vals), np.array(normal_vals)
+                        )
+                        p_value = float(p_value)
+                    except Exception:
+                        p_value = 1.0
+
+                # Log2 fold change
+                mean_t = float(np.mean(tumor_vals)) if tumor_vals else 0.0
+                mean_n = float(np.mean(normal_vals)) if normal_vals else 0.0
+                log2fc = 0.0
+                if mean_n > 0 and mean_t > 0:
+                    log2fc = float(np.log2(mean_t / mean_n))
+
+                gene_stats.append({
+                    "gene": gene.upper(),
+                    "normal_values": normal_vals,
+                    "tumor_values": tumor_vals,
+                    "p_value": round(p_value, 8),
+                    "log2fc": round(log2fc, 4),
+                    "n_normal": len(normal_vals),
+                    "n_tumor": len(tumor_vals),
+                    "mean_normal": round(mean_n, 4),
+                    "mean_tumor": round(mean_t, 4),
+                })
+
+            if not gene_stats:
+                return None
+
+            # Short label: TCGA-BRCA → BRCA
+            short = project_id.replace("TCGA-", "")
+
+            return {
+                "project": project_id,
+                "label": short,
+                "total_samples": len(samples),
+                "genes": gene_stats,
+            }
+        except Exception as e:
+            logger.warning(f"Pan-cancer: failed to fetch {project_id}: {e}")
+            return None
+
+    # Fetch all projects concurrently (batched to avoid overload)
+    BATCH_SIZE = 8
+    all_results = []
+    for i in range(0, len(cancer_projects), BATCH_SIZE):
+        batch = cancer_projects[i : i + BATCH_SIZE]
+        batch_results = await asyncio.gather(
+            *[_fetch_one_project(pid) for pid in batch],
+            return_exceptions=True,
+        )
+        for r in batch_results:
+            if r is not None and not isinstance(r, Exception):
+                all_results.append(r)
+
+    # Sort by label
+    all_results.sort(key=lambda x: x["label"])
+
+    return success_response(
+        data={
+            "cancer_types": all_results,
+            "genes": [g.upper() for g in body.genes],
+            "total_cancer_types": len(all_results),
+        },
+        source="TCGA Pan-Cancer (GDC)",
+        method="Wilcoxon rank-sum test",
+        sample_count=sum(r["total_samples"] for r in all_results),
     )

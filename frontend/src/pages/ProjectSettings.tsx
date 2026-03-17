@@ -26,20 +26,23 @@ import FileManager from "../components/FileManager";
 
 /* ── Data Source Options (same catalog as wizard) ── */
 const DATA_SOURCE_OPTIONS = [
-  { type: "tcga",     icon: "🧬", label: "TCGA",        description: "The Cancer Genome Atlas RNA-seq data", category: "genomics" },
-  { type: "geo",      icon: "📊", label: "GEO",         description: "Gene Expression Omnibus validation cohorts", category: "genomics" },
-  { type: "cptac",    icon: "🔬", label: "CPTAC",       description: "Clinical Proteomic Tumor Analysis Consortium", category: "genomics" },
-  { type: "scrna",    icon: "🔵", label: "Single-Cell",  description: "Human Colon Cancer scRNA-seq Atlas", category: "genomics" },
-  { type: "string",   icon: "🔗", label: "STRING-DB",   description: "Protein-protein interaction network (EMBL/SIB)", category: "protein" },
-  { type: "drugbank", icon: "💊", label: "DrugBank",    description: "FDA-approved drug-target interactions", category: "drug" },
-  { type: "pubchem",  icon: "🧪", label: "PubChem",     description: "NIH compound database — structures & properties", category: "drug" },
-  { type: "chembl",   icon: "📐", label: "ChEMBL",      description: "EMBL-EBI bioactivity — IC50, Ki, binding affinities", category: "drug" },
+  { type: "tcga",             icon: "🧬", label: "TCGA",            description: "The Cancer Genome Atlas RNA-seq data", category: "genomics" },
+  { type: "geo",              icon: "📊", label: "GEO",             description: "Gene Expression Omnibus validation cohorts", category: "genomics" },
+  { type: "cptac",            icon: "🔬", label: "CPTAC",           description: "Clinical Proteomic Tumor Analysis Consortium", category: "genomics" },
+  { type: "scrna",            icon: "🔵", label: "Single-Cell",     description: "Human Colon Cancer scRNA-seq Atlas", category: "genomics" },
+  { type: "massive",          icon: "📡", label: "MassIVE",         description: "Mass spectrometry proteomics repository (UCSD)", category: "proteomics" },
+  { type: "proteomecentral",  icon: "🧫", label: "ProteomeCentral", description: "Aggregated proteomics datasets (ProteomeXchange)", category: "proteomics" },
+  { type: "string",           icon: "🔗", label: "STRING-DB",       description: "Protein-protein interaction network (EMBL/SIB)", category: "protein" },
+  { type: "drugbank",         icon: "💊", label: "DrugBank",        description: "FDA-approved drug-target interactions", category: "drug" },
+  { type: "pubchem",          icon: "🧪", label: "PubChem",         description: "NIH compound database — structures & properties", category: "drug" },
+  { type: "chembl",           icon: "📐", label: "ChEMBL",          description: "EMBL-EBI bioactivity — IC50, Ki, binding affinities", category: "drug" },
 ];
 
 const SOURCE_CATEGORIES = [
-  { key: "genomics", label: "Genomics & Expression" },
-  { key: "protein",  label: "Protein Interaction & Structure" },
-  { key: "drug",     label: "Drug & Compound" },
+  { key: "genomics",    label: "Genomics & Expression" },
+  { key: "proteomics",  label: "Proteomics" },
+  { key: "protein",     label: "Protein Interaction & Structure" },
+  { key: "drug",        label: "Drug & Compound" },
 ];
 
 const CATEGORY_META: Record<string, { icon: string; description: string; emptyHint: string }> = {
@@ -47,6 +50,11 @@ const CATEGORY_META: Record<string, { icon: string; description: string; emptyHi
     icon: "🧬",
     description: "Powers Atlas heatmaps, enrichment analysis, and DNB detection",
     emptyHint: "Add TCGA, GEO, or upload custom data to power the Atlas module",
+  },
+  proteomics: {
+    icon: "📡",
+    description: "Powers mass spectrometry data search and quantitative proteomics",
+    emptyHint: "Add MassIVE or ProteomeCentral for proteomics dataset access",
   },
   protein: {
     icon: "🔗",
@@ -104,9 +112,9 @@ export default function ProjectSettings() {
       projectId: activeProject.id,
       source_type: sourceType,
     }));
-    // Trigger hydration for drug-type sources
+    // Trigger hydration for hydratable sources
     if (addDataSource.fulfilled.match(result) && result.payload?.id) {
-      const hydratableTypes = ["drugbank", "pubchem", "chembl"];
+      const hydratableTypes = ["drugbank", "pubchem", "chembl", "massive", "proteomecentral"];
       if (hydratableTypes.includes(sourceType)) {
         dispatch(
           hydrateSource({

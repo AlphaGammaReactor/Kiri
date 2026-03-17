@@ -20,6 +20,7 @@ import { DNBPanel } from "../components/DNBPanel";
 import { TemporalClusterPanel } from "../components/TemporalClusterPanel";
 import { DEResultsTable } from "../components/DEResultsTable";
 import { GeneBoxplots } from "../components/GeneBoxplots";
+import { PanCancerBoxplot } from "../components/PanCancerBoxplot";
 import { Card, StatusBadge, Stat, InfoTooltip } from "../components/ui";
 import { useProjectDataSources } from "../hooks/useProjectDataSources";
 import { usePageState } from "../hooks/usePageState";
@@ -33,6 +34,7 @@ import {
   type DEResponse,
 } from "../services/api";
 import { motion } from "framer-motion";
+import { pValueToAsterisks } from "../utils/heatmapUtils";
 
 interface Sample {
   sample_id: string;
@@ -51,7 +53,7 @@ interface ExpressionResult {
   sample_count: number;
 }
 
-type AtlasTab = "expression" | "enrichment" | "dnb" | "temporal";
+type AtlasTab = "expression" | "enrichment" | "dnb" | "temporal" | "pan-cancer";
 
 export default function AtlasPage() {
   const { t } = useTranslation();
@@ -332,6 +334,18 @@ export default function AtlasPage() {
         >
           📈 {t("temporal.title", "Temporal Clusters")}
         </button>
+        {dataSource === "tcga" && (
+          <button
+            onClick={() => setActiveTab("pan-cancer")}
+            className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
+              activeTab === "pan-cancer"
+                ? "border-kiri-accent text-kiri-accent"
+                : "border-transparent text-kiri-text-muted hover:text-kiri-text"
+            }`}
+          >
+            📊 {t("atlas.panCancerTab", "Pan-Cancer")}
+          </button>
+        )}
       </div>
 
       {/* ── Tab Content ── */}
@@ -351,6 +365,12 @@ export default function AtlasPage() {
           expressionMatrix={data?.values ?? null}
           stageLabels={data?.samples?.map(s => normalizeStage(s.stage) || s.sample_type || "unknown") ?? null}
           loading={loading}
+        />
+      ) : activeTab === "pan-cancer" ? (
+        <PanCancerBoxplot
+          genes={selectedGenes}
+          projectIds={clinicalProjectIds}
+          projectId={activeProject?.id}
         />
       ) : (
       /* ── Expression Tab: Sidebar + Content ── */
@@ -541,51 +561,85 @@ export default function AtlasPage() {
 
           {/* Gene Summary Cards */}
           {filteredData && filteredData.genes.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredData.genes.map((gene) => {
-                const geneValues = filteredData.values[gene] || [];
-                const tumorValues = geneValues.filter(
-                  (_, i) => filteredData.samples[i]?.sample_type === "tumor"
-                );
-                const normalValues = geneValues.filter(
-                  (_, i) => filteredData.samples[i]?.sample_type === "normal"
-                );
-                const tumorMean = tumorValues.length
-                  ? tumorValues.reduce((a, b) => a + b, 0) / tumorValues.length
-                  : 0;
-                const normalMean = normalValues.length
-                  ? normalValues.reduce((a, b) => a + b, 0) / normalValues.length
-                  : 0;
-                const fc = normalMean > 0 ? tumorMean / normalMean : 0;
+            <>
+              {/* Statistical method annotation */}
+              {deResponse && deResults.length > 0 && (
+                <div className="text-[10px] text-kiri-text-dim px-1 -mb-1">
+                  {t("atlas.statisticalMethod", "Statistical method")}: <span className="text-kiri-text-muted">{deResponse.method}</span>
+                  {" | "}
+                  {t("atlas.correction", "Correction")}: <span className="text-kiri-text-muted">{deResponse.correction}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredData.genes.map((gene) => {
+                  const geneValues = filteredData.values[gene] || [];
+                  const tumorValues = geneValues.filter(
+                    (_, i) => filteredData.samples[i]?.sample_type === "tumor"
+                  );
+                  const normalValues = geneValues.filter(
+                    (_, i) => filteredData.samples[i]?.sample_type === "normal"
+                  );
+                  const tumorMean = tumorValues.length
+                    ? tumorValues.reduce((a, b) => a + b, 0) / tumorValues.length
+                    : 0;
+                  const normalMean = normalValues.length
+                    ? normalValues.reduce((a, b) => a + b, 0) / normalValues.length
+                    : 0;
+                  const fc = normalMean > 0 ? tumorMean / normalMean : 0;
 
-                return (
-                  <Card key={gene} title={gene}>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-kiri-text-muted">
-                          {t("atlas.tumorMean", "Tumor Mean")}
-                        </span>
-                        <span className="font-mono text-kiri-error">{tumorMean.toFixed(2)}</span>
+                  // Look up DE results for this gene
+                  const deResult = deResults.find(r => r.gene === gene);
+                  const pVal = deResult?.p_value;
+                  const fdr = deResult?.adjusted_p_value;
+                  const stars = fdr != null ? pValueToAsterisks(fdr) : "";
+
+                  return (
+                    <Card key={gene} title={gene}>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-kiri-text-muted">
+                            {t("atlas.tumorMean", "Tumor Mean")}
+                          </span>
+                          <span className="font-mono text-kiri-error">{tumorMean.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-kiri-text-muted">
+                            {t("atlas.normalMean", "Normal Mean")}
+                          </span>
+                          <span className="font-mono text-kiri-success">{normalMean.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs border-t border-kiri-border pt-1.5">
+                          <span className="text-kiri-text-muted">
+                            {t("atlas.foldChange", "Fold Change")}
+                          </span>
+                          <span className={`font-mono font-bold ${fc > 1.5 ? "text-kiri-error" : fc < 0.67 ? "text-kiri-success" : "text-kiri-text"}`}>
+                            {fc.toFixed(2)}×
+                          </span>
+                        </div>
+                        {/* P-value & FDR */}
+                        {pVal != null && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-kiri-text-muted">p-value</span>
+                            <span className="font-mono text-kiri-text-muted">
+                              {pVal < 0.001 ? pVal.toExponential(2) : pVal.toFixed(4)}
+                            </span>
+                          </div>
+                        )}
+                        {fdr != null && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-kiri-text-muted">FDR</span>
+                            <span className={`font-mono ${fdr < 0.05 ? "text-kiri-accent font-bold" : "text-kiri-text-muted"}`}>
+                              {fdr < 0.001 ? fdr.toExponential(2) : fdr.toFixed(4)}
+                              {stars && <span className="ml-1 text-amber-400">{stars}</span>}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-kiri-text-muted">
-                          {t("atlas.normalMean", "Normal Mean")}
-                        </span>
-                        <span className="font-mono text-kiri-success">{normalMean.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs border-t border-kiri-border pt-1.5">
-                        <span className="text-kiri-text-muted">
-                          {t("atlas.foldChange", "Fold Change")}
-                        </span>
-                        <span className={`font-mono font-bold ${fc > 1.5 ? "text-kiri-error" : fc < 0.67 ? "text-kiri-success" : "text-kiri-text"}`}>
-                          {fc.toFixed(2)}×
-                        </span>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>

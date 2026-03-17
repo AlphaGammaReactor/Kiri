@@ -6,8 +6,10 @@ Applies journal-specific themes from publication_themes.
 """
 
 import io
+import os
 import tempfile
 import base64
+import logging
 import math
 from datetime import datetime
 from pydantic import BaseModel
@@ -66,7 +68,6 @@ class FigureLayoutEngine:
             c.setFont("Helvetica", 9)
             c.drawString(x + 5, y + h / 2, "[SVG: install svglib to render]")
             return
-        import os
         fd, tmp_name = tempfile.mkstemp(suffix=".svg")
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
@@ -89,35 +90,49 @@ class FigureLayoutEngine:
 
     def _draw_png(self, c, b64_string: str, x: float, y: float, w: float, h: float):
         if b64_string.startswith("data:image"):
-            b64_string = b64_string.split(",")[1]
+            b64_string = b64_string.split(",", 1)[1]
         try:
             img_data = base64.b64decode(b64_string)
-            fd, tmp_name = tempfile.mkstemp(suffix=".png")
+
+            # Try PIL first for proper transparency compositing
             try:
                 from PIL import Image
-                import io
-                
                 img = Image.open(io.BytesIO(img_data))
-                if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                img.load()  # force decode
+
+                # Flatten transparency onto white background
+                if img.mode in ('RGBA', 'LA', 'PA') or (img.mode == 'P' and 'transparency' in img.info):
                     bg = Image.new("RGB", img.size, (255, 255, 255))
-                    bg.paste(img, mask=img.convert("RGBA").split()[3])
+                    alpha = img.convert("RGBA").split()[3]
+                    bg.paste(img.convert("RGBA"), mask=alpha)
                     img = bg
-                else:
+                elif img.mode != 'RGB':
                     img = img.convert("RGB")
-                    
-                with os.fdopen(fd, 'wb') as f:
-                    img.save(f, format="PNG")
-                    
-                c.drawImage(tmp_name, x, y, width=w, height=h, preserveAspectRatio=True, anchor='c')
-            finally:
+
+                fd, tmp_name = tempfile.mkstemp(suffix=".png")
                 try:
-                    os.remove(tmp_name)
-                except OSError:
-                    pass
+                    with os.fdopen(fd, 'wb') as f:
+                        img.save(f, format="PNG")
+                    c.drawImage(tmp_name, x, y, width=w, height=h, preserveAspectRatio=True, anchor='c')
+                finally:
+                    try:
+                        os.remove(tmp_name)
+                    except OSError:
+                        pass
+                return  # success via PIL path
+
+            except Exception:
+                pass  # fall through to ImageReader path
+
+            # Fallback: use reportlab's ImageReader directly (handles most standard PNGs)
+            if _HAS_REPORTLAB:
+                reader = ImageReader(io.BytesIO(img_data))
+                c.drawImage(reader, x, y, width=w, height=h, preserveAspectRatio=True, anchor='c')
+            else:
+                logging.getLogger(__name__).warning("Cannot render PNG: no PIL and no reportlab ImageReader")
+
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"Error drawing PNG: {e}")
+            logging.getLogger(__name__).error("Error drawing PNG panel: %s", e, exc_info=True)
 
     def generate_pdf(self) -> bytes:
         buffer = io.BytesIO()

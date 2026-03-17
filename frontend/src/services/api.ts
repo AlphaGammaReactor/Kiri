@@ -40,6 +40,33 @@ const client = axios.create({
 /** Export raw client for direct use in Redux thunks */
 export const apiClient = client;
 
+// ── Auth Token Interceptor ──
+// Lazily injected store reference to avoid circular imports.
+// App.tsx calls setAuthStore(store) once on mount.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _store: any = null;
+
+/**
+ * Inject the Redux store so the API client can read auth tokens.
+ * Call this once from App.tsx or main.tsx after store creation.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function setAuthStore(store: any): void {
+  _store = store;
+}
+
+client.interceptors.request.use((config) => {
+  if (_store) {
+    const token = _store.getState()?.auth?.token;
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
 // Retry wrapper for transient failures
 async function withRetry<T>(
   fn: () => Promise<T>,
@@ -816,6 +843,49 @@ export async function fetchMitoScore(
     cutpoint_method: cutpointMethod,
     project_id: projectId,
   });
+}
+
+// ══════════════════════════════
+//  Pan-Cancer Expression
+// ══════════════════════════════
+
+/**
+ * Fetch pan-cancer expression data for gene(s) across all major TCGA cancer types.
+ * Returns Normal vs Tumor values per cancer type with Wilcoxon p-values.
+ */
+export async function fetchPanCancerExpression(
+  genes: string[],
+  projectIds?: string[],
+  projectId?: string,
+) {
+  // Pan-cancer queries 33 TCGA projects via GDC — needs extended timeout
+  const resp = await withRetry(() =>
+    client.post<ApiResponse<{
+      cancer_types: Array<{
+        project: string;
+        label: string;
+        total_samples: number;
+        genes: Array<{
+          gene: string;
+          normal_values: number[];
+          tumor_values: number[];
+          p_value: number;
+          log2fc: number;
+          n_normal: number;
+          n_tumor: number;
+          mean_normal: number;
+          mean_tumor: number;
+        }>;
+      }>;
+      genes: string[];
+      total_cancer_types: number;
+    }>>("/v1/atlas/pan-cancer-expression", {
+      genes,
+      cancer_projects: projectIds,
+      project_id: projectId,
+    }, { timeout: 120000 })
+  );
+  return resp.data;
 }
 
 // ══════════════════════════════

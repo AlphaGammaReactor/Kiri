@@ -20,17 +20,18 @@ export interface AvailableSource {
   id?: string;
 }
 
-/** Static metadata for rendering data source cards */
 const SOURCE_META: Record<string, { icon: string; label: string }> = {
-  tcga:     { icon: "🧬", label: "TCGA" },
-  geo:      { icon: "📊", label: "GEO" },
-  cptac:    { icon: "🔬", label: "CPTAC" },
-  scrna:    { icon: "🔵", label: "Single-Cell" },
-  custom:   { icon: "📁", label: "Custom Upload" },
-  string:   { icon: "🔗", label: "STRING-DB" },
-  drugbank: { icon: "💊", label: "DrugBank" },
-  pubchem:  { icon: "🧪", label: "PubChem" },
-  chembl:   { icon: "📐", label: "ChEMBL" },
+  tcga:             { icon: "🧬", label: "TCGA" },
+  geo:              { icon: "📊", label: "GEO" },
+  cptac:            { icon: "🔬", label: "CPTAC" },
+  scrna:            { icon: "🔵", label: "Single-Cell" },
+  custom:           { icon: "📁", label: "Custom Upload" },
+  string:           { icon: "🔗", label: "STRING-DB" },
+  drugbank:         { icon: "💊", label: "DrugBank" },
+  pubchem:          { icon: "🧪", label: "PubChem" },
+  chembl:           { icon: "📐", label: "ChEMBL" },
+  massive:          { icon: "📡", label: "MassIVE" },
+  proteomecentral:  { icon: "🧫", label: "ProteomeCentral" },
 };
 
 export function useProjectDataSources() {
