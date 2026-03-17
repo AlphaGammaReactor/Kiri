@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useAppSelector } from "../store";
+import { useAppSelector, useAppDispatch } from "../store";
 import { motion } from "framer-motion";
 import { Card, StatusBadge, ChartSkeleton } from "../components/ui";
 import { PPINetwork } from "../components/PPINetwork";
@@ -24,11 +24,24 @@ import { RegulatoryGraph } from "../components/RegulatoryGraph";
 import {
   fetchEnhancedPPI,
   fetchCoexpressionHeatmap,
+  fetchProteomicsAnalysis,
+  fetchPublicDE,
   fetchSubstrateScan,
   fetchRegulatoryNetwork,
   getErrorMessage,
 } from "../services/api";
-import type { Provenance } from "../services/api";
+import {
+  setActiveTab as setActiveTabAction,
+  setNetworkData as setNetworkDataAction,
+  clearNetworkData as clearNetworkDataAction,
+  setHighConfidence as setHighConfidenceAction,
+  setShowMitoOnly as setShowMitoOnlyAction,
+  setCoexprData as setCoexprDataAction,
+  setPrideResults as setPrideResultsAction,
+  setGeoResults as setGeoResultsAction,
+  setSubstrateData as setSubstrateDataAction,
+  setRegulatoryData as setRegulatoryDataAction,
+} from "../store/interactomicsSlice";
 
 type TabId = "network" | "coexpression" | "proteomics" | "de" | "substrates" | "regulatory";
 
@@ -43,32 +56,35 @@ const TABS: { id: TabId; labelKey: string; fallback: string; icon: string }[] = 
 
 function InteractomicsPage() {
   const { t } = useTranslation();
+  const dispatch = useAppDispatch();
   const selectedGenes = useAppSelector((s) => s.app.selectedGenes);
   const activeProject = useAppSelector((s) => s.project.activeProject);
   const projectId = activeProject?.id;
 
-  const [activeTab, setActiveTab] = useState<TabId>("network");
+  // ── Redux-persisted state (survives navigation + refresh) ──
+  const activeTab = useAppSelector((s) => s.interactomics.activeTab) as TabId;
+  const networkData = useAppSelector((s) => s.interactomics.networkData);
+  const networkProv = useAppSelector((s) => s.interactomics.networkProv);
+  const coexprData = useAppSelector((s) => s.interactomics.coexprData);
+  const coexprProv = useAppSelector((s) => s.interactomics.coexprProv);
+  const substrateData = useAppSelector((s) => s.interactomics.substrateData);
+  const regulatoryData = useAppSelector((s) => s.interactomics.regulatoryData);
+  const regulatoryProv = useAppSelector((s) => s.interactomics.regulatoryProv);
+  const prideResults = useAppSelector((s) => s.interactomics.prideResults);
+  const geoResults = useAppSelector((s) => s.interactomics.geoResults);
+  const highConfidence = useAppSelector((s) => s.interactomics.highConfidence);
+  const showMitoOnly = useAppSelector((s) => s.interactomics.showMitoOnly);
 
-  // Data states
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [networkData, setNetworkData] = useState<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [coexprData, setCoexprData] = useState<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [substrateData, setSubstrateData] = useState<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [regulatoryData, setRegulatoryData] = useState<any>(null);
-
-  const [networkProv, setNetworkProv] = useState<Provenance | null>(null);
-  const [coexprProv, setCoexprProv] = useState<Provenance | null>(null);
-  const [regulatoryProv, setRegulatoryProv] = useState<Provenance | null>(null);
-
+  // ── Ephemeral UI state (no need to persist) ──
+  const [prideLoading, setPrideLoading] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
-  // Network controls
-  const [highConfidence, setHighConfidence] = useState(false);
-  const [showMitoOnly, setShowMitoOnly] = useState(false);
+  // Tab setter that goes through Redux
+  const setActiveTab = useCallback((tab: TabId) => {
+    dispatch(setActiveTabAction(tab));
+  }, [dispatch]);
 
   // Stable genes reference
   const genes = useMemo(() => selectedGenes, [selectedGenes]);
@@ -91,8 +107,7 @@ function InteractomicsPage() {
               genes, 0.4, highConfidence, true, true, projectId
             );
             if (resp.status === "success") {
-              setNetworkData(resp.data);
-              setNetworkProv(resp.provenance);
+              dispatch(setNetworkDataAction({ data: resp.data, provenance: resp.provenance }));
             } else {
               setError(resp.errors?.join("; ") || "Failed to fetch network");
             }
@@ -105,8 +120,7 @@ function InteractomicsPage() {
               genes, ["TCGA-COAD", "TCGA-READ"], 0.6, 50, projectId
             );
             if (resp.status === "success") {
-              setCoexprData(resp.data);
-              setCoexprProv(resp.provenance);
+              dispatch(setCoexprDataAction({ data: resp.data, provenance: resp.provenance }));
             } else {
               setError(resp.errors?.join("; ") || "Failed to fetch co-expression data");
             }
@@ -117,7 +131,7 @@ function InteractomicsPage() {
           if (!substrateData) {
             const resp = await fetchSubstrateScan(genes, undefined, true, projectId);
             if (resp.status === "success") {
-              setSubstrateData(resp.data);
+              dispatch(setSubstrateDataAction(resp.data));
             } else {
               setError(resp.errors?.join("; ") || "Failed to run substrate scan");
             }
@@ -131,8 +145,7 @@ function InteractomicsPage() {
               true, true, true, true, projectId
             );
             if (resp.status === "success") {
-              setRegulatoryData(resp.data);
-              setRegulatoryProv(resp.provenance);
+              dispatch(setRegulatoryDataAction({ data: resp.data, provenance: resp.provenance }));
             } else {
               setError(resp.errors?.join("; ") || "Failed to build regulatory network");
             }
@@ -148,7 +161,7 @@ function InteractomicsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, projectId, highConfidence, genes, networkData, coexprData, substrateData, regulatoryData]);
+  }, [activeTab, projectId, highConfidence, genes, networkData, coexprData, substrateData, regulatoryData, dispatch]);
 
   useEffect(() => {
     fetchData();
@@ -156,8 +169,8 @@ function InteractomicsPage() {
 
   // Re-fetch network when confidence filter changes
   const handleConfidenceToggle = async () => {
-    setHighConfidence(!highConfidence);
-    setNetworkData(null); // Force refetch
+    dispatch(setHighConfidenceAction(!highConfidence));
+    dispatch(clearNetworkDataAction()); // Force refetch
   };
 
   return (
@@ -247,7 +260,7 @@ function InteractomicsPage() {
                     <input
                       type="checkbox"
                       checked={showMitoOnly}
-                      onChange={() => setShowMitoOnly(!showMitoOnly)}
+                      onChange={() => dispatch(setShowMitoOnlyAction(!showMitoOnly))}
                       className="rounded border-kiri-border bg-kiri-surface"
                     />
                     {t("interactomics.mito_only", "Highlight mitochondrial proteins")}
@@ -305,39 +318,134 @@ function InteractomicsPage() {
           )}
 
           {activeTab === "proteomics" && (
-            <Card title={t("interactomics.proteomics_title", "CoIP-MS / Proteomics Analysis")}>
-              <div className="text-center text-kiri-text-muted text-sm py-8 space-y-3">
-                <p>
-                  {t("interactomics.proteomics_upload", "Upload a proteomics abundance matrix (CSV) or search PRIDE for published CoIP-MS datasets.")}
-                </p>
-                <div className="flex justify-center gap-3">
-                  <button className="text-xs text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors">
-                    📁 Upload Data
-                  </button>
-                  <button className="text-xs text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors">
-                    🔍 Search PRIDE
-                  </button>
+            <div className="space-y-4">
+              <Card title={t("interactomics.proteomics_title", "CoIP-MS / Proteomics Analysis")}>
+                <div className="text-center text-kiri-text-muted text-sm py-6 space-y-3">
+                  <p>
+                    {t("interactomics.proteomics_upload", "Upload a proteomics abundance matrix (CSV) or search PRIDE for published CoIP-MS datasets.")}
+                  </p>
+                  <div className="flex justify-center gap-3">
+                    <button className="text-xs text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors">
+                      📁 Upload Data
+                    </button>
+                    <button
+                      disabled={prideLoading}
+                      onClick={async () => {
+                        setPrideLoading(true);
+                        try {
+                          const resp = await fetchProteomicsAnalysis(null, null, genes, "bait", "control", 0.05, 1.0, projectId);
+                          if (resp.status === "success" && resp.data) {
+                            dispatch(setPrideResultsAction(resp.data));
+                          } else {
+                            setError(resp.errors?.join("; ") || "PRIDE search failed");
+                          }
+                        } catch (err) {
+                          setError(getErrorMessage(err));
+                        } finally {
+                          setPrideLoading(false);
+                        }
+                      }}
+                      className="text-xs text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors disabled:opacity-50"
+                    >
+                      {prideLoading ? "⏳ Searching..." : "🔍 Search PRIDE"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+
+              {/* PRIDE search results */}
+              {prideResults?.available_datasets && (
+                <Card title="Available PRIDE Datasets">
+                  {prideResults.message && (
+                    <p className="text-xs text-kiri-text-muted mb-3">{prideResults.message}</p>
+                  )}
+                  {prideResults.available_datasets.datasets?.length > 0 ? (
+                    <div className="space-y-2">
+                      {prideResults.available_datasets.datasets.map((ds: Record<string, unknown>, i: number) => (
+                        <div key={i} className="flex items-center justify-between p-3 rounded border border-kiri-border hover:border-kiri-accent/30 transition-colors">
+                          <div>
+                            <p className="text-sm text-kiri-text font-medium">{String(ds.accession || ds.title || `Dataset ${i + 1}`)}</p>
+                            <p className="text-xs text-kiri-text-muted">{String(ds.title || ds.description || "")}</p>
+                            {ds.organism ? <p className="text-xs text-kiri-text-dim mt-0.5">Organism: {String(ds.organism)}</p> : null}
+                          </div>
+                          <StatusBadge label={String(ds.perturbation || ds.type || "Dataset")} variant="info" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-kiri-text-dim text-center py-4">No PRIDE datasets found for your target genes.</p>
+                  )}
+                </Card>
+              )}
+            </div>
           )}
 
           {activeTab === "de" && (
-            <Card title={t("interactomics.de_title", "Public Dataset Differential Expression")}>
-              <div className="text-center text-kiri-text-muted text-sm py-8 space-y-3">
-                <p>
-                  {t("interactomics.de_upload", "Upload expression data or search GEO for knockdown/overexpression datasets related to your target genes.")}
-                </p>
-                <div className="flex justify-center gap-3">
-                  <button className="text-xs text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors">
-                    📁 Upload Data
-                  </button>
-                  <button className="text-xs text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors">
-                    🔍 Search GEO
-                  </button>
+            <div className="space-y-4">
+              <Card title={t("interactomics.de_title", "Public Dataset Differential Expression")}>
+                <div className="text-center text-kiri-text-muted text-sm py-6 space-y-3">
+                  <p>
+                    {t("interactomics.de_upload", "Upload expression data or search GEO for knockdown/overexpression datasets related to your target genes.")}
+                  </p>
+                  <div className="flex justify-center gap-3">
+                    <button className="text-xs text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors">
+                      📁 Upload Data
+                    </button>
+                    <button
+                      disabled={geoLoading}
+                      onClick={async () => {
+                        setGeoLoading(true);
+                        try {
+                          const resp = await fetchPublicDE(null, null, genes, "perturbation", "control", 1.0, 0.05, true, projectId);
+                          if (resp.status === "success" && resp.data) {
+                            dispatch(setGeoResultsAction(resp.data));
+                          } else {
+                            setError(resp.errors?.join("; ") || "GEO search failed");
+                          }
+                        } catch (err) {
+                          setError(getErrorMessage(err));
+                        } finally {
+                          setGeoLoading(false);
+                        }
+                      }}
+                      className="text-xs text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors disabled:opacity-50"
+                    >
+                      {geoLoading ? "⏳ Searching..." : "🔍 Search GEO"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+
+              {/* GEO search results */}
+              {geoResults?.available_datasets && (
+                <Card title="Available GEO Datasets">
+                  {geoResults.message && (
+                    <p className="text-xs text-kiri-text-muted mb-3">{geoResults.message}</p>
+                  )}
+                  {geoResults.available_datasets.datasets?.length > 0 ? (
+                    <div className="space-y-2">
+                      {geoResults.available_datasets.datasets.map((ds: Record<string, unknown>, i: number) => (
+                        <div key={i} className="flex items-center justify-between p-3 rounded border border-kiri-border hover:border-kiri-accent/30 transition-colors">
+                          <div>
+                            <p className="text-sm text-kiri-text font-medium">{String(ds.accession || `Dataset ${i + 1}`)}</p>
+                            <p className="text-xs text-kiri-text-muted">{String(ds.title || "")}</p>
+                            <div className="flex gap-3 mt-1 text-xs text-kiri-text-dim">
+                              {ds.perturbation ? <span>Type: {String(ds.perturbation)}</span> : null}
+                              {ds.target_gene ? <span>Target: {String(ds.target_gene)}</span> : null}
+                              {ds.platform ? <span>Platform: {String(ds.platform)}</span> : null}
+                              {ds.organism ? <span>Organism: {String(ds.organism)}</span> : null}
+                            </div>
+                          </div>
+                          <StatusBadge label={String(ds.perturbation || "GEO")} variant="info" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-kiri-text-dim text-center py-4">No GEO datasets found for your target genes.</p>
+                  )}
+                </Card>
+              )}
+            </div>
           )}
 
           {activeTab === "substrates" && (

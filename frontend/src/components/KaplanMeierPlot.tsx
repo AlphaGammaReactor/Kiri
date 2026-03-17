@@ -155,7 +155,7 @@ export function KaplanMeierPlot({ curves, p_value, at_risk_table, dataSource, ci
 
   return (
     <div className="w-full flex flex-col gap-6">
-      <div className="h-96 w-full bg-kiri-surface rounded-lg border border-kiri-border p-4">
+      <div className="h-96 w-full">
         <KiriChart
           option={option}
           sourceModule="clinical"

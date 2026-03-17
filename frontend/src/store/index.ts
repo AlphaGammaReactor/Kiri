@@ -6,6 +6,7 @@ import publicationReducer from "./publicationSlice";
 import errorReducer from "./errorSlice";
 import dataSourceReducer from "./dataSourceSlice";
 import authReducer from "./authSlice";
+import interactomicsReducer from "./interactomicsSlice";
 import type { HeatmapOptions } from "../components/ExpressionHeatmap";
 import { DEFAULT_HEATMAP_OPTIONS } from "../components/ExpressionHeatmap";
 import { loadPersistedGlobal, createPersistenceSubscriber } from "./persistence";
@@ -87,6 +88,7 @@ export const store = configureStore({
     publication: publicationReducer,
     errors: errorReducer,
     dataSource: dataSourceReducer,
+    interactomics: interactomicsReducer,
   },
 });
 
