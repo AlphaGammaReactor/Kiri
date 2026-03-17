@@ -220,7 +220,32 @@ async def run_proteomics_analysis_endpoint(
     from app.services.interactomics import (
         run_proteomics_analysis,
         search_pride_datasets,
+        load_pride_dataset,
     )
+
+    # If a specific PRIDE dataset is selected, load and analyze it
+    if body.pride_accession:
+        dataset = await load_pride_dataset(body.pride_accession, gene_list)
+        if "error" in dataset:
+            raise KiriValidationError(dataset["error"], source="interactomics")
+
+        result = await run_proteomics_analysis(
+            abundance_matrix=dataset["abundance_matrix"],
+            groups=dataset["groups"],
+            group_a=body.group_a,
+            group_b=body.group_b,
+            fdr_cutoff=body.fdr_cutoff,
+            lfc_cutoff=body.lfc_cutoff,
+        )
+        result["dataset_accession"] = body.pride_accession
+        result["dataset_title"] = dataset.get("title", body.pride_accession)
+
+        return success_response(
+            data=result,
+            source=f"PRIDE ({body.pride_accession})",
+            method=result.get("method", "Proteomics analysis"),
+            sample_count=result.get("n_a", 0) + result.get("n_b", 0),
+        )
 
     # If no data provided, search PRIDE for datasets
     if not body.abundance_matrix or not body.groups:
@@ -276,7 +301,36 @@ async def run_public_de_endpoint(
     from app.services.differential_public import (
         run_public_differential_analysis,
         search_public_datasets,
+        load_geo_dataset,
     )
+
+    # If a specific GEO dataset is selected, load and analyze it
+    if body.geo_accessions:
+        accession = body.geo_accessions[0]  # Analyze first selected dataset
+        dataset = await load_geo_dataset(accession, gene_list)
+        if "error" in dataset:
+            raise KiriValidationError(dataset["error"], source="interactomics")
+
+        result = await run_public_differential_analysis(
+            expression_matrix=dataset["expression_matrix"],
+            groups=dataset["groups"],
+            group_a=body.group_a,
+            group_b=body.group_b,
+            lfc_cutoff=body.lfc_cutoff,
+            fdr_cutoff=body.fdr_cutoff,
+            annotate_substrates=body.annotate_substrates,
+        )
+        result["dataset_accession"] = accession
+        result["dataset_title"] = dataset.get("title", accession)
+        result["perturbation_type"] = dataset.get("perturbation", "")
+        result["target_gene"] = dataset.get("target_gene", "")
+
+        return success_response(
+            data=result,
+            source=f"GEO ({accession})",
+            method=result.get("method", "Differential expression"),
+            sample_count=result.get("n_a", 0) + result.get("n_b", 0),
+        )
 
     # If no expression data, search for available datasets
     if not body.expression_matrix or not body.groups:
