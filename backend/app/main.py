@@ -88,6 +88,18 @@ app.add_middleware(
 register_error_handlers(app)
 
 
+# ── Root Endpoint ──
+@app.get("/")
+async def root():
+    """Root endpoint — API info."""
+    return {
+        "service": "Kiri Research Platform",
+        "version": "0.1.0",
+        "docs": "/api/docs",
+        "health": "/api/health",
+    }
+
+
 # ── Health Check (Extended) ──
 @app.get("/api/health")
 async def health(deep: bool = False) -> dict:

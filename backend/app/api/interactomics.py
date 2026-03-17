@@ -103,7 +103,7 @@ async def get_enhanced_ppi_network(
     from app.services.interaction_intact import fetch_intact_interactions
 
     # Fetch from all three sources
-    string_data = await fetch_string_network(gene_list, confidence=body.confidence)
+    string_data = await fetch_string_network(gene_list, score_threshold=body.confidence)
     biogrid_data = await fetch_biogrid_interactions(gene_list)
 
     intact_data = None
@@ -382,7 +382,7 @@ async def build_regulatory_network_endpoint(
     substrate_data = None
 
     if body.include_ppi:
-        string_data = await fetch_string_network(gene_list, confidence=0.4)
+        string_data = await fetch_string_network(gene_list, score_threshold=0.4)
         biogrid_data = await fetch_biogrid_interactions(gene_list)
         intact_data = await fetch_intact_interactions(gene_list)
         ppi_data = merge_ppi_sources(
