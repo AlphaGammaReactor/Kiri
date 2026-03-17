@@ -30,9 +30,13 @@ interface InteractomicsState {
 
   // Proteomics tab
   prideResults: AnyData | null;
+  proteomicsAnalysis: AnyData | null;
+  proteomicsProv: Provenance | null;
 
   // Differential Expression tab
   geoResults: AnyData | null;
+  deAnalysis: AnyData | null;
+  deProv: Provenance | null;
 
   // Substrates tab
   substrateData: AnyData | null;
@@ -40,6 +44,12 @@ interface InteractomicsState {
   // Regulatory Network tab
   regulatoryData: AnyData | null;
   regulatoryProv: Provenance | null;
+
+  // Threshold controls (persisted per-project)
+  fdrCutoff: number;
+  lfcCutoff: number;
+  rCutoff: number;
+  confidenceThreshold: number;
 }
 
 const initialState: InteractomicsState = {
@@ -51,10 +61,18 @@ const initialState: InteractomicsState = {
   coexprData: null,
   coexprProv: null,
   prideResults: null,
+  proteomicsAnalysis: null,
+  proteomicsProv: null,
   geoResults: null,
+  deAnalysis: null,
+  deProv: null,
   substrateData: null,
   regulatoryData: null,
   regulatoryProv: null,
+  fdrCutoff: 0.05,
+  lfcCutoff: 1.0,
+  rCutoff: 0.6,
+  confidenceThreshold: 0.4,
 };
 
 /* ── Slice ── */
@@ -93,10 +111,18 @@ const interactomicsSlice = createSlice({
     setPrideResults(state, action: PayloadAction<AnyData>) {
       state.prideResults = action.payload;
     },
+    setProteomicsAnalysis(state, action: PayloadAction<{ data: AnyData; provenance: Provenance | null }>) {
+      state.proteomicsAnalysis = action.payload.data;
+      state.proteomicsProv = action.payload.provenance;
+    },
 
     // Differential Expression / GEO
     setGeoResults(state, action: PayloadAction<AnyData>) {
       state.geoResults = action.payload;
+    },
+    setDeAnalysis(state, action: PayloadAction<{ data: AnyData; provenance: Provenance | null }>) {
+      state.deAnalysis = action.payload.data;
+      state.deProv = action.payload.provenance;
     },
 
     // Substrates
@@ -108,6 +134,20 @@ const interactomicsSlice = createSlice({
     setRegulatoryData(state, action: PayloadAction<{ data: AnyData; provenance: Provenance | null }>) {
       state.regulatoryData = action.payload.data;
       state.regulatoryProv = action.payload.provenance;
+    },
+
+    // Threshold controls
+    setFdrCutoff(state, action: PayloadAction<number>) {
+      state.fdrCutoff = action.payload;
+    },
+    setLfcCutoff(state, action: PayloadAction<number>) {
+      state.lfcCutoff = action.payload;
+    },
+    setRCutoff(state, action: PayloadAction<number>) {
+      state.rCutoff = action.payload;
+    },
+    setConfidenceThreshold(state, action: PayloadAction<number>) {
+      state.confidenceThreshold = action.payload;
     },
 
     // Full rehydration from localStorage
@@ -130,9 +170,15 @@ export const {
   setShowMitoOnly,
   setCoexprData,
   setPrideResults,
+  setProteomicsAnalysis,
   setGeoResults,
+  setDeAnalysis,
   setSubstrateData,
   setRegulatoryData,
+  setFdrCutoff,
+  setLfcCutoff,
+  setRCutoff,
+  setConfidenceThreshold,
   rehydrateInteractomics,
   clearInteractomics,
 } = interactomicsSlice.actions;

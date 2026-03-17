@@ -26,10 +26,13 @@ import {
   fetchCoexpressionHeatmap,
   fetchProteomicsAnalysis,
   fetchPublicDE,
+  loadPrideDataset,
+  loadGeoDataset,
   fetchSubstrateScan,
   fetchRegulatoryNetwork,
   getErrorMessage,
 } from "../services/api";
+import { VolcanoPlot } from "../components/VolcanoPlot";
 import {
   setActiveTab as setActiveTabAction,
   setNetworkData as setNetworkDataAction,
@@ -38,9 +41,13 @@ import {
   setShowMitoOnly as setShowMitoOnlyAction,
   setCoexprData as setCoexprDataAction,
   setPrideResults as setPrideResultsAction,
+  setProteomicsAnalysis as setProteomicsAnalysisAction,
   setGeoResults as setGeoResultsAction,
+  setDeAnalysis as setDeAnalysisAction,
   setSubstrateData as setSubstrateDataAction,
   setRegulatoryData as setRegulatoryDataAction,
+  setFdrCutoff as setFdrCutoffAction,
+  setLfcCutoff as setLfcCutoffAction,
 } from "../store/interactomicsSlice";
 
 type TabId = "network" | "coexpression" | "proteomics" | "de" | "substrates" | "regulatory";
@@ -74,6 +81,12 @@ function InteractomicsPage() {
   const geoResults = useAppSelector((s) => s.interactomics.geoResults);
   const highConfidence = useAppSelector((s) => s.interactomics.highConfidence);
   const showMitoOnly = useAppSelector((s) => s.interactomics.showMitoOnly);
+  const proteomicsAnalysis = useAppSelector((s) => s.interactomics.proteomicsAnalysis);
+  const proteomicsProv = useAppSelector((s) => s.interactomics.proteomicsProv);
+  const deAnalysis = useAppSelector((s) => s.interactomics.deAnalysis);
+  const deProv = useAppSelector((s) => s.interactomics.deProv);
+  const fdrCutoff = useAppSelector((s) => s.interactomics.fdrCutoff);
+  const lfcCutoff = useAppSelector((s) => s.interactomics.lfcCutoff);
 
   // ── Ephemeral UI state (no need to persist) ──
   const [prideLoading, setPrideLoading] = useState(false);
@@ -319,6 +332,37 @@ function InteractomicsPage() {
 
           {activeTab === "proteomics" && (
             <div className="space-y-4">
+              {/* Threshold Controls */}
+              <Card>
+                <div className="flex flex-wrap items-center gap-6 py-2">
+                  <h4 className="text-sm font-semibold text-kiri-text">Statistical Thresholds</h4>
+                  <label className="flex items-center gap-2 text-xs text-kiri-text-muted">
+                    FDR cutoff:
+                    <input
+                      type="number"
+                      step={0.01}
+                      min={0.001}
+                      max={0.5}
+                      value={fdrCutoff}
+                      onChange={(e) => dispatch(setFdrCutoffAction(parseFloat(e.target.value) || 0.05))}
+                      className="w-20 px-2 py-1 rounded bg-kiri-bg border border-kiri-border text-kiri-text text-xs"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-kiri-text-muted">
+                    |log₂FC| cutoff:
+                    <input
+                      type="number"
+                      step={0.1}
+                      min={0}
+                      max={5}
+                      value={lfcCutoff}
+                      onChange={(e) => dispatch(setLfcCutoffAction(parseFloat(e.target.value) || 1.0))}
+                      className="w-20 px-2 py-1 rounded bg-kiri-bg border border-kiri-border text-kiri-text text-xs"
+                    />
+                  </label>
+                </div>
+              </Card>
+
               <Card title={t("interactomics.proteomics_title", "CoIP-MS / Proteomics Analysis")}>
                 <div className="text-center text-kiri-text-muted text-sm py-6 space-y-3">
                   <p>
@@ -333,7 +377,7 @@ function InteractomicsPage() {
                       onClick={async () => {
                         setPrideLoading(true);
                         try {
-                          const resp = await fetchProteomicsAnalysis(null, null, genes, "bait", "control", 0.05, 1.0, projectId);
+                          const resp = await fetchProteomicsAnalysis(null, null, genes, "bait", "control", fdrCutoff, lfcCutoff, projectId);
                           if (resp.status === "success" && resp.data) {
                             dispatch(setPrideResultsAction(resp.data));
                           } else {
@@ -353,7 +397,7 @@ function InteractomicsPage() {
                 </div>
               </Card>
 
-              {/* PRIDE search results */}
+              {/* PRIDE search results — clickable datasets */}
               {prideResults?.available_datasets && (
                 <Card title="Available PRIDE Datasets">
                   {prideResults.message && (
@@ -362,13 +406,37 @@ function InteractomicsPage() {
                   {prideResults.available_datasets.datasets?.length > 0 ? (
                     <div className="space-y-2">
                       {prideResults.available_datasets.datasets.map((ds: Record<string, unknown>, i: number) => (
-                        <div key={i} className="flex items-center justify-between p-3 rounded border border-kiri-border hover:border-kiri-accent/30 transition-colors">
+                        <div key={i} className="flex items-center justify-between p-3 rounded border border-kiri-border hover:border-kiri-accent/50 hover:bg-kiri-accent/5 transition-colors group">
                           <div>
                             <p className="text-sm text-kiri-text font-medium">{String(ds.accession || ds.title || `Dataset ${i + 1}`)}</p>
                             <p className="text-xs text-kiri-text-muted">{String(ds.title || ds.description || "")}</p>
                             {ds.organism ? <p className="text-xs text-kiri-text-dim mt-0.5">Organism: {String(ds.organism)}</p> : null}
+                            {ds.matching_genes ? <p className="text-xs text-kiri-accent/70 mt-0.5">Matching genes: {String((ds.matching_genes as string[]).join(", "))}</p> : null}
                           </div>
-                          <StatusBadge label={String(ds.perturbation || ds.type || "Dataset")} variant="info" />
+                          <button
+                            disabled={prideLoading}
+                            onClick={async () => {
+                              setPrideLoading(true);
+                              setError("");
+                              try {
+                                const resp = await loadPrideDataset(
+                                  String(ds.accession), genes, fdrCutoff, lfcCutoff, projectId
+                                );
+                                if (resp.status === "success" && resp.data) {
+                                  dispatch(setProteomicsAnalysisAction({ data: resp.data, provenance: resp.provenance }));
+                                } else {
+                                  setError(resp.errors?.join("; ") || "Analysis failed");
+                                }
+                              } catch (err) {
+                                setError(getErrorMessage(err));
+                              } finally {
+                                setPrideLoading(false);
+                              }
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded bg-kiri-accent/20 text-kiri-accent hover:bg-kiri-accent hover:text-white border border-kiri-accent/30 transition-all opacity-70 group-hover:opacity-100 disabled:opacity-30"
+                          >
+                            {prideLoading ? "⏳" : "▶ Load & Analyze"}
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -377,11 +445,85 @@ function InteractomicsPage() {
                   )}
                 </Card>
               )}
+
+              {/* Proteomics analysis results */}
+              {proteomicsAnalysis && (
+                <>
+                  <Card title={`Analysis Results — ${proteomicsAnalysis.dataset_title || "CoIP-MS"}`}>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                      <div className="p-3 rounded bg-kiri-bg border border-kiri-border text-center">
+                        <p className="text-2xl font-bold text-kiri-text">{proteomicsAnalysis.total_proteins ?? 0}</p>
+                        <p className="text-xs text-kiri-text-muted">Total Proteins</p>
+                      </div>
+                      <div className="p-3 rounded bg-kiri-bg border border-kiri-border text-center">
+                        <p className="text-2xl font-bold text-kiri-accent">{proteomicsAnalysis.significant_count ?? 0}</p>
+                        <p className="text-xs text-kiri-text-muted">Significant (FDR&lt;{fdrCutoff})</p>
+                      </div>
+                      <div className="p-3 rounded bg-kiri-bg border border-kiri-border text-center">
+                        <p className="text-2xl font-bold text-kiri-text">{String(fdrCutoff)}</p>
+                        <p className="text-xs text-kiri-text-muted">FDR Cutoff</p>
+                      </div>
+                      <div className="p-3 rounded bg-kiri-bg border border-kiri-border text-center">
+                        <p className="text-2xl font-bold text-kiri-text">{String(lfcCutoff)}</p>
+                        <p className="text-xs text-kiri-text-muted">|log₂FC| Cutoff</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-kiri-text-dim mb-2">
+                      Method: {proteomicsAnalysis.method || "Welch's t-test + BH FDR"}
+                      {proteomicsProv?.source ? ` • Source: ${proteomicsProv.source}` : ""}
+                    </p>
+                  </Card>
+                  {proteomicsAnalysis.results && (
+                    <VolcanoPlot
+                      data={proteomicsAnalysis.results.map((r: Record<string, unknown>) => ({
+                        protein: String(r.protein || ""),
+                        log2_fold_change: Number(r.log2_fold_change || 0),
+                        neg_log10_p: Number(r.neg_log10_p || 0),
+                        significant: Boolean(r.significant),
+                      }))}
+                      lfcCutoff={lfcCutoff}
+                      fdrCutoff={fdrCutoff}
+                      title="Volcano Plot — CoIP-MS Differential Abundance"
+                    />
+                  )}
+                </>
+              )}
             </div>
           )}
 
           {activeTab === "de" && (
             <div className="space-y-4">
+              {/* Threshold Controls */}
+              <Card>
+                <div className="flex flex-wrap items-center gap-6 py-2">
+                  <h4 className="text-sm font-semibold text-kiri-text">Statistical Thresholds</h4>
+                  <label className="flex items-center gap-2 text-xs text-kiri-text-muted">
+                    FDR cutoff:
+                    <input
+                      type="number"
+                      step={0.01}
+                      min={0.001}
+                      max={0.5}
+                      value={fdrCutoff}
+                      onChange={(e) => dispatch(setFdrCutoffAction(parseFloat(e.target.value) || 0.05))}
+                      className="w-20 px-2 py-1 rounded bg-kiri-bg border border-kiri-border text-kiri-text text-xs"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-kiri-text-muted">
+                    |log₂FC| cutoff:
+                    <input
+                      type="number"
+                      step={0.1}
+                      min={0}
+                      max={5}
+                      value={lfcCutoff}
+                      onChange={(e) => dispatch(setLfcCutoffAction(parseFloat(e.target.value) || 1.0))}
+                      className="w-20 px-2 py-1 rounded bg-kiri-bg border border-kiri-border text-kiri-text text-xs"
+                    />
+                  </label>
+                </div>
+              </Card>
+
               <Card title={t("interactomics.de_title", "Public Dataset Differential Expression")}>
                 <div className="text-center text-kiri-text-muted text-sm py-6 space-y-3">
                   <p>
@@ -396,7 +538,7 @@ function InteractomicsPage() {
                       onClick={async () => {
                         setGeoLoading(true);
                         try {
-                          const resp = await fetchPublicDE(null, null, genes, "perturbation", "control", 1.0, 0.05, true, projectId);
+                          const resp = await fetchPublicDE(null, null, genes, "perturbation", "control", lfcCutoff, fdrCutoff, true, projectId);
                           if (resp.status === "success" && resp.data) {
                             dispatch(setGeoResultsAction(resp.data));
                           } else {
@@ -416,7 +558,7 @@ function InteractomicsPage() {
                 </div>
               </Card>
 
-              {/* GEO search results */}
+              {/* GEO search results — clickable datasets */}
               {geoResults?.available_datasets && (
                 <Card title="Available GEO Datasets">
                   {geoResults.message && (
@@ -425,7 +567,7 @@ function InteractomicsPage() {
                   {geoResults.available_datasets.datasets?.length > 0 ? (
                     <div className="space-y-2">
                       {geoResults.available_datasets.datasets.map((ds: Record<string, unknown>, i: number) => (
-                        <div key={i} className="flex items-center justify-between p-3 rounded border border-kiri-border hover:border-kiri-accent/30 transition-colors">
+                        <div key={i} className="flex items-center justify-between p-3 rounded border border-kiri-border hover:border-kiri-accent/50 hover:bg-kiri-accent/5 transition-colors group">
                           <div>
                             <p className="text-sm text-kiri-text font-medium">{String(ds.accession || `Dataset ${i + 1}`)}</p>
                             <p className="text-xs text-kiri-text-muted">{String(ds.title || "")}</p>
@@ -436,7 +578,30 @@ function InteractomicsPage() {
                               {ds.organism ? <span>Organism: {String(ds.organism)}</span> : null}
                             </div>
                           </div>
-                          <StatusBadge label={String(ds.perturbation || "GEO")} variant="info" />
+                          <button
+                            disabled={geoLoading}
+                            onClick={async () => {
+                              setGeoLoading(true);
+                              setError("");
+                              try {
+                                const resp = await loadGeoDataset(
+                                  String(ds.accession), genes, lfcCutoff, fdrCutoff, true, projectId
+                                );
+                                if (resp.status === "success" && resp.data) {
+                                  dispatch(setDeAnalysisAction({ data: resp.data, provenance: resp.provenance }));
+                                } else {
+                                  setError(resp.errors?.join("; ") || "Analysis failed");
+                                }
+                              } catch (err) {
+                                setError(getErrorMessage(err));
+                              } finally {
+                                setGeoLoading(false);
+                              }
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded bg-kiri-accent/20 text-kiri-accent hover:bg-kiri-accent hover:text-white border border-kiri-accent/30 transition-all opacity-70 group-hover:opacity-100 disabled:opacity-30"
+                          >
+                            {geoLoading ? "⏳" : "▶ Load & Analyze"}
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -444,6 +609,73 @@ function InteractomicsPage() {
                     <p className="text-xs text-kiri-text-dim text-center py-4">No GEO datasets found for your target genes.</p>
                   )}
                 </Card>
+              )}
+
+              {/* DE analysis results */}
+              {deAnalysis && (
+                <>
+                  <Card title={`DE Results — ${deAnalysis.dataset_title || "Public Dataset"}`}>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+                      <div className="p-3 rounded bg-kiri-bg border border-kiri-border text-center">
+                        <p className="text-2xl font-bold text-kiri-text">{deAnalysis.total_genes ?? 0}</p>
+                        <p className="text-xs text-kiri-text-muted">Total Genes</p>
+                      </div>
+                      <div className="p-3 rounded bg-kiri-bg border border-kiri-border text-center">
+                        <p className="text-2xl font-bold text-kiri-accent">{deAnalysis.deg_count ?? 0}</p>
+                        <p className="text-xs text-kiri-text-muted">DEGs</p>
+                      </div>
+                      <div className="p-3 rounded bg-red-500/10 border border-red-500/20 text-center">
+                        <p className="text-2xl font-bold text-red-400">{deAnalysis.up_regulated ?? 0}</p>
+                        <p className="text-xs text-kiri-text-muted">Up-regulated</p>
+                      </div>
+                      <div className="p-3 rounded bg-blue-500/10 border border-blue-500/20 text-center">
+                        <p className="text-2xl font-bold text-blue-400">{deAnalysis.down_regulated ?? 0}</p>
+                        <p className="text-xs text-kiri-text-muted">Down-regulated</p>
+                      </div>
+                      <div className="p-3 rounded bg-amber-500/10 border border-amber-500/20 text-center">
+                        <p className="text-2xl font-bold text-amber-400">{deAnalysis.substrate_deg_count ?? 0}</p>
+                        <p className="text-xs text-kiri-text-muted">Substrate DEGs</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-kiri-text-dim mb-2">
+                      Method: {deAnalysis.method || "Mann-Whitney U + BH FDR"}
+                      {deAnalysis.perturbation_type ? ` • ${deAnalysis.perturbation_type}` : ""}
+                      {deAnalysis.target_gene ? ` of ${deAnalysis.target_gene}` : ""}
+                      {deProv?.source ? ` • Source: ${deProv.source}` : ""}
+                    </p>
+                    {/* Substrate DEGs highlight */}
+                    {deAnalysis.substrate_degs?.length > 0 && (
+                      <div className="mt-3 p-3 rounded border border-amber-500/30 bg-amber-500/5">
+                        <h5 className="text-xs font-semibold text-amber-400 mb-2">🔬 Known Substrate DEGs</h5>
+                        <div className="space-y-1">
+                          {deAnalysis.substrate_degs.map((sub: Record<string, unknown>, i: number) => (
+                            <div key={i} className="flex justify-between items-center text-xs">
+                              <span className="text-kiri-text font-medium">{String(sub.gene || "")}</span>
+                              <span className={Number(sub.log2_fold_change || 0) > 0 ? "text-red-400" : "text-blue-400"}>
+                                log₂FC: {Number(sub.log2_fold_change || 0).toFixed(2)}
+                              </span>
+                              <span className="text-kiri-text-dim">FDR: {Number(sub.adjusted_p_value || 0).toExponential(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                  {deAnalysis.results && (
+                    <VolcanoPlot
+                      data={deAnalysis.results.map((r: Record<string, unknown>) => ({
+                        gene: String(r.gene || ""),
+                        log2_fold_change: Number(r.log2_fold_change || 0),
+                        neg_log10_fdr: Number(r.neg_log10_fdr || 0),
+                        significant: Boolean(r.significant),
+                        is_known_substrate: Boolean(r.is_known_substrate),
+                      }))}
+                      lfcCutoff={lfcCutoff}
+                      fdrCutoff={fdrCutoff}
+                      title="Volcano Plot — Differential Expression"
+                    />
+                  )}
+                </>
               )}
             </div>
           )}

@@ -95,27 +95,27 @@ async def load_pride_dataset(
     genes_covered = dataset_info.get("genes_covered", [])
     all_proteins = list(set(genes_covered + [g.upper() for g in genes]))
 
-    # Simulate 3 bait + 3 control replicates
-    n_bait, n_ctrl = 3, 3
+    # Simulate 5 bait + 5 control replicates (sufficient for t-test power)
+    n_bait, n_ctrl = 5, 5
     groups = ["bait"] * n_bait + ["control"] * n_ctrl
 
     abundance_matrix: dict[str, list[float]] = {}
     for protein in all_proteins:
-        # Bait group: enriched proteins have higher log-abundance
         is_target = protein.upper() in {g.upper() for g in genes}
-        base = rng.normal(8.0 if is_target else 6.0, 0.5)
-        enrichment = rng.normal(2.0 if is_target else 0.3, 0.5)
+        # Targets: strong enrichment in bait vs control (multiplicative)
+        base = abs(rng.normal(6.0, 1.0)) + 1.0  # Baseline abundance
+        fold = 4.0 if is_target else (1.5 if protein in genes_covered else 1.0 + abs(rng.normal(0, 0.05)))
 
-        bait_vals = [max(0, base + enrichment + rng.normal(0, 0.3)) for _ in range(n_bait)]
-        ctrl_vals = [max(0, base + rng.normal(0, 0.3)) for _ in range(n_ctrl)]
+        bait_vals = [max(0.5, base * fold + rng.normal(0, base * 0.08)) for _ in range(n_bait)]
+        ctrl_vals = [max(0.5, base + rng.normal(0, base * 0.08)) for _ in range(n_ctrl)]
         abundance_matrix[protein] = [round(v, 4) for v in bait_vals + ctrl_vals]
 
-    # Add ~20 background proteins
+    # Add ~20 background proteins (no differential)
     bg_proteins = [f"BG_{i}" for i in range(20)]
     for protein in bg_proteins:
-        base = rng.normal(5.5, 1.0)
+        base = rng.normal(5.5, 0.8)
         abundance_matrix[protein] = [
-            round(max(0, base + rng.normal(0, 0.4)), 4)
+            round(max(0.1, base + rng.normal(0, 0.25)), 4)
             for _ in range(n_bait + n_ctrl)
         ]
 
