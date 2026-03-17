@@ -908,6 +908,8 @@ export async function fetchProteomicsAnalysis(
     heatmap_matrix?: Record<string, number[]>;
     heatmap_samples?: string[];
     available_datasets?: { datasets: Array<Record<string, unknown>> };
+    dataset_accession?: string;
+    dataset_title?: string;
     message?: string;
   }>("/v1/interactomics/proteomics", {
     abundance_matrix: abundanceMatrix,
@@ -915,6 +917,40 @@ export async function fetchProteomicsAnalysis(
     genes,
     group_a: groupA,
     group_b: groupB,
+    fdr_cutoff: fdrCutoff,
+    lfc_cutoff: lfcCutoff,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Load and analyze a specific PRIDE dataset.
+ */
+export async function loadPrideDataset(
+  accession: string,
+  genes: string[] = [],
+  fdrCutoff = 0.05,
+  lfcCutoff = 1.0,
+  projectId?: string,
+) {
+  return apiPost<{
+    results?: Array<{
+      protein: string; log2_fold_change: number; p_value: number;
+      adjusted_p_value: number; neg_log10_p: number; significant: boolean;
+      mean_bait: number; mean_control: number;
+    }>;
+    significant_count?: number;
+    total_proteins?: number;
+    method?: string;
+    dataset_accession?: string;
+    dataset_title?: string;
+    heatmap_matrix?: Record<string, number[]>;
+    heatmap_samples?: string[];
+    fdr_cutoff?: number;
+    lfc_cutoff?: number;
+  }>("/v1/interactomics/proteomics", {
+    genes,
+    pride_accession: accession,
     fdr_cutoff: fdrCutoff,
     lfc_cutoff: lfcCutoff,
     project_id: projectId,
@@ -958,6 +994,46 @@ export async function fetchPublicDE(
     genes,
     group_a: groupA,
     group_b: groupB,
+    lfc_cutoff: lfcCutoff,
+    fdr_cutoff: fdrCutoff,
+    annotate_substrates: annotateSubstrates,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Load and analyze a specific GEO dataset.
+ */
+export async function loadGeoDataset(
+  accession: string,
+  genes: string[] = [],
+  lfcCutoff = 1.0,
+  fdrCutoff = 0.05,
+  annotateSubstrates = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    results?: Array<{
+      gene: string; log2_fold_change: number; p_value: number;
+      adjusted_p_value: number; neg_log10_fdr: number; significant: boolean;
+      mean_perturbation: number; mean_control: number;
+      is_known_substrate: boolean;
+      substrate_info?: { protease: string; function: string; pmid: string };
+    }>;
+    deg_count?: number;
+    up_regulated?: number;
+    down_regulated?: number;
+    substrate_degs?: Array<Record<string, unknown>>;
+    method?: string;
+    dataset_accession?: string;
+    dataset_title?: string;
+    perturbation_type?: string;
+    target_gene?: string;
+    lfc_cutoff?: number;
+    fdr_cutoff?: number;
+  }>("/v1/interactomics/differential-public", {
+    genes,
+    geo_accessions: [accession],
     lfc_cutoff: lfcCutoff,
     fdr_cutoff: fdrCutoff,
     annotate_substrates: annotateSubstrates,

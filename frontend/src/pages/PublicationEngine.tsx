@@ -388,10 +388,14 @@ export default function PublicationEngine() {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 10, height: 0 }}
                       draggable
-                      onDragStart={onCartDragStart(i)}
-                      onDragOver={onCartDragOver(i)}
-                      onDrop={onCartDrop(i)}
-                      onDragEnd={onCartDragEnd}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      onDragStart={onCartDragStart(i) as any}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      onDragOver={onCartDragOver(i) as any}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      onDrop={onCartDrop(i) as any}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      onDragEnd={onCartDragEnd as any}
                       className={`p-3 rounded group relative cursor-grab active:cursor-grabbing transition-all ${
                         dragIndex === i
                           ? 'opacity-40 scale-95 border border-kiri-accent/50 bg-kiri-accent/5'
