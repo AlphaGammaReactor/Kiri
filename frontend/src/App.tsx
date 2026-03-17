@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAppDispatch, useAppSelector, setSelectedGenes, rehydrateAppFromProject } from "./store";
+import { rehydrateInteractomics } from "./store/interactomicsSlice";
 import { motion } from "framer-motion";
 import { Suspense, lazy, useEffect } from "react";
 
@@ -96,6 +97,11 @@ function ProjectLayout() {
     // Rehydrate publication state from localStorage (fast pre-load)
     if (persisted.publication) {
       dispatch(rehydratePublication(persisted.publication));
+    }
+
+    // Rehydrate interactomics state from localStorage
+    if (persisted.interactomics) {
+      dispatch(rehydrateInteractomics(persisted.interactomics as Record<string, unknown>));
     }
 
     // Also load from backend (authoritative source, may override localStorage)

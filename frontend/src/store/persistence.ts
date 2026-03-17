@@ -25,6 +25,7 @@ interface PersistedProjectState {
     panels: unknown[];
     options: Record<string, unknown>;
   };
+  interactomics?: Record<string, unknown>;
 }
 
 /* ── Write helpers ── */
@@ -114,6 +115,7 @@ export function createPersistenceSubscriber(store: { getState: () => any }): () 
             panels: state.publication?.panels ?? [],
             options: state.publication?.options ?? {},
           },
+          interactomics: state.interactomics ?? undefined,
         };
         const projectStr = JSON.stringify(projectData);
         if (projectStr !== lastProjectSnapshot) {
@@ -133,6 +135,7 @@ export function getProjectRehydration(projectId: string): {
   activeModule?: string;
   heatmapOptions?: Record<string, unknown>;
   publication?: { panels: unknown[]; options: Record<string, unknown> };
+  interactomics?: Record<string, unknown>;
 } | null {
   return loadPersistedProject(projectId);
 }
