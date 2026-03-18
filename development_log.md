@@ -5,6 +5,40 @@
 
 ---
 
+## 2026-03-18 — 🛡️ Atlas Pane State Persistence: Lift Analysis Results into AtlasPage
+
+- **Context:** DNB, Temporal Cluster, and Pan-Cancer analysis results were stored in child component `useState`. Switching Atlas tabs unmounted the component and destroyed results, forcing users to re-run expensive analyses.
+- **Decision:** Lifted all analysis state (`dnbResult`, `temporalData`, `panCancerData`, plus loading/error for each) into `AtlasPage.tsx`. Child components now receive results via props (controlled components). This mirrors the pattern used elsewhere in Kiri for state that must survive unmount.
+- **Files changed:**
+  - `AtlasPage.tsx` — added ~100 lines of state + callbacks for DNB/Temporal/PanCancer, plusreset-on-data-change effects
+  - `DNBPanel.tsx` — removed internal `useState` for result/loading/error, accepts props
+  - `TemporalClusterPanel.tsx` — same treatment
+  - `PanCancerBoxplot.tsx` — same treatment, plus `selectedGene` now synced when project genes change
+- **Bug fixes:** 5 issues resolved (3 state-loss on tab switch, 1 stale gene selection, 1 improved error retry UX)
+- **Verification:** `tsc --noEmit` passes with 0 errors.
+
+---
+
+## 2026-03-17 — 🔧 Railway DB Operations: Connection Methods & User Cleanup
+
+- **Context:** Needed to delete user `alexei.golob@gmail.com` from both local and production PostgreSQL databases. Discovered and documented which Railway connection methods work from local.
+- **Methods Tested:**
+  1. ❌ `railway run --service Postgres-soBQ -- psql` — injects internal hostname (`postgres-sobq.railway.internal`) which is unreachable from local.
+  2. ❌ Direct TCP proxy (`psql -h switchyard.proxy.rlwy.net -p 47381`) — connection reset, even with `sslmode=require`.
+  3. ✅ `railway connect Postgres-soBQ` — opens a direct tunneled psql session. Works reliably for both interactive and piped SQL.
+- **Decision:** `railway connect <service>` is the canonical method for production DB access from local. Documented in `README.md`.
+- **SQL Pattern (cascade-safe user delete):**
+  ```sql
+  DELETE FROM projects WHERE owner_id = (SELECT id FROM users WHERE email = '...');
+  DELETE FROM project_collaborators WHERE user_id = (SELECT id FROM users WHERE email = '...');
+  DELETE FROM users WHERE email = '...';
+  ```
+- **Result:** Local DB — user + projects deleted. Production DB — user did not exist (already clean).
+- **Also:** Added dynamic `document.title` via `usePageTitle` hook — browser tab now shows "Module Name · Kiri" based on active route, using existing i18n nav keys.
+- **PRD Reference:** §4 (Non-Functional — operations, infrastructure).
+
+---
+
 ## 2026-03-17 — 🚀 Railway Production Deployment Prep
 
 - **Context:** Prepared Kiri for Railway cloud deployment. All pending changes (auth, atlas heatmap, rebranding, chart exports, clinical suite, mito lab, drug discovery) committed and synced.

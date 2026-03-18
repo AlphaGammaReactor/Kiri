@@ -299,6 +299,33 @@ def _quantile_normalize(
 # ══════════════════════════════
 
 
+def _is_integer_counts(matrix: dict[str, list[float]], sample_size: int = 100) -> bool:
+    """
+    Detect whether the expression matrix contains integer raw counts
+    or floating-point normalized values (TPM/FPKM/etc).
+
+    Checks a sample of values: if >90% are whole numbers and the range
+    suggests count data, returns True.
+    """
+    all_vals: list[float] = []
+    for gene, vals in matrix.items():
+        all_vals.extend(vals[:sample_size])
+        if len(all_vals) > 500:
+            break
+
+    if not all_vals:
+        return False
+
+    arr = np.array(all_vals)
+    # Check if values are integer-like (no fractional parts)
+    int_fraction = np.mean(np.abs(arr - np.round(arr)) < 1e-6)
+    # Count data typically has large values (hundreds to thousands)
+    median_val = np.median(arr[arr > 0]) if np.any(arr > 0) else 0
+
+    # Integer-like AND median > 10 suggests raw counts
+    return float(int_fraction) > 0.90 and float(median_val) > 10.0
+
+
 def differential_expression(
     matrix: dict[str, list[float]],
     groups: list[str],
@@ -308,10 +335,10 @@ def differential_expression(
     """
     Run differential expression analysis between two groups.
 
-    Uses PyDESeq2 as specified in the updated plan (replacing Wilcoxon rank-sum):
-    "Expression comparison: PyDESeq2 exact test for raw counts"
-
-    Multiple testing correction: Benjamini-Hochberg FDR is built into DESeq2.
+    Strategy:
+    - If data looks like integer raw counts → use PyDESeq2 (Negative Binomial GLM)
+    - If data is floating-point normalized (TPM/FPKM) → use Wilcoxon rank-sum test
+      with Benjamini-Hochberg FDR correction (per Research Brief §6)
 
     Args:
         matrix: Gene → expression values dict
@@ -360,17 +387,35 @@ def differential_expression(
             warnings=[f"Group '{group_b}' has only {len(idx_b)} samples."],
         )
 
+    use_deseq2 = _is_integer_counts(matrix)
+
+    if use_deseq2:
+        return _de_pydeseq2(matrix, genes, groups, idx_a, idx_b, group_a, group_b)
+    else:
+        return _de_wilcoxon(matrix, genes, idx_a, idx_b, group_a, group_b)
+
+
+def _de_pydeseq2(
+    matrix: dict[str, list[float]],
+    genes: list[str],
+    groups: list[str],
+    idx_a: list[int],
+    idx_b: list[int],
+    group_a: str,
+    group_b: str,
+) -> dict[str, Any]:
+    """Run DE using PyDESeq2 for integer count data."""
+    n_samples = len(groups)
+
     # Build counts DataFrame (Samples x Genes)
     counts_dict = {}
     for i in range(n_samples):
-        # We need integer counts for DESeq2.
-        counts_dict[f"sample_{i}"] = {gene: int(matrix[gene][i]) for gene in genes}
+        counts_dict[f"sample_{i}"] = {gene: int(round(matrix[gene][i])) for gene in genes}
     counts_df = pd.DataFrame.from_dict(counts_dict, orient='index')
 
     # Build metadata DataFrame
     metadata_df = pd.DataFrame({"condition": groups}, index=counts_df.index)
 
-    # Initialize PyDESeq2 Dataset
     try:
         dds = DeseqDataSet(
             counts=counts_df,
@@ -382,7 +427,6 @@ def differential_expression(
         )
         dds.deseq2()
 
-        # Run statistical testing
         stat_res = DeseqStats(
             dds,
             contrast=("condition", group_a, group_b),
@@ -392,26 +436,18 @@ def differential_expression(
         stat_res.summary()
         res_df = stat_res.results_df
     except Exception as e:
-        raise KiriComputationError(
-            f"PyDESeq2 computation failed: {str(e)}",
-            source="differential-expression"
-        )
+        logger.warning(f"PyDESeq2 failed, falling back to Wilcoxon: {e}")
+        return _de_wilcoxon(matrix, genes, idx_a, idx_b, group_a, group_b)
 
-    # Format results to match required output
     results = []
-    
-    # Calculate simple means for the frontend presentation
     for gene in genes:
         values = np.array(matrix[gene])
         vals_a = values[idx_a]
         vals_b = values[idx_b]
-        
         mean_a = float(np.mean(vals_a))
         mean_b = float(np.mean(vals_b))
 
-        # PyDESeq2 gives us log2FoldChange, pvalue, padj
         gene_stats = res_df.loc[gene]
-
         results.append({
             "gene": gene,
             "log2_fold_change": round(float(gene_stats.get("log2FoldChange", 0.0) or 0.0), 4),
@@ -422,12 +458,76 @@ def differential_expression(
             "avg_expression": round(float(np.mean(values)), 4),
         })
 
+    results.sort(key=lambda x: x["adjusted_p_value"])
+    return {
+        "results": results,
+        "method": "PyDESeq2 (Negative Binomial GLM)",
+        "correction": "Benjamini-Hochberg FDR",
+        "group_a": group_a,
+        "group_b": group_b,
+        "n_a": len(idx_a),
+        "n_b": len(idx_b),
+    }
+
+
+def _de_wilcoxon(
+    matrix: dict[str, list[float]],
+    genes: list[str],
+    idx_a: list[int],
+    idx_b: list[int],
+    group_a: str,
+    group_b: str,
+) -> dict[str, Any]:
+    """
+    Run DE using Wilcoxon rank-sum test for normalized data (TPM/FPKM).
+    Per Research Brief §6 statistical standards.
+    """
+    results = []
+    raw_p_values = []
+
+    for gene in genes:
+        values = np.array(matrix[gene], dtype=float)
+        vals_a = values[idx_a]
+        vals_b = values[idx_b]
+
+        mean_a = float(np.mean(vals_a))
+        mean_b = float(np.mean(vals_b))
+
+        # Log2 fold change (add pseudocount to avoid log(0))
+        pseudo = 0.01
+        lfc = float(np.log2((mean_a + pseudo) / (mean_b + pseudo)))
+
+        # Wilcoxon rank-sum (Mann-Whitney U)
+        try:
+            stat_result = stats.mannwhitneyu(vals_a, vals_b, alternative="two-sided")
+            p_val = float(stat_result.pvalue)
+        except ValueError:
+            # All values identical or other edge case
+            p_val = 1.0
+
+        raw_p_values.append(p_val)
+        results.append({
+            "gene": gene,
+            "log2_fold_change": round(lfc, 4),
+            "p_value": p_val,
+            "adjusted_p_value": 1.0,  # placeholder, corrected below
+            "mean_a": round(mean_a, 4),
+            "mean_b": round(mean_b, 4),
+            "avg_expression": round(float(np.mean(values)), 4),
+        })
+
+    # Benjamini-Hochberg FDR correction
+    if raw_p_values:
+        _, adj_pvals, _, _ = multipletests(raw_p_values, method="fdr_bh")
+        for i, res in enumerate(results):
+            res["adjusted_p_value"] = round(float(adj_pvals[i]), 6)
+
     # Sort by adjusted p-value
     results.sort(key=lambda x: x["adjusted_p_value"])
 
     return {
         "results": results,
-        "method": "PyDESeq2 (Negative Binomial GLM)",
+        "method": "Wilcoxon rank-sum (Mann-Whitney U)",
         "correction": "Benjamini-Hochberg FDR",
         "group_a": group_a,
         "group_b": group_b,

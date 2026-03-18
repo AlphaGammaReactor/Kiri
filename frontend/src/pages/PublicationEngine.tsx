@@ -245,7 +245,7 @@ export default function PublicationEngine() {
             📄 {t('nav.export')}
             <InfoTooltip tooltipKey="tooltips.publication" />
           </h1>
-          <p className="text-kiri-text-muted text-sm mt-1">
+          <p className="text-sm text-kiri-text-muted mt-1">
             {t('export.subtitle', 'Configure layout and export publication-ready figures.')}
           </p>
         </div>

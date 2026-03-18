@@ -117,6 +117,43 @@ The `deploy/railway-production` branch includes production-hardened Dockerfiles 
 | `DEBUG` | Backend | Set to `false` |
 | `BACKEND_URL` | Frontend | `https://<backend>.up.railway.app` |
 
+### Railway Operations
+
+**List services:**
+```bash
+railway link          # Link to the Kiri project (one-time)
+railway service list  # Shows: Kiri, Frontend, Postgres-soBQ, Postgres-3_4W, Redis
+```
+
+**Connect to production database (interactive psql):**
+```bash
+railway connect Postgres-soBQ
+```
+
+**Run SQL non-interactively (pipe):**
+```bash
+echo "SELECT count(*) FROM users;" | railway connect Postgres-soBQ
+```
+
+> [!IMPORTANT]
+> **`railway connect` is the only reliable method from local.**
+> Direct TCP proxy (`switchyard.proxy.rlwy.net:47381`) and `railway run` both fail from local machines. Always use `railway connect <service-name>` to pipe SQL or open an interactive session.
+
+**Delete a user (cascade-safe):**
+```sql
+BEGIN;
+DELETE FROM projects WHERE owner_id = (SELECT id FROM users WHERE email = 'user@example.com');
+DELETE FROM project_collaborators WHERE user_id = (SELECT id FROM users WHERE email = 'user@example.com');
+DELETE FROM users WHERE email = 'user@example.com';
+COMMIT;
+```
+
+**View deployment logs:**
+```bash
+railway logs --service Kiri          # Backend logs
+railway logs --service Frontend      # Frontend logs
+```
+
 
 ## Data Sources
 

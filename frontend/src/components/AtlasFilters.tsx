@@ -12,10 +12,9 @@
 
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import type { AvailableSource } from "../hooks/useProjectDataSources";
 import type { HeatmapOptions, SampleLabelMode } from "./ExpressionHeatmap";
 import { COLOR_PALETTES, type DistanceMetric, type LinkageMethod } from "../utils/heatmapUtils";
-import { DataSourceBadge } from "./ui";
+
 
 interface AtlasFiltersProps {
   /** Selected stages */
@@ -29,13 +28,6 @@ interface AtlasFiltersProps {
   /** Normalization method */
   normalization: string;
   onNormalizationChange: (method: string) => void;
-
-  /** Active data source */
-  dataSource: string;
-  onDataSourceChange: (source: string) => void;
-
-  /** Available data sources from the project */
-  availableSources: AvailableSource[];
 
   /** Sample counts for display */
   sampleCount?: number;
@@ -83,9 +75,6 @@ export function AtlasFilters({
   onMsiChange,
   normalization,
   onNormalizationChange,
-  dataSource,
-  onDataSourceChange,
-  availableSources,
   sampleCount,
   tumorCount,
   normalCount,
@@ -119,47 +108,7 @@ export function AtlasFilters({
       transition={{ duration: 0.25 }}
       className="bg-kiri-surface border border-kiri-border rounded-lg p-4 space-y-5 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-thin"
     >
-      {/* ── Data Source ── */}
-      <section>
-        <h3 className="text-xs font-semibold text-kiri-text-dim uppercase tracking-wider mb-2.5">
-          {t("atlas.dataSource", "Data Source")}
-          <span className="ml-1 text-[10px] font-normal text-kiri-text-dim">
-            ({availableSources.length})
-          </span>
-        </h3>
 
-        {/* Expression sources — selectable for heatmap */}
-        <p className="text-[9px] text-kiri-text-dim uppercase tracking-wider mb-1.5">
-          {t("atlas.expressionData", "Expression Data")}
-        </p>
-        <div className="grid grid-cols-3 gap-1.5 mb-3">
-          {availableSources
-            .filter((src) => ["tcga", "geo", "cptac", "scrna", "custom"].includes(src.type))
-            .map((src) => (
-              <button
-                key={src.type}
-                onClick={() => onDataSourceChange(src.type)}
-                title={src.detail || src.label}
-                className={`text-xs px-2 py-2 rounded-md border transition-all duration-150 flex flex-col items-center gap-0.5 ${
-                  dataSource === src.type
-                    ? "border-kiri-accent bg-kiri-accent-glow text-kiri-accent"
-                    : "border-kiri-border text-kiri-text-muted hover:border-kiri-border-focus hover:text-kiri-text"
-                }`}
-              >
-                <span className="text-base">{src.icon}</span>
-                <span className="font-medium leading-tight">{src.label}</span>
-                <DataSourceBadge sourceType={src.type} />
-                {src.detail && (
-                  <span className="text-[7px] text-kiri-text-dim leading-tight truncate w-full text-center">
-                    {src.detail}
-                  </span>
-                )}
-              </button>
-            ))}
-        </div>
-
-
-      </section>
 
       {/* ── Normalization ── */}
       <section>

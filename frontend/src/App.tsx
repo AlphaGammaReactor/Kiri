@@ -10,6 +10,7 @@ import { ToastContainer } from "./components/Toast";
 import { LanguageFloatingButton } from "./components/LanguageFloatingButton";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { refreshToken } from "./store/authSlice";
+import { usePageTitle } from "./hooks/usePageTitle";
 import { fetchProject } from "./store/projectSlice";
 import { loadPublicationState, rehydratePublication } from "./store/publicationSlice";
 import { getProjectRehydration } from "./store/persistence";
@@ -242,11 +243,18 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/* ── Dynamic page title (must live inside BrowserRouter) ── */
+function PageTitleUpdater() {
+  usePageTitle();
+  return null;
+}
+
 /* ── App Root ── */
 function App() {
   return (
     <ErrorBoundary moduleName="App">
       <BrowserRouter>
+        <PageTitleUpdater />
         <AuthInitializer>
           <ToastContainer />
           <LanguageFloatingButton />

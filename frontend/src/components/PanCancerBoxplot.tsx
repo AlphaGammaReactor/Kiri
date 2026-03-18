@@ -12,7 +12,7 @@
  * - Publication Engine export via KiriChart
  */
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { EChartsOption } from "echarts";
 import { KiriChart } from "./KiriChart";
@@ -50,6 +50,13 @@ interface PanCancerBoxplotProps {
   genes: string[];
   projectIds?: string[];
   projectId?: string;
+  /** Lifted state from parent — survives tab switches */
+  data: PanCancerResponse | null;
+  loading: boolean;
+  error: string;
+  selectedGene: string;
+  onSelectGene: (gene: string) => void;
+  onLoadData: () => void;
 }
 
 // ── Tissue-type color palette ──
@@ -86,43 +93,8 @@ function pToStars(p: number): string {
   return "";
 }
 
-export function PanCancerBoxplot({ genes, projectIds, projectId }: PanCancerBoxplotProps) {
+export function PanCancerBoxplot({ genes, loading, error, data, selectedGene, onSelectGene, onLoadData }: PanCancerBoxplotProps) {
   const { t } = useTranslation();
-  const [data, setData] = useState<PanCancerResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [selectedGene, setSelectedGene] = useState(genes[0] || "");
-
-  // Track whether we've already fetched for these genes
-  const cacheKeyRef = useRef("");
-
-  // Fetch pan-cancer data (user-initiated)
-  const loadData = useCallback(async () => {
-    if (!genes.length) return;
-    const cacheKey = `${genes.join(",")}|${projectIds?.join(",") ?? ""}|${projectId ?? ""}`;
-    setLoading(true);
-    setError("");
-
-    try {
-      const { fetchPanCancerExpression } = await import("../services/api");
-      const resp = await fetchPanCancerExpression(genes, projectIds, projectId);
-      if (resp.status === "success" && resp.data) {
-        setData(resp.data as PanCancerResponse);
-        cacheKeyRef.current = cacheKey;
-        // Default to first gene if current selection not in results
-        const resultGenes = (resp.data as PanCancerResponse).genes;
-        if (resultGenes.length > 0 && !resultGenes.includes(selectedGene.toUpperCase())) {
-          setSelectedGene(resultGenes[0]);
-        }
-      } else {
-        setError(resp.errors?.join("; ") || "Failed to fetch pan-cancer data");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Pan-cancer fetch failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [genes, projectIds, projectId, selectedGene]);
 
   // Build chart option for the selected gene
   const chartOption = useMemo<EChartsOption | null>(() => {
@@ -317,7 +289,7 @@ export function PanCancerBoxplot({ genes, projectIds, projectId }: PanCancerBoxp
         <div className="text-center py-8">
           <p className="text-red-400 text-sm">❌ {error}</p>
           <button
-            onClick={loadData}
+            onClick={onLoadData}
             className="mt-3 text-xs px-3 py-1.5 rounded bg-kiri-surface border border-kiri-border text-kiri-text hover:border-kiri-accent transition-colors"
           >
             {t("common.retry", "Retry")}
@@ -349,7 +321,7 @@ export function PanCancerBoxplot({ genes, projectIds, projectId }: PanCancerBoxp
             )}
           </p>
           <button
-            onClick={loadData}
+            onClick={onLoadData}
             className="px-5 py-2.5 rounded-lg bg-kiri-accent text-white text-sm font-medium hover:bg-kiri-accent/80 transition-colors"
           >
             🚀 {t("atlas.runPanCancer", "Run Pan-Cancer Analysis")}
@@ -395,7 +367,7 @@ export function PanCancerBoxplot({ genes, projectIds, projectId }: PanCancerBoxp
             </label>
             <select
               value={selectedGene}
-              onChange={(e) => setSelectedGene(e.target.value)}
+              onChange={(e) => onSelectGene(e.target.value)}
               className="text-xs bg-kiri-bg border border-kiri-border rounded px-3 py-1.5 text-kiri-text focus:border-kiri-accent outline-none font-mono"
             >
               {data.genes.map((g) => (
@@ -410,7 +382,7 @@ export function PanCancerBoxplot({ genes, projectIds, projectId }: PanCancerBoxp
           {data.total_cancer_types} {t("atlas.cancerTypes", "cancer types")}
         </span>
         <button
-          onClick={loadData}
+          onClick={onLoadData}
           disabled={loading}
           className="ml-auto text-[10px] px-2.5 py-1 rounded border border-kiri-border text-kiri-text-muted hover:text-kiri-text hover:border-kiri-accent transition-colors disabled:opacity-50"
         >

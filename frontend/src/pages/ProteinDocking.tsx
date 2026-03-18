@@ -5,7 +5,7 @@ import { useAppSelector, useAppDispatch } from "../store";
 import type { RootState } from "../store";
 import { usePageState } from "../hooks/usePageState";
 import { addToast } from "../store/errorSlice";
-import { InfoTooltip } from "../components/ui";
+import { InfoTooltip, Stat } from "../components/ui";
 import { runProteinDocking, fetchTaskStatus } from "../services/api";
 
 export default function ProteinDocking() {
@@ -126,9 +126,9 @@ export default function ProteinDocking() {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="p-6 space-y-6"
+      className="p-8 space-y-6 max-w-[1400px] mx-auto"
     >
-      <div className="flex items-center justify-between border-b border-kiri-border pb-4">
+      <div className="flex items-start justify-between border-b border-kiri-border pb-4">
         <div>
           <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
             {t("nav.docking")}
@@ -137,6 +137,11 @@ export default function ProteinDocking() {
           <p className="text-sm text-kiri-text-muted mt-1">
             {t("modules.docking.subtitle", "Run high-confidence protein-protein docking models and refine complexes.")}
           </p>
+        </div>
+        <div className="flex items-center gap-4">
+          {projectGenes.length > 0 && (
+            <Stat label="Proteins" value={projectGenes.join(", ")} />
+          )}
         </div>
       </div>
 

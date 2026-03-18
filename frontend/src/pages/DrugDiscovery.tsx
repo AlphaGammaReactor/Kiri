@@ -5,7 +5,7 @@ import {
   Loader2, AlertTriangle, ShieldCheck, Activity, Database, Beaker,
   FlaskConical, BarChart3, Settings, X, ExternalLink, Copy, Check
 } from "lucide-react";
-import { InfoTooltip } from "../components/ui";
+import { InfoTooltip, Stat } from "../components/ui";
 import { useAppSelector, useAppDispatch } from "../store";
 import type { RootState } from "../store";
 import { hydrateSource } from "../store/dataSourceSlice";
@@ -956,15 +956,20 @@ export default function DrugDiscovery() {
   // ─── Main Render ───────────────────────────────────────────
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-8 space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-kiri-accent to-purple-400 mb-2 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
             {t("drugs.title")}
             <InfoTooltip tooltipKey="tooltips.drugs" />
           </h1>
-          <p className="text-kiri-text-muted">{t("drugs.subtitle")}</p>
+          <p className="text-sm text-kiri-text-muted mt-1">{t("drugs.subtitle")}</p>
+        </div>
+        <div className="flex items-center gap-4">
+          {projectGenes.length > 0 && (
+            <Stat label="Target Genes" value={projectGenes.join(", ")} />
+          )}
         </div>
       </div>
 

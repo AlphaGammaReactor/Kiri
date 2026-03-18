@@ -28,7 +28,7 @@ import { CitationPopup } from "../components/CitationPopup";
 import { PathwayBanner } from "../components/PathwayBanner";
 import { InteractionDetail } from "../components/InteractionDetail";
 import type { InteractionContextData } from "../components/InteractionDetail";
-import { InfoTooltip } from "../components/ui";
+import { InfoTooltip, Stat } from "../components/ui";
 import {
   fetchPPINetwork,
   fetchProteinStructure,
@@ -418,12 +418,13 @@ export default function InteractionLab() {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="p-6 space-y-4"
+      className="p-8 max-w-[1400px] mx-auto space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
+            <span>🔗</span>
             {t("nav.interaction")}
             <InfoTooltip tooltipKey="tooltips.interaction" />
           </h1>
@@ -432,54 +433,49 @@ export default function InteractionLab() {
           </p>
         </div>
 
-        {/* Controls */}
+        {/* Stats bar */}
         <div className="flex items-center gap-4">
-          {/* Confidence slider */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-kiri-text-muted">
-              {t("modules.interaction.confidence")}
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={confidence}
-              onChange={(e) => setConfidence(parseFloat(e.target.value))}
-              className="w-32 accent-kiri-accent"
-            />
-            <span className="text-xs font-mono text-kiri-accent w-8">
-              {confidence.toFixed(2)}
-            </span>
-          </div>
-
-          {/* Structure gene selector — only shows visible genes */}
-          {activeGenes.length > 0 && (
-            <select
-              value={activeStructureGene}
-              onChange={(e) => {
-                const gene = e.target.value;
-                setActiveStructureGene(gene);
-                loadStructure(gene);
-                loadCleavage(gene);
-              }}
-              className="text-xs px-3 py-1.5 rounded border border-kiri-border bg-kiri-surface text-kiri-text"
-            >
-              {activeGenes.map((gene) => (
-                <option key={gene} value={gene}>
-                  {gene}
-                </option>
-              ))}
-            </select>
+          {projectGenes.length > 0 && (
+            <Stat label={t("mito.genes", "Target Genes")} value={projectGenes.join(", ")} />
           )}
+          {ppiData && (
+            <Stat label={t("mito.samples", "Network")} value={`${ppiData.meta.total_nodes} nodes`} />
+          )}
+          {/* Data Source Selector */}
+          <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
+            <select
+              value="string"
+              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-default appearance-none"
+            >
+              <option value="string" className="bg-kiri-surface text-kiri-text">🔗 STRING-DB</option>
+            </select>
+          </div>
+          {/* Confidence slider */}
+          <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2">
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">
+              {t("modules.interaction.confidence")}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={confidence}
+                onChange={(e) => setConfidence(parseFloat(e.target.value))}
+                className="w-20 accent-kiri-accent h-1"
+              />
+              <span className="text-sm font-mono text-kiri-accent">
+                {confidence.toFixed(2)}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* ── Protein Toggle Chip Bar ── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-kiri-text-dim uppercase tracking-wider mr-1">
-          Proteins:
-        </span>
+      <div className="flex gap-1 bg-kiri-surface rounded-xl p-1 border border-kiri-border items-center flex-wrap">
         {projectGenes.map((gene) => {
           const isActive = visibleGenes.has(gene);
           return (
@@ -487,20 +483,20 @@ export default function InteractionLab() {
               key={gene}
               onClick={() => toggleGene(gene)}
               className={`
-                text-xs px-3 py-1.5 rounded-full font-medium
-                transition-all duration-200 border
+                flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all
                 ${isActive
-                  ? "bg-kiri-accent/20 border-kiri-accent text-kiri-accent shadow-[0_0_8px_rgba(0,255,136,0.15)]"
-                  : "bg-kiri-surface/50 border-kiri-border text-kiri-text-dim hover:border-kiri-text-muted hover:text-kiri-text-muted"
+                  ? "bg-kiri-accent/15 text-kiri-accent border border-kiri-accent/30"
+                  : "text-kiri-text-muted hover:text-kiri-text hover:bg-kiri-surface-hover border border-transparent"
                 }
               `}
             >
-              {isActive ? "●" : "○"} {gene}
+              <span>{isActive ? "●" : "○"}</span>
+              <span>{gene}</span>
             </button>
           );
         })}
         {/* Quick actions */}
-        <div className="flex items-center gap-1 ml-2 border-l border-kiri-border pl-2">
+        <div className="flex items-center gap-1 ml-auto pl-2">
           <button
             onClick={selectAllGenes}
             className="text-[10px] px-2 py-1 rounded text-kiri-text-dim hover:text-kiri-accent transition-colors"
@@ -515,7 +511,7 @@ export default function InteractionLab() {
           </button>
         </div>
         {activeGenes.length > 0 && (
-          <span className="text-[10px] text-kiri-text-dim ml-auto">
+          <span className="text-[10px] text-kiri-text-dim ml-2 pr-2">
             {activeGenes.length}/{projectGenes.length} active
           </span>
         )}

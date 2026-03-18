@@ -21,7 +21,7 @@ import { TemporalClusterPanel } from "../components/TemporalClusterPanel";
 import { DEResultsTable } from "../components/DEResultsTable";
 import { GeneBoxplots } from "../components/GeneBoxplots";
 import { PanCancerBoxplot } from "../components/PanCancerBoxplot";
-import { Card, StatusBadge, Stat, InfoTooltip } from "../components/ui";
+import { Card, Stat, InfoTooltip } from "../components/ui";
 import { useProjectDataSources } from "../hooks/useProjectDataSources";
 import { usePageState } from "../hooks/usePageState";
 import {
@@ -29,9 +29,14 @@ import {
   fetchGeoDataset,
   fetchProjectFileDetail,
   fetchDifferentialExpression,
+  fetchDNBAnalysis,
+  fetchTemporalClusters,
+  fetchPanCancerExpression,
+  getErrorMessage,
   type Provenance,
   type DEResult,
   type DEResponse,
+  type DNBResult,
 } from "../services/api";
 import { motion } from "framer-motion";
 import { pValueToAsterisks } from "../utils/heatmapUtils";
@@ -103,10 +108,115 @@ export default function AtlasPage() {
   const [deResults, setDeResults] = useState<DEResult[]>([]);
   const [deResponse, setDeResponse] = useState<DEResponse | null>(null);
   const [deLoading, setDeLoading] = useState(false);
+  const [deError, setDeError] = useState<string>("");
 
   // ── Exported gene list from brush selection ──
   const [exportedGenes, setExportedGenes] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+
+  // ── Lifted Analysis State (survives tab switches) ──
+  // DNB
+  const [dnbResult, setDnbResult] = useState<DNBResult | null>(null);
+  const [dnbLoading, setDnbLoading] = useState(false);
+  const [dnbError, setDnbError] = useState("");
+
+  // Temporal Clustering
+  interface TemporalClusterData {
+    stages: string[];
+    clusters: Array<{
+      id: number; label: string; centroid: number[]; centroid_norm: number[];
+      centroid_smooth: number[]; genes: string[]; gene_count: number;
+      memberships: Record<string, number>; pattern: string;
+    }>;
+    gene_assignments?: Record<string, { cluster: number; membership: number }>;
+    n_genes: number;
+  }
+  const [temporalData, setTemporalData] = useState<TemporalClusterData | null>(null);
+  const [temporalLoading, setTemporalLoading] = useState(false);
+  const [temporalError, setTemporalError] = useState("");
+
+  // Pan-Cancer
+  interface PanCancerResponse {
+    cancer_types: Array<{ project: string; label: string; total_samples: number; genes: Array<{ gene: string; normal_values: number[]; tumor_values: number[]; p_value: number; log2fc: number; n_normal: number; n_tumor: number; mean_normal: number; mean_tumor: number; }>; }>;
+    genes: string[];
+    total_cancer_types: number;
+  }
+  const [panCancerData, setPanCancerData] = useState<PanCancerResponse | null>(null);
+  const [panCancerLoading, setPanCancerLoading] = useState(false);
+  const [panCancerError, setPanCancerError] = useState("");
+  const [panCancerGene, setPanCancerGene] = useState(selectedGenes[0] || "");
+
+  // ── Reset analysis results when expression data changes ──
+  const dataFingerprint = data ? `${data.source}|${data.sample_count}|${Object.keys(data.values).length}` : "";
+  useEffect(() => {
+    setDnbResult(null); setDnbError("");
+    setTemporalData(null); setTemporalError("");
+  }, [dataFingerprint]);
+
+  // Reset pan-cancer when genes change
+  const genesKey = selectedGenes.join(",");
+  useEffect(() => {
+    setPanCancerData(null); setPanCancerError("");
+    setPanCancerGene(selectedGenes[0] || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genesKey]);
+
+  // ── DNB Analysis Runner ──
+  const runDnbAnalysis = useCallback(async () => {
+    if (!data?.values || !data?.samples?.length) return;
+    const labels = data.samples.map(s => normalizeStage(s.stage) || s.sample_type || "unknown");
+    setDnbLoading(true); setDnbError("");
+    try {
+      const res = await fetchDNBAnalysis(data.values, labels);
+      if (res.status === "success" && res.data) {
+        setDnbResult(res.data);
+      } else {
+        setDnbError(res.errors?.[0] || "Analysis failed");
+      }
+    } catch (e) {
+      setDnbError(String(e));
+    }
+    setDnbLoading(false);
+  }, [data]);
+
+  // ── Temporal Clustering Runner ──
+  const runTemporalAnalysis = useCallback(async () => {
+    if (!data?.values || !data?.samples?.length) return;
+    const labels = data.samples.map(s => normalizeStage(s.stage) || s.sample_type || "unknown");
+    setTemporalLoading(true); setTemporalError("");
+    try {
+      const res = await fetchTemporalClusters(data.values, labels, 6, 2.0);
+      if (res.status === "success" && res.data) {
+        setTemporalData(res.data as TemporalClusterData);
+      } else {
+        setTemporalError(res.errors?.[0] || "Analysis failed");
+      }
+    } catch (e) {
+      setTemporalError(getErrorMessage(e));
+    }
+    setTemporalLoading(false);
+  }, [data]);
+
+  // ── Pan-Cancer Runner ──
+  const runPanCancerAnalysis = useCallback(async () => {
+    if (!selectedGenes.length) return;
+    setPanCancerLoading(true); setPanCancerError("");
+    try {
+      const resp = await fetchPanCancerExpression(selectedGenes, clinicalProjectIds, activeProject?.id);
+      if (resp.status === "success" && resp.data) {
+        const pcData = resp.data as PanCancerResponse;
+        setPanCancerData(pcData);
+        if (pcData.genes.length > 0 && !pcData.genes.includes(panCancerGene.toUpperCase())) {
+          setPanCancerGene(pcData.genes[0]);
+        }
+      } else {
+        setPanCancerError(resp.errors?.join("; ") || "Failed to fetch pan-cancer data");
+      }
+    } catch (err) {
+      setPanCancerError(err instanceof Error ? err.message : "Pan-cancer fetch failed");
+    }
+    setPanCancerLoading(false);
+  }, [selectedGenes, clinicalProjectIds, activeProject?.id, panCancerGene]);
 
   // Initialize data source from project sources
   useEffect(() => {
@@ -220,17 +330,29 @@ export default function AtlasPage() {
     let cancelled = false;
     const runDE = async () => {
       setDeLoading(true);
+      setDeError("");
       try {
         const resp = await fetchDifferentialExpression(data.values, groups, "tumor", "normal");
-        if (!cancelled && resp.status === "success" && resp.data) {
-          setDeResults(resp.data.results);
-          setDeResponse(resp.data);
+        if (!cancelled) {
+          if (resp.status === "success" && resp.data) {
+            setDeResults(resp.data.results);
+            setDeResponse(resp.data);
+            setDeError("");
+          } else {
+            // Backend returned an error response
+            const errMsg = resp.errors?.join("; ") || "Differential expression analysis returned no results";
+            console.warn("DE analysis error response:", errMsg);
+            setDeResults([]);
+            setDeResponse(null);
+            setDeError(errMsg);
+          }
         }
       } catch (err) {
         console.warn("DE analysis failed:", err);
         if (!cancelled) {
           setDeResults([]);
           setDeResponse(null);
+          setDeError(err instanceof Error ? err.message : "Differential expression analysis failed");
         }
       } finally {
         if (!cancelled) setDeLoading(false);
@@ -261,12 +383,13 @@ export default function AtlasPage() {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="p-6"
+      className="p-8 max-w-[1400px] mx-auto"
     >
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
+            <span>🧬</span>
             {t("nav.atlas")}
             <InfoTooltip tooltipKey="tooltips.atlas" />
           </h1>
@@ -274,78 +397,57 @@ export default function AtlasPage() {
             {t("atlas.subtitle", "Compare target gene expression across databases and resolutions")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {activeTab === "expression" && (
-            <>
-              <StatusBadge
-                label={dataSource.toUpperCase()}
-                variant={dataSource === "tcga" ? "success" : "info"}
-              />
-              {filteredData && (
-                <Stat
-                  label={t("trust.samples", "n =")}
-                  value={filteredData.samples.length}
-                />
-              )}
-            </>
+
+        {/* Stats bar */}
+        <div className="flex items-center gap-4">
+          {selectedGenes.length > 0 && (
+            <Stat label={t("mito.genes", "Target Genes")} value={selectedGenes.join(", ")} />
           )}
+          {filteredData && (
+            <Stat label={t("mito.samples", "Samples")} value={String(filteredData.samples.length)} />
+          )}
+          {/* Data Source Selector */}
+          <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
+            <select
+              value={dataSource}
+              onChange={(e) => setDataSource(e.target.value)}
+              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-pointer appearance-none"
+            >
+              {expressionSources
+                .filter((src) => ["tcga", "geo", "cptac", "scrna", "custom"].includes(src.type))
+                .map((src) => (
+                  <option key={src.type} value={src.type} className="bg-kiri-surface text-kiri-text">
+                    {src.icon} {src.label}{src.detail ? ` — ${src.detail}` : ""}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {/* ── Tab Bar ── */}
-      <div className="flex items-center gap-1 border-b border-kiri-border mb-6">
-        <button
-          onClick={() => setActiveTab("expression")}
-          className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
-            activeTab === "expression"
-              ? "border-kiri-accent text-kiri-accent"
-              : "border-transparent text-kiri-text-muted hover:text-kiri-text"
-          }`}
-        >
-          🧬 {t("enrichment.tab_expression")}
-        </button>
-        <button
-          onClick={() => setActiveTab("enrichment")}
-          className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
-            activeTab === "enrichment"
-              ? "border-kiri-accent text-kiri-accent"
-              : "border-transparent text-kiri-text-muted hover:text-kiri-text"
-          }`}
-        >
-          🎯 {t("enrichment.tab_enrichment")}
-        </button>
-        <button
-          onClick={() => setActiveTab("dnb")}
-          className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
-            activeTab === "dnb"
-              ? "border-kiri-accent text-kiri-accent"
-              : "border-transparent text-kiri-text-muted hover:text-kiri-text"
-          }`}
-        >
-          📊 {t("dnb.tab_dnb")}
-        </button>
-        <button
-          onClick={() => setActiveTab("temporal")}
-          className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
-            activeTab === "temporal"
-              ? "border-kiri-accent text-kiri-accent"
-              : "border-transparent text-kiri-text-muted hover:text-kiri-text"
-          }`}
-        >
-          📈 {t("temporal.title", "Temporal Clusters")}
-        </button>
-        {dataSource === "tcga" && (
+      <div className="flex gap-1 bg-kiri-surface rounded-xl p-1 mb-6 border border-kiri-border">
+        {([
+          { key: "expression" as AtlasTab, icon: "🧬", labelKey: "enrichment.tab_expression" },
+          { key: "enrichment" as AtlasTab, icon: "🎯", labelKey: "enrichment.tab_enrichment" },
+          { key: "dnb" as AtlasTab, icon: "📊", labelKey: "dnb.tab_dnb" },
+          { key: "temporal" as AtlasTab, icon: "📈", labelKey: "temporal.title", fallback: "Temporal Clusters" },
+          ...(dataSource === "tcga" ? [{ key: "pan-cancer" as AtlasTab, icon: "🌐", labelKey: "atlas.panCancerTab", fallback: "Pan-Cancer" }] : []),
+        ]).map((tab) => (
           <button
-            onClick={() => setActiveTab("pan-cancer")}
-            className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
-              activeTab === "pan-cancer"
-                ? "border-kiri-accent text-kiri-accent"
-                : "border-transparent text-kiri-text-muted hover:text-kiri-text"
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === tab.key
+                ? "bg-kiri-accent/15 text-kiri-accent border border-kiri-accent/30"
+                : "text-kiri-text-muted hover:text-kiri-text hover:bg-kiri-surface-hover border border-transparent"
             }`}
           >
-            📊 {t("atlas.panCancerTab", "Pan-Cancer")}
+            <span>{tab.icon}</span>
+            <span>{t(tab.labelKey, tab.fallback || tab.key)}</span>
           </button>
-        )}
+        ))}
       </div>
 
       {/* ── Tab Content ── */}
@@ -359,18 +461,32 @@ export default function AtlasPage() {
           expressionMatrix={data?.values ?? null}
           stageLabels={data?.samples?.map(s => normalizeStage(s.stage) || s.sample_type || "unknown") ?? null}
           loading={loading}
+          result={dnbResult}
+          analysisLoading={dnbLoading}
+          analysisError={dnbError}
+          onRunAnalysis={runDnbAnalysis}
         />
       ) : activeTab === "temporal" ? (
         <TemporalClusterPanel
           expressionMatrix={data?.values ?? null}
           stageLabels={data?.samples?.map(s => normalizeStage(s.stage) || s.sample_type || "unknown") ?? null}
           loading={loading}
+          data={temporalData}
+          analysisLoading={temporalLoading}
+          analysisError={temporalError}
+          onRunAnalysis={runTemporalAnalysis}
         />
       ) : activeTab === "pan-cancer" ? (
         <PanCancerBoxplot
           genes={selectedGenes}
           projectIds={clinicalProjectIds}
           projectId={activeProject?.id}
+          data={panCancerData}
+          loading={panCancerLoading}
+          error={panCancerError}
+          selectedGene={panCancerGene}
+          onSelectGene={setPanCancerGene}
+          onLoadData={runPanCancerAnalysis}
         />
       ) : (
       /* ── Expression Tab: Sidebar + Content ── */
@@ -384,9 +500,6 @@ export default function AtlasPage() {
             onMsiChange={setMsiFilter}
             normalization={normalization}
             onNormalizationChange={setNormalization}
-            dataSource={dataSource}
-            onDataSourceChange={setDataSource}
-            availableSources={expressionSources}
             sampleCount={filteredData?.samples.length}
             tumorCount={tumorCount}
             normalCount={normalCount}
@@ -507,6 +620,13 @@ export default function AtlasPage() {
             <Card>
               <div className="text-center py-6 text-kiri-text-muted text-sm">
                 ⏳ Running differential expression analysis…
+              </div>
+            </Card>
+          )}
+          {deError && !deLoading && (
+            <Card className="border-kiri-error/30 bg-kiri-error/5">
+              <div className="text-center py-4 text-kiri-error text-sm">
+                ⚠️ {deError}
               </div>
             </Card>
           )}
