@@ -102,9 +102,12 @@ async def get_enhanced_ppi_network(
     )
     from app.services.interaction_intact import fetch_intact_interactions
 
-    # Fetch from all three sources
+    # Fetch from selected sources (STRING always included)
     string_data = await fetch_string_network(gene_list, score_threshold=body.confidence)
-    biogrid_data = await fetch_biogrid_interactions(gene_list)
+
+    biogrid_data = None
+    if body.include_biogrid:
+        biogrid_data = await fetch_biogrid_interactions(gene_list)
 
     intact_data = None
     if body.include_intact:

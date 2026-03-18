@@ -20,6 +20,7 @@ class EnhancedPPIRequest(BaseModel):
     project_id: str | None = None
     confidence: float = Field(default=0.4, ge=0, le=1, description="Minimum STRING confidence")
     high_confidence_only: bool = Field(default=False, description="Filter to score > 0.7 or multi-source")
+    include_biogrid: bool = Field(default=True, description="Include BioGRID data source")
     include_intact: bool = Field(default=True, description="Include IntAct data source")
     annotate_mito: bool = Field(default=True, description="Annotate with MitoCarta3.0 localization")
 

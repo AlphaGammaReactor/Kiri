@@ -8,7 +8,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, StatusBadge } from "./ui";
-import { fetchDNBAnalysis, type DNBResult } from "../services/api";
+import { type DNBResult } from "../services/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { toPng } from "html-to-image";
 import { useAppDispatch } from "../store";
@@ -19,6 +19,11 @@ interface DNBPanelProps {
   expressionMatrix: Record<string, number[]> | null;
   stageLabels: string[] | null;
   loading?: boolean;
+  /** Lifted state from parent — survives tab switches */
+  result: DNBResult | null;
+  analysisLoading: boolean;
+  analysisError: string;
+  onRunAnalysis: () => void;
 }
 
 const MODULE_ICONS: Record<string, string> = {
@@ -32,12 +37,9 @@ const MODULE_ICONS: Record<string, string> = {
   metabolism: "🔥",
 };
 
-export function DNBPanel({ expressionMatrix, stageLabels, loading: parentLoading }: DNBPanelProps) {
+export function DNBPanel({ expressionMatrix, stageLabels, loading: parentLoading, result, analysisLoading: loading, analysisError: error, onRunAnalysis }: DNBPanelProps) {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
-  const [result, setResult] = useState<DNBResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
   const compositeRef = useRef<HTMLDivElement>(null);
 
@@ -68,23 +70,6 @@ export function DNBPanel({ expressionMatrix, stageLabels, loading: parentLoading
       console.error("Failed to capture DNB figure", err);
     }
   }, [result, dispatch, t]);
-
-  const runAnalysis = useCallback(async () => {
-    if (!expressionMatrix || !stageLabels?.length) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetchDNBAnalysis(expressionMatrix, stageLabels);
-      if (res.status === "success" && res.data) {
-        setResult(res.data);
-      } else {
-        setError(res.errors?.[0] || "Analysis failed");
-      }
-    } catch (e) {
-      setError(String(e));
-    }
-    setLoading(false);
-  }, [expressionMatrix, stageLabels]);
 
   // Expression data is being loaded by the parent
   if (parentLoading) {
@@ -121,7 +106,7 @@ export function DNBPanel({ expressionMatrix, stageLabels, loading: parentLoading
           <div className="text-center py-8">
             <p className="text-sm text-kiri-text-muted mb-4">{t("dnb.description")}</p>
             <button
-              onClick={() => void runAnalysis()}
+              onClick={onRunAnalysis}
               className="px-6 py-2.5 rounded-lg bg-kiri-accent text-kiri-bg font-semibold text-sm hover:brightness-110 transition"
             >
               🔬 {t("dnb.run_analysis")}
@@ -159,7 +144,7 @@ export function DNBPanel({ expressionMatrix, stageLabels, loading: parentLoading
               {error}
             </p>
             <button
-              onClick={() => { setError(""); void runAnalysis(); }}
+              onClick={onRunAnalysis}
               className="text-xs text-kiri-accent hover:underline mt-2"
             >
               🔄 {t("common.retry")}
@@ -185,7 +170,7 @@ export function DNBPanel({ expressionMatrix, stageLabels, loading: parentLoading
                   {result.tipping_point || "—"}
                 </span>
                 <button
-                  onClick={() => { setResult(null); void runAnalysis(); }}
+                  onClick={onRunAnalysis}
                   className="text-xs text-kiri-text-dim hover:text-kiri-text transition"
                 >
                   🔄 {t("dnb.rerun")}

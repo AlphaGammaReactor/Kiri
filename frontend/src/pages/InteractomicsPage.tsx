@@ -16,7 +16,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSelector, useAppDispatch } from "../store";
 import { motion } from "framer-motion";
-import { Card, StatusBadge, ChartSkeleton } from "../components/ui";
+import { Card, StatusBadge, ChartSkeleton, Stat, InfoTooltip } from "../components/ui";
 import { PPINetwork } from "../components/PPINetwork";
 import { InteractomicsHeatmap } from "../components/InteractomicsHeatmap";
 import { SubstrateTable } from "../components/SubstrateTable";
@@ -39,6 +39,8 @@ import {
   clearNetworkData as clearNetworkDataAction,
   setHighConfidence as setHighConfidenceAction,
   setShowMitoOnly as setShowMitoOnlyAction,
+  setIncludeBiogrid as setIncludeBiogridAction,
+  setIncludeIntact as setIncludeIntactAction,
   setCoexprData as setCoexprDataAction,
   setPrideResults as setPrideResultsAction,
   setProteomicsAnalysis as setProteomicsAnalysisAction,
@@ -81,6 +83,8 @@ function InteractomicsPage() {
   const geoResults = useAppSelector((s) => s.interactomics.geoResults);
   const highConfidence = useAppSelector((s) => s.interactomics.highConfidence);
   const showMitoOnly = useAppSelector((s) => s.interactomics.showMitoOnly);
+  const includeBiogrid = useAppSelector((s) => s.interactomics.includeBiogrid);
+  const includeIntact = useAppSelector((s) => s.interactomics.includeIntact);
   const proteomicsAnalysis = useAppSelector((s) => s.interactomics.proteomicsAnalysis);
   const proteomicsProv = useAppSelector((s) => s.interactomics.proteomicsProv);
   const deAnalysis = useAppSelector((s) => s.interactomics.deAnalysis);
@@ -117,7 +121,7 @@ function InteractomicsPage() {
         case "network": {
           if (!networkData) {
             const resp = await fetchEnhancedPPI(
-              genes, 0.4, highConfidence, true, true, projectId
+              genes, 0.4, highConfidence, includeBiogrid, includeIntact, true, projectId
             );
             if (resp.status === "success") {
               dispatch(setNetworkDataAction({ data: resp.data, provenance: resp.provenance }));
@@ -174,48 +178,84 @@ function InteractomicsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, projectId, highConfidence, genes, networkData, coexprData, substrateData, regulatoryData, dispatch]);
+  }, [activeTab, projectId, highConfidence, includeBiogrid, includeIntact, genes, networkData, coexprData, substrateData, regulatoryData, dispatch]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Re-fetch network when confidence filter changes
+  // Re-fetch network when confidence or source filter changes
   const handleConfidenceToggle = async () => {
     dispatch(setHighConfidenceAction(!highConfidence));
     dispatch(clearNetworkDataAction()); // Force refetch
   };
+
+  const handleSourceChange = (value: string) => {
+    dispatch(setIncludeBiogridAction(value === "biogrid" || value === "all"));
+    dispatch(setIncludeIntactAction(value === "intact" || value === "all"));
+    dispatch(clearNetworkDataAction()); // Force refetch
+  };
+
+  // Derive current source value for the dropdown
+  const currentSource = includeBiogrid && includeIntact
+    ? "all"
+    : includeBiogrid
+    ? "biogrid"
+    : includeIntact
+    ? "intact"
+    : "string";
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="p-6"
+      className="p-8 max-w-[1400px] mx-auto space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-kiri-text tracking-tight">
+          <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
+            <span>⚙️</span>
             {t("interactomics.title", "Interactomics & Regulatory Network")}
+            <InfoTooltip tooltipKey="tooltips.interactomics" />
           </h1>
           <p className="text-sm text-kiri-text-muted mt-1">
             {t("interactomics.subtitle", "Multi-omics integration: PPI networks, co-expression, proteomics, substrates, and regulatory mechanisms")}
           </p>
         </div>
-        <StatusBadge label="Phase 9" variant="info" />
+        <div className="flex items-center gap-4">
+          <Stat label="Target Genes" value={genes.length > 0 ? genes.join(", ") : "—"} />
+          {networkData?.meta && (
+            <Stat label="Network" value={`${networkData.meta.total_nodes} nodes`} />
+          )}
+          {/* Data Source Selector */}
+          <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
+            <select
+              value={currentSource}
+              onChange={(e) => handleSourceChange(e.target.value)}
+              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-pointer appearance-none"
+            >
+              <option value="string" className="bg-kiri-surface text-kiri-text">🔗 STRING-DB</option>
+              <option value="biogrid" className="bg-kiri-surface text-kiri-text">🧬 BioGRID</option>
+              <option value="intact" className="bg-kiri-surface text-kiri-text">🔬 IntAct</option>
+              <option value="all" className="bg-kiri-surface text-kiri-text">📊 All Sources</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* Tab Bar */}
-      <div className="flex items-center gap-1 border-b border-kiri-border mb-6">
+      {/* Tab Bar — pill-style */}
+      <div className="flex gap-1 bg-kiri-surface rounded-xl p-1 border border-kiri-border overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 text-sm px-4 py-2.5 border-b-2 transition-colors font-medium whitespace-nowrap ${
+            className={`flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-lg font-medium whitespace-nowrap transition-all ${
               activeTab === tab.id
-                ? "border-kiri-accent text-kiri-accent"
-                : "border-transparent text-kiri-text-muted hover:text-kiri-text"
+                ? "bg-kiri-accent/15 text-kiri-accent border border-kiri-accent/30"
+                : "text-kiri-text-muted hover:text-kiri-text hover:bg-kiri-surface-hover border border-transparent"
             }`}
           >
             <span>{tab.icon}</span>

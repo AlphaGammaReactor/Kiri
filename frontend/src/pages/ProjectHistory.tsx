@@ -61,7 +61,7 @@ export default function ProjectHistory() {
           <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
             📜 {t('nav.history')}
           </h1>
-          <p className="text-kiri-text-muted text-sm mt-1">
+          <p className="text-sm text-kiri-text-muted mt-1">
             {t('history.subtitle', 'View and restore project snapshots.')}
           </p>
         </div>

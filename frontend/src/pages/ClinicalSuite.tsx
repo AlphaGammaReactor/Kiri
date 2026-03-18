@@ -20,7 +20,7 @@ import { CibersortStackedBar } from "../components/CibersortStackedBar";
 import { CibersortBoxplot } from "../components/CibersortBoxplot";
 import { PanSurvivalForest } from "../components/PanSurvivalForest";
 import { fetchImmuneDeconvolution, fetchPanSurvival } from "../services/api";
-import { ProvenanceFooter, InfoTooltip } from "../components/ui";
+import { ProvenanceFooter, InfoTooltip, Stat } from "../components/ui";
 import { useProjectDataSources } from "../hooks/useProjectDataSources";
 
 type Tab = "survival" | "cox" | "synergy" | "immune" | "pan_survival";
@@ -30,7 +30,9 @@ export default function ClinicalSuite() {
   const activeGenes = useAppSelector((s: RootState) => s.app.selectedGenes);
   
   // Use dynamic project IDs from project data sources
-  const { clinicalProjectIds: projectIds } = useProjectDataSources();
+  const { clinicalProjectIds: projectIds, expressionSources } = useProjectDataSources();
+
+  const [dataSource, setDataSource] = useState("tcga");
 
   // ── Persisted UI State ──
   const [uiState, setUiState] = usePageState<{
@@ -200,54 +202,63 @@ export default function ClinicalSuite() {
   );
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {/* ── Page Header & Tabs ── */}
-      <div className="bg-kiri-surface border-b border-kiri-border sticky top-0 z-20">
-        <div className="px-8 pt-8 pb-4">
-          <h1 className="text-2xl font-bold text-kiri-text mb-2 tracking-tight flex items-center gap-2">
+    <div className="p-8 max-w-[1400px] mx-auto">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
             {t("nav.clinical")}
             <InfoTooltip tooltipKey="tooltips.clinical" />
           </h1>
-          <p className="text-kiri-text-muted text-sm max-w-2xl flex items-center gap-2">
+          <p className="text-sm text-kiri-text-muted mt-1">
             {t("clinical.subtitle")}
-            {projectIds.length > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-mono rounded-full bg-kiri-accent/10 text-kiri-accent border border-kiri-accent/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-kiri-accent/60" />
-                {projectIds.join(" + ")}
-              </span>
-            )}
           </p>
         </div>
-
-        <div className="px-8 flex items-center gap-6">
-          {(["survival", "cox", "synergy", "immune", "pan_survival"] as Tab[]).map((tabId) => (
-            <button
-              key={tabId}
-              onClick={() => setActiveTab(tabId)}
-              className={`relative py-3 px-1 text-sm font-medium transition-colors ${
-                activeTab === tabId
-                  ? "text-kiri-accent"
-                  : "text-kiri-text-muted hover:text-kiri-text hover:bg-kiri-surface-hover"
-              }`}
+        <div className="flex items-center gap-4">
+          {activeGenes.length > 0 && (
+            <Stat label="Target Genes" value={activeGenes.join(", ")} />
+          )}
+          {/* Data Source Selector */}
+          <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
+            <select
+              value={dataSource}
+              onChange={(e) => setDataSource(e.target.value)}
+              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-pointer appearance-none"
             >
-              {t(`clinical.tabs.${tabId}`)}
-              {activeTab === tabId && (
-                <motion.div
-                  layoutId="clinicalTabIndicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-kiri-accent"
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
-            </button>
-          ))}
+              {expressionSources
+                .filter((src) => ["tcga", "geo", "cptac", "scrna", "custom"].includes(src.type))
+                .map((src) => (
+                  <option key={src.type} value={src.type} className="bg-kiri-surface text-kiri-text">
+                    {src.icon} {src.label}{src.detail ? ` — ${src.detail}` : ""}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
+      </div>
+
+      {/* Tab Bar */}
+      <div className="flex gap-1 bg-kiri-surface rounded-xl p-1 mb-6 border border-kiri-border">
+        {(["survival", "cox", "synergy", "immune", "pan_survival"] as Tab[]).map((tabId) => (
+          <button
+            key={tabId}
+            onClick={() => setActiveTab(tabId)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === tabId
+                ? "bg-kiri-accent/15 text-kiri-accent border border-kiri-accent/30"
+                : "text-kiri-text-muted hover:text-kiri-text hover:bg-kiri-surface-hover border border-transparent"
+            }`}
+          >
+            {t(`clinical.tabs.${tabId}`)}
+          </button>
+        ))}
       </div>
       {/* Tab labels i18n fallbacks for new tabs */}
       {/* immune → "Immune Infiltration", pan_survival → "Pan-Survival" */}
 
       {/* ── Main Content ── */}
-      <div className="p-8 flex-1 flex flex-col gap-6">
+      <div className="space-y-6">
         {activeGenes.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-kiri-surface/50 border border-kiri-border border-dashed rounded-lg">
             <span className="text-4xl mb-4 opacity-50">🧬</span>

@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageState } from "../hooks/usePageState";
 import { useAppSelector } from "../store";
-import { Card, StatusBadge, InfoTooltip } from "../components/ui";
+import { Card, StatusBadge, InfoTooltip, Stat } from "../components/ui";
 import {
   fetchAssays,
   createAssay,
@@ -172,10 +172,10 @@ export default function PDMVault() {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="p-6"
+      className="p-8 max-w-[1400px] mx-auto"
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
             {t("pdm.title")}
@@ -185,16 +185,21 @@ export default function PDMVault() {
             {t("pdm.subtitle")}
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="text-xs px-4 py-2 rounded-lg bg-kiri-accent text-kiri-bg font-semibold hover:brightness-110 transition-all"
-        >
-          {showForm ? t("common.cancel") : `+ ${t("pdm.add_record")}`}
-        </button>
+        <div className="flex items-center gap-4">
+          {proteins.length > 0 && (
+            <Stat label="Targets" value={proteins.join(", ")} />
+          )}
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="text-xs px-4 py-2 rounded-lg bg-kiri-accent text-kiri-bg font-semibold hover:brightness-110 transition-all"
+          >
+            {showForm ? t("common.cancel") : `+ ${t("pdm.add_record")}`}
+          </button>
+        </div>
       </div>
 
-      {/* Tab Bar */}
-      <div className="flex items-center gap-1 border-b border-kiri-border mb-6">
+      {/* Tab Bar — pill-style */}
+      <div className="flex gap-1 bg-kiri-surface rounded-xl p-1 border border-kiri-border mb-6">
         {([
           { key: "assays" as PDMTab, icon: "🧪", count: assays.length },
           { key: "imaging" as PDMTab, icon: "🔬", count: images.length },
@@ -203,14 +208,14 @@ export default function PDMVault() {
           <button
             key={tab.key}
             onClick={() => { setActiveTab(tab.key); setShowForm(false); }}
-            className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
               activeTab === tab.key
-                ? "border-kiri-accent text-kiri-accent"
-                : "border-transparent text-kiri-text-muted hover:text-kiri-text"
+                ? "bg-kiri-accent/15 text-kiri-accent border border-kiri-accent/30"
+                : "text-kiri-text-muted hover:text-kiri-text hover:bg-kiri-surface-hover border border-transparent"
             }`}
           >
             {tab.icon} {t(`pdm.tab_${tab.key}`)}
-            <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-kiri-surface-hover">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-kiri-surface-hover">
               {tab.count}
             </span>
           </button>

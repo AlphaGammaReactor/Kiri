@@ -314,15 +314,29 @@ async def run_differential_expression(body: DifferentialRequest):
     """
     Run differential expression analysis between two groups.
 
-    Uses Wilcoxon rank-sum test with Benjamini-Hochberg FDR correction
-    (per Research Brief §6 statistical standards).
+    Uses Wilcoxon rank-sum test for normalized data (TPM/FPKM) or
+    PyDESeq2 for raw integer counts, with Benjamini-Hochberg FDR
+    correction (per Research Brief §6 statistical standards).
     """
-    result = differential_expression(
-        matrix=body.matrix,
-        groups=body.groups,
-        group_a=body.group_a,
-        group_b=body.group_b,
-    )
+    from app.core.errors import KiriComputationError as _KCE
+
+    try:
+        result = differential_expression(
+            matrix=body.matrix,
+            groups=body.groups,
+            group_a=body.group_a,
+            group_b=body.group_b,
+        )
+    except (_KCE, KiriValidationError) as e:
+        logger.warning(f"DE analysis error: {e}")
+        return error_response(str(e), source="differential-expression", warnings=[str(e)])
+    except Exception as e:
+        logger.error(f"Unexpected DE error: {e}", exc_info=True)
+        return error_response(
+            f"Differential expression failed: {str(e)}",
+            source="differential-expression",
+            warnings=[str(e)],
+        )
 
     return success_response(
         data=result,

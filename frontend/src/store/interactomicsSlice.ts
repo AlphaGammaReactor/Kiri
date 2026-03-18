@@ -23,6 +23,8 @@ interface InteractomicsState {
   networkProv: Provenance | null;
   highConfidence: boolean;
   showMitoOnly: boolean;
+  includeBiogrid: boolean;
+  includeIntact: boolean;
 
   // Co-expression tab
   coexprData: AnyData | null;
@@ -58,6 +60,8 @@ const initialState: InteractomicsState = {
   networkProv: null,
   highConfidence: false,
   showMitoOnly: false,
+  includeBiogrid: true,
+  includeIntact: true,
   coexprData: null,
   coexprProv: null,
   prideResults: null,
@@ -99,6 +103,12 @@ const interactomicsSlice = createSlice({
     },
     setShowMitoOnly(state, action: PayloadAction<boolean>) {
       state.showMitoOnly = action.payload;
+    },
+    setIncludeBiogrid(state, action: PayloadAction<boolean>) {
+      state.includeBiogrid = action.payload;
+    },
+    setIncludeIntact(state, action: PayloadAction<boolean>) {
+      state.includeIntact = action.payload;
     },
 
     // Co-expression
@@ -168,6 +178,8 @@ export const {
   clearNetworkData,
   setHighConfidence,
   setShowMitoOnly,
+  setIncludeBiogrid,
+  setIncludeIntact,
   setCoexprData,
   setPrideResults,
   setProteomicsAnalysis,
