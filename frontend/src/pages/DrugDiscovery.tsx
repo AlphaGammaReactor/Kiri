@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,7 +9,14 @@ import { InfoTooltip, Stat } from "../components/ui";
 import { useAppSelector, useAppDispatch } from "../store";
 import type { RootState } from "../store";
 import { hydrateSource } from "../store/dataSourceSlice";
-import { fetchSourceCachedData, fetchCompoundDescription } from "../services/api";
+import {
+  fetchSourceCachedData,
+  fetchCompoundDescription,
+  fetchDrugInteractions,
+  fetchTargetRanking,
+  fetchPubChemCompounds,
+  fetchChEMBLBioactivities,
+} from "../services/api";
 import { useNavigate } from "react-router-dom";
 
 // ─── Types ─────────────────────────────────────────────────────
@@ -567,7 +574,10 @@ export default function DrugDiscovery() {
   const [selectedActivity, setSelectedActivity] = useState<{ activity: ChEMBLActivity; gene: string } | null>(null);
   const [selectedRanking, setSelectedRanking] = useState<Ranking | null>(null);
 
-  const projectGenes = activeProject?.proteins?.map((p) => p.gene_symbol) ?? [];
+  const projectGenes = useMemo(
+    () => activeProject?.proteins?.map((p) => p.gene_symbol) ?? [],
+    [activeProject?.proteins]
+  );
 
   const hydrationStatus = useAppSelector((s: RootState) => s.dataSource.hydrationStatus);
 
@@ -585,10 +595,10 @@ export default function DrugDiscovery() {
     (ds) => ds.source_type === "chembl" && isLoaded(ds)
   );
 
-  const hasDrugSources = !!(drugbankSource || pubchemSource || chemblSource);
   const hasAnyDrugConfig = activeProject?.data_sources.some(
     (ds) => ["drugbank", "pubchem", "chembl"].includes(ds.source_type)
   );
+  const hasDrugSources = !!hasAnyDrugConfig;
 
   // Auto-hydrate pending drug sources on first visit
   const hydratedRef = useRef(new Set<string>());
@@ -604,51 +614,85 @@ export default function DrugDiscovery() {
     }
   }, [activeProject, dispatch]);
 
-  // Load cached data from backend when available sources are present
-  const loadCachedData = useCallback(async () => {
-    if (!activeProject || !hasDrugSources) return;
+  // Load data: try cached first, then fall back to live API calls
+  const loadData = useCallback(async () => {
+    if (!activeProject || !hasDrugSources || projectGenes.length === 0) return;
 
     setLoading(true);
     setError(null);
 
+    const anyLoaded = !!(drugbankSource || pubchemSource || chemblSource);
+
     try {
-      const promises: Promise<void>[] = [];
+      if (anyLoaded) {
+        // Try to load from cached data
+        const promises: Promise<void>[] = [];
 
-      if (drugbankSource) {
-        promises.push(
-          fetchSourceCachedData(activeProject.id, drugbankSource.id).then((res) => {
-            const data = res.data?.cached_data as Record<string, unknown> | null;
-            if (data) {
-              setInteractions((data.interactions as Record<string, Interaction[]>) || null);
-              setRankings((data.rankings as Ranking[]) || null);
-            }
-          })
+        if (drugbankSource) {
+          promises.push(
+            fetchSourceCachedData(activeProject.id, drugbankSource.id).then((res) => {
+              const data = res.data?.cached_data as Record<string, unknown> | null;
+              if (data) {
+                setInteractions((data.interactions as Record<string, Interaction[]>) || null);
+                setRankings((data.rankings as Ranking[]) || null);
+              }
+            })
+          );
+        }
+
+        if (pubchemSource) {
+          promises.push(
+            fetchSourceCachedData(activeProject.id, pubchemSource.id).then((res) => {
+              const data = res.data?.cached_data as Record<string, unknown> | null;
+              if (data) {
+                setCompounds((data.compounds as Record<string, PubChemCompound[]>) || null);
+              }
+            })
+          );
+        }
+
+        if (chemblSource) {
+          promises.push(
+            fetchSourceCachedData(activeProject.id, chemblSource.id).then((res) => {
+              const data = res.data?.cached_data as Record<string, unknown> | null;
+              if (data) {
+                setBioactivities((data.bioactivities as Record<string, { activities: ChEMBLActivity[]; total_count: number; target: { pref_name?: string } | null }>) || null);
+              }
+            })
+          );
+        }
+
+        await Promise.all(promises);
+      } else {
+        // No loaded sources — fall back to live API calls
+        const livePromises: Promise<void>[] = [];
+
+        livePromises.push(
+          fetchDrugInteractions(projectGenes).then((res) => {
+            if (res.data?.interactions) setInteractions(res.data.interactions);
+          }).catch(() => { /* live API may fail gracefully */ })
         );
-      }
 
-      if (pubchemSource) {
-        promises.push(
-          fetchSourceCachedData(activeProject.id, pubchemSource.id).then((res) => {
-            const data = res.data?.cached_data as Record<string, unknown> | null;
-            if (data) {
-              setCompounds((data.compounds as Record<string, PubChemCompound[]>) || null);
-            }
-          })
+        livePromises.push(
+          fetchTargetRanking(projectGenes).then((res) => {
+            if (res.data?.rankings) setRankings(res.data.rankings);
+          }).catch(() => { /* live API may fail gracefully */ })
         );
-      }
 
-      if (chemblSource) {
-        promises.push(
-          fetchSourceCachedData(activeProject.id, chemblSource.id).then((res) => {
-            const data = res.data?.cached_data as Record<string, unknown> | null;
-            if (data) {
-              setBioactivities((data.bioactivities as Record<string, { activities: ChEMBLActivity[]; total_count: number; target: { pref_name?: string } | null }>) || null);
-            }
-          })
+        livePromises.push(
+          fetchPubChemCompounds(projectGenes).then((res) => {
+            if (res.data?.compounds) setCompounds(res.data.compounds);
+          }).catch(() => { /* live API may fail gracefully */ })
         );
-      }
 
-      await Promise.all(promises);
+        livePromises.push(
+          fetchChEMBLBioactivities(projectGenes).then((res) => {
+            if (res.data?.bioactivities) setBioactivities(res.data.bioactivities as Record<string, { activities: ChEMBLActivity[]; total_count: number; target: { pref_name?: string } | null }>);
+          }).catch(() => { /* live API may fail gracefully */ })
+        );
+
+        await Promise.all(livePromises);
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message || t("drugs.load_error"));
@@ -658,11 +702,11 @@ export default function DrugDiscovery() {
     } finally {
       setLoading(false);
     }
-  }, [activeProject, drugbankSource, pubchemSource, chemblSource, hasDrugSources, t]);
+  }, [activeProject, drugbankSource, pubchemSource, chemblSource, hasDrugSources, projectGenes, t]);
 
   useEffect(() => {
-    loadCachedData();
-  }, [loadCachedData]);
+    loadData();
+  }, [loadData]);
 
   // ─── Tab Renderers ─────────────────────────────────────────
 
@@ -970,6 +1014,27 @@ export default function DrugDiscovery() {
           {projectGenes.length > 0 && (
             <Stat label="Target Genes" value={projectGenes.join(", ")} />
           )}
+          {/* Drug source status badges */}
+          <div className="flex items-center gap-2">
+            {(["drugbank", "pubchem", "chembl"] as const).map((type) => {
+              const src = activeProject?.data_sources.find(ds => ds.source_type === type);
+              if (!src) return null;
+              const loaded = isLoaded(src);
+              return (
+                <span
+                  key={type}
+                  className={`text-xs px-2 py-1 rounded-full border font-medium ${
+                    loaded
+                      ? "bg-kiri-success/10 text-kiri-success border-kiri-success/20"
+                      : "bg-kiri-warning/10 text-kiri-warning border-kiri-warning/20"
+                  }`}
+                >
+                  {type === "drugbank" ? "DrugBank" : type === "pubchem" ? "PubChem" : "ChEMBL"}
+                  {loaded ? " ✓" : " ⏳"}
+                </span>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -998,9 +1063,7 @@ export default function DrugDiscovery() {
             {t("dataSource.no_drug_sources", "No drug data sources attached")}
           </h3>
           <p className="text-kiri-text-muted mb-4">
-            {hasAnyDrugConfig
-              ? t("dataSource.sources_loading", "Drug data sources are still loading. Please wait or check Project Settings.")
-              : t("dataSource.no_drug_sources_desc", "Add DrugBank, PubChem, or ChEMBL in Project Settings to explore drug discoveries.")}
+            {t("dataSource.no_drug_sources_desc", "Add DrugBank, PubChem, or ChEMBL in Project Settings to explore drug discoveries.")}
           </p>
           <button
             onClick={() => navigate(`/projects/${activeProject?.id}/settings`)}
@@ -1080,7 +1143,7 @@ export default function DrugDiscovery() {
                 <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-80" />
                 <p>{error}</p>
                 <button 
-                  onClick={loadCachedData}
+                  onClick={loadData}
                   className="mt-4 px-4 py-2 bg-kiri-surface-hover rounded border border-kiri-border hover:bg-kiri-border transition-colors text-sm"
                 >
                   {t("common.retry")}

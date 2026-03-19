@@ -70,13 +70,18 @@ function MitoAnalysisPage() {
 
   const [dataSource, setDataSource] = useState("tcga");
 
+  // Clear cached data when data source changes so re-fetch occurs
+  const [coexprData, setCoexprData] = useState<CoexpressionData | null>(null);
+  const [mitoScoreData, setMitoScoreData] = useState<MitoScoreData | null>(null);
+
+  useEffect(() => {
+    setCoexprData(null);
+    setMitoScoreData(null);
+  }, [dataSource]);
+
   const [activeTab, setActiveTab] = useState<MitoTab>("coexpression");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Data states
-  const [coexprData, setCoexprData] = useState<CoexpressionData | null>(null);
-  const [mitoScoreData, setMitoScoreData] = useState<MitoScoreData | null>(null);
 
   // Use project proteins directly — no hardcoded fallbacks
   const genes = selectedGenes;

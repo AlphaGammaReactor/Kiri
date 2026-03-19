@@ -102,6 +102,18 @@ export default function ClinicalSuite() {
     }
   }, [activeGenes, survivalGene, synergyGeneA, synergyGeneB]);
 
+  // Clear cached analysis data when data source changes so re-fetch occurs
+  useEffect(() => {
+    setSurvivalData(null);
+    setCoxData(null);
+    setSynergyData(null);
+    setImmuneData(null);
+    setPanSurvivalData(null);
+    setProvenance(null);
+    setLastImmuneProjectIds("");
+    setLastPanSurvivalParams("");
+  }, [dataSource]);
+
   const doLoad = useCallback(async () => {
     if (activeGenes.length === 0) return;
     setLoading(true);
@@ -173,6 +185,7 @@ export default function ClinicalSuite() {
     projectIds,
     cutpointMethod,
     customCutpoint,
+    dataSource,
   ]);
   // Removed data objects from the dependency array to prevent infinite fetch loops
 

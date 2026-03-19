@@ -32,6 +32,7 @@ import {
   fetchRegulatoryNetwork,
   getErrorMessage,
 } from "../services/api";
+import { useProjectDataSources } from "../hooks/useProjectDataSources";
 import { VolcanoPlot } from "../components/VolcanoPlot";
 import {
   setActiveTab as setActiveTabAction,
@@ -69,6 +70,7 @@ function InteractomicsPage() {
   const selectedGenes = useAppSelector((s) => s.app.selectedGenes);
   const activeProject = useAppSelector((s) => s.project.activeProject);
   const projectId = activeProject?.id;
+  const { clinicalProjectIds } = useProjectDataSources();
 
   // ── Redux-persisted state (survives navigation + refresh) ──
   const activeTab = useAppSelector((s) => s.interactomics.activeTab) as TabId;
@@ -134,7 +136,7 @@ function InteractomicsPage() {
         case "coexpression": {
           if (!coexprData) {
             const resp = await fetchCoexpressionHeatmap(
-              genes, ["TCGA-COAD", "TCGA-READ"], 0.6, 50, projectId
+              genes, clinicalProjectIds, 0.6, 50, projectId
             );
             if (resp.status === "success") {
               dispatch(setCoexprDataAction({ data: resp.data, provenance: resp.provenance }));
@@ -158,7 +160,7 @@ function InteractomicsPage() {
         case "regulatory": {
           if (!regulatoryData) {
             const resp = await fetchRegulatoryNetwork(
-              genes, ["TCGA-COAD", "TCGA-READ"],
+              genes, clinicalProjectIds,
               true, true, true, true, projectId
             );
             if (resp.status === "success") {
@@ -178,7 +180,7 @@ function InteractomicsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, projectId, highConfidence, includeBiogrid, includeIntact, genes, networkData, coexprData, substrateData, regulatoryData, dispatch]);
+  }, [activeTab, projectId, highConfidence, includeBiogrid, includeIntact, genes, networkData, coexprData, substrateData, regulatoryData, dispatch, clinicalProjectIds]);
 
   useEffect(() => {
     fetchData();
