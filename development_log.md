@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-03-20 — ✨ Transparent Exports + Settings Gear + Light/Dark Mode
+
+- **Context:** Three interrelated publication and UX features implemented.
+- **Feature 1 — Transparent Export Backgrounds:** All `+Figure` export buttons across the platform now capture images with transparent backgrounds instead of baked white (`#ffffff`). This allows the Publication Engine to compose figures freely on any background. Fixed 8 files: `KiriChart.tsx` (ECharts), `publicationExport.ts`, `PPINetwork.tsx` (Cytoscape), `ProteinViewer.tsx` (WebGL/Three.js), `DNBPanel.tsx` (html-to-image), `KaplanMeierPlot.tsx`, `ExpressionHeatmap.tsx`. All ECharts components going through `KiriChart` or `getPublicationDataURL` inherit automatically.
+- **Feature 2 — Settings Gear Button:** New `SettingsFloatingButton.tsx` replaces `LanguageFloatingButton.tsx`. Renders a ⚙️ gear icon in the bottom-right that expands on hover/click to reveal: (1) Language toggle (EN ↔ 中), (2) Theme toggle (☀️/🌙). Uses `framer-motion` for smooth animation.
+- **Feature 3 — Light/Dark Mode:** Full runtime theme switching. CSS restructured from hardcoded `@theme` tokens to runtime CSS custom properties (`--kiri-*`) referenced by Tailwind `@theme`. Dark theme on `:root` (default), light overrides via `[data-theme="light"]`. Redux `setTheme` reducer + localStorage persistence. `App.tsx` syncs `data-theme` attribute to `document.documentElement`.
+- **Files Changed (11):** `App.tsx`, `KiriChart.tsx`, `DNBPanel.tsx`, `ExpressionHeatmap.tsx`, `KaplanMeierPlot.tsx`, `PPINetwork.tsx`, `ProteinViewer.tsx`, `publicationExport.ts`, `store/index.ts`, `styles/index.css`, **NEW:** `SettingsFloatingButton.tsx`
+- **Verification:** `tsc --noEmit` → 0 errors. Browser test: both themes work correctly, gear button renders/expands, all pages respect theme.
+- **Deployed:** Railway build triggered from commit `77234fb` on `deploy/railway-production`.
+- **PRD Reference:** §2 Module 5 (Publication Engine — export quality), §4 (Non-Functional — UX accessibility).
+
+---
+
 ## 2026-03-18 — 🛡️ Atlas Pane State Persistence: Lift Analysis Results into AtlasPage
 
 - **Context:** DNB, Temporal Cluster, and Pan-Cancer analysis results were stored in child component `useState`. Switching Atlas tabs unmounted the component and destroyed results, forcing users to re-run expensive analyses.

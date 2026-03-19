@@ -1,7 +1,7 @@
 # Kiri — Global TODO
 
 > Auto-managed by the IDE Agent. Run `/todo` to refresh.
-> Last updated: 2026-03-16 18:45 HKT (full platform audit + /start re-init)
+> Last updated: 2026-03-20 02:09 HKT (transparent exports, settings gear, light/dark mode)
 
 ---
 
@@ -22,6 +22,7 @@
 - [x] Provenance metadata service
 - [x] Input validation middleware (Pydantic strict mode)
 - [x] Tailwind dark-lab theme + component tokens
+- [x] Light/dark mode theme support (CSS custom properties + data-theme scoping)
 - [x] Shared component library (`Card`, `Badge`, `ProvenanceFooter`, etc.)
 - [x] Gene search component with HGNC auto-validation
 - [x] API client service (axios + error handling + provenance extraction)
@@ -141,6 +142,15 @@
 > [!NOTE]
 > Bilingual export option and colorblind-safe palette selector UI are stubbed but not fully wired.
 > Publication state now persists across page reloads (auto-save with 2s debounce).
+> All +Figure exports now use transparent backgrounds (2026-03-20).
+
+---
+
+## Publication & UX Enhancements ✅
+- [x] Transparent backgrounds for all +Figure exports (KiriChart, PPI, ProteinViewer, DNB, KM, Heatmap)
+- [x] Settings gear button (replaces language button, expandable menu)
+- [x] Light/dark mode theme switching (CSS custom properties + Redux + localStorage)
+- [x] Runtime theme system via `--kiri-*` CSS vars with `[data-theme]` scoping
 
 ---
 
