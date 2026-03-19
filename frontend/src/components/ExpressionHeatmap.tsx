@@ -384,7 +384,7 @@ export function ExpressionHeatmap({
           `;
         },
       },
-      backgroundColor: "#ffffff",
+      backgroundColor: "transparent",
       grid: {
         left: 120,
         right: 24,

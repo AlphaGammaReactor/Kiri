@@ -1,37 +1,35 @@
 @import "tailwindcss";
 
 /* ──────────────────────────────────────
-   Kiri Dark Lab Theme — Custom Tokens
+   Kiri Lab Theme — Tailwind @theme Tokens
+   (Static tokens for Tailwind class generation)
    ────────────────────────────────────── */
 
 @theme {
-  /* Core palette */
-  --color-kiri-bg: #0a0e17;
-  --color-kiri-surface: #111827;
-  --color-kiri-surface-hover: #1a2332;
-  --color-kiri-border: #1e293b;
-  --color-kiri-border-focus: #334155;
+  /* These define the Tailwind class names (e.g. bg-kiri-bg, text-kiri-text).
+     Actual colors are resolved at runtime via CSS custom properties below. */
+  --color-kiri-bg: var(--kiri-bg);
+  --color-kiri-surface: var(--kiri-surface);
+  --color-kiri-surface-hover: var(--kiri-surface-hover);
+  --color-kiri-border: var(--kiri-border);
+  --color-kiri-border-focus: var(--kiri-border-focus);
 
-  /* Accent — Paulownia green */
-  --color-kiri-accent: #22c55e;
-  --color-kiri-accent-dim: #166534;
-  --color-kiri-accent-glow: rgba(34, 197, 94, 0.15);
+  --color-kiri-accent: var(--kiri-accent);
+  --color-kiri-accent-dim: var(--kiri-accent-dim);
+  --color-kiri-accent-glow: var(--kiri-accent-glow);
 
-  /* Text */
-  --color-kiri-text: #f1f5f9;
-  --color-kiri-text-muted: #94a3b8;
-  --color-kiri-text-dim: #64748b;
+  --color-kiri-text: var(--kiri-text);
+  --color-kiri-text-muted: var(--kiri-text-muted);
+  --color-kiri-text-dim: var(--kiri-text-dim);
 
-  /* Status */
-  --color-kiri-success: #22c55e;
-  --color-kiri-warning: #f59e0b;
-  --color-kiri-error: #ef4444;
-  --color-kiri-info: #3b82f6;
+  --color-kiri-success: var(--kiri-success);
+  --color-kiri-warning: var(--kiri-warning);
+  --color-kiri-error: var(--kiri-error);
+  --color-kiri-info: var(--kiri-info);
 
-  /* Trust badges */
-  --color-kiri-ai-badge: #a855f7;
-  --color-kiri-verified: #22c55e;
-  --color-kiri-quarantined: #ef4444;
+  --color-kiri-ai-badge: var(--kiri-ai-badge);
+  --color-kiri-verified: var(--kiri-verified);
+  --color-kiri-quarantined: var(--kiri-quarantined);
 
   /* Typography */
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
@@ -40,15 +38,74 @@
 }
 
 /* ──────────────────────────────────────
+   Dark Theme (default)
+   ────────────────────────────────────── */
+
+:root {
+  --kiri-bg: #0a0e17;
+  --kiri-surface: #111827;
+  --kiri-surface-hover: #1a2332;
+  --kiri-border: #1e293b;
+  --kiri-border-focus: #334155;
+
+  --kiri-accent: #22c55e;
+  --kiri-accent-dim: #166534;
+  --kiri-accent-glow: rgba(34, 197, 94, 0.15);
+
+  --kiri-text: #f1f5f9;
+  --kiri-text-muted: #94a3b8;
+  --kiri-text-dim: #64748b;
+
+  --kiri-success: #22c55e;
+  --kiri-warning: #f59e0b;
+  --kiri-error: #ef4444;
+  --kiri-info: #3b82f6;
+
+  --kiri-ai-badge: #a855f7;
+  --kiri-verified: #22c55e;
+  --kiri-quarantined: #ef4444;
+}
+
+/* ──────────────────────────────────────
+   Light Theme
+   ────────────────────────────────────── */
+
+[data-theme="light"] {
+  --kiri-bg: #f8fafc;
+  --kiri-surface: #ffffff;
+  --kiri-surface-hover: #f1f5f9;
+  --kiri-border: #e2e8f0;
+  --kiri-border-focus: #cbd5e1;
+
+  --kiri-accent: #16a34a;
+  --kiri-accent-dim: #bbf7d0;
+  --kiri-accent-glow: rgba(22, 163, 74, 0.12);
+
+  --kiri-text: #1e293b;
+  --kiri-text-muted: #475569;
+  --kiri-text-dim: #94a3b8;
+
+  --kiri-success: #16a34a;
+  --kiri-warning: #d97706;
+  --kiri-error: #dc2626;
+  --kiri-info: #2563eb;
+
+  --kiri-ai-badge: #9333ea;
+  --kiri-verified: #16a34a;
+  --kiri-quarantined: #dc2626;
+}
+
+/* ──────────────────────────────────────
    Global base styles
    ────────────────────────────────────── */
 
 body {
-  background-color: var(--color-kiri-bg);
-  color: var(--color-kiri-text);
+  background-color: var(--kiri-bg);
+  color: var(--kiri-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* Scrollbar styling */
@@ -58,20 +115,20 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-kiri-bg);
+  background: var(--kiri-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-kiri-border);
+  background: var(--kiri-border);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-kiri-border-focus);
+  background: var(--kiri-border-focus);
 }
 
 /* Selection */
 ::selection {
-  background-color: var(--color-kiri-accent-glow);
-  color: var(--color-kiri-text);
+  background-color: var(--kiri-accent-glow);
+  color: var(--kiri-text);
 }

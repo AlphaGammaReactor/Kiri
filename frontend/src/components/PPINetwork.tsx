@@ -78,7 +78,7 @@ export function PPINetwork({
     if (!cyRef.current) return;
     
     // Cytoscape PNG export
-    const dataUrl = cyRef.current.png({ bg: '#ffffff', full: true, scale: 2 });
+    const dataUrl = cyRef.current.png({ bg: 'transparent', full: true, scale: 2 });
     
     const panelTitle = t("modules.interaction.ppi_title");
     dispatch(addPanel({

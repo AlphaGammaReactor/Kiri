@@ -470,6 +470,14 @@ export function ProteinViewer({
     const canvas = canvasRef.current.querySelector("canvas");
     if (!canvas) return;
 
+    // For transparent export: temporarily clear the WebGL background
+    // Find the renderer's parent canvas and re-render with alpha
+    const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+    if (gl) {
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+
     const dataUrl = canvas.toDataURL("image/png");
     
     let title = t("modules.interaction.structure_title");
