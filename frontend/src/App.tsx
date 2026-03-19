@@ -7,7 +7,7 @@ import { Suspense, lazy, useEffect } from "react";
 
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastContainer } from "./components/Toast";
-import { LanguageFloatingButton } from "./components/LanguageFloatingButton";
+import { SettingsFloatingButton } from "./components/SettingsFloatingButton";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { refreshToken } from "./store/authSlice";
 import { usePageTitle } from "./hooks/usePageTitle";
@@ -251,13 +251,20 @@ function PageTitleUpdater() {
 
 /* ── App Root ── */
 function App() {
+  const theme = useAppSelector((s: RootState) => s.app.theme);
+
+  // Sync theme to document root
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
   return (
     <ErrorBoundary moduleName="App">
       <BrowserRouter>
         <PageTitleUpdater />
         <AuthInitializer>
           <ToastContainer />
-          <LanguageFloatingButton />
+          <SettingsFloatingButton />
           <Suspense fallback={<div className="min-h-screen bg-kiri-bg flex items-center justify-center"><div className="w-8 h-8 rounded-full border-2 border-kiri-accent border-r-transparent animate-spin" /></div>}>
             <Routes>
               {/* Public route */}

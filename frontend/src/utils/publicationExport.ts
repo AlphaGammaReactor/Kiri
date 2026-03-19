@@ -9,7 +9,7 @@ import type * as echarts from "echarts/core";
 
 /** Dark-on-white theme overrides for publication export */
 const PUBLICATION_THEME = {
-  backgroundColor: "#ffffff",
+  backgroundColor: "transparent",
   textStyle: { color: "#1a1a2e" },
   title: { textStyle: { color: "#1a1a2e" }, subtextStyle: { color: "#4b5563" } },
 };
@@ -24,8 +24,8 @@ const PUBLICATION_AXIS = {
 /**
  * Export an ECharts instance as a publication-ready PNG data URL.
  *
- * Temporarily applies a white-bg / dark-text theme, captures the image,
- * then restores the original dark-mode options.
+ * Temporarily applies a transparent-bg / dark-text theme, captures the image,
+ * then restores the original options.
  */
 export function getPublicationDataURL(
   instance: echarts.ECharts,
@@ -44,7 +44,7 @@ export function getPublicationDataURL(
   const dataUrl = instance.getDataURL({
     type: "png",
     pixelRatio,
-    backgroundColor: "#ffffff",
+    backgroundColor: "transparent",
   });
 
   // Restore original dark-mode options

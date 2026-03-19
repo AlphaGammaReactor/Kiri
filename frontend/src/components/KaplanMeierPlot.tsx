@@ -206,7 +206,7 @@ export function KaplanMeierPlot({
       const url = instance.getDataURL({
         type: format === "svg" ? "svg" : "png",
         pixelRatio: format === "png" ? 3 : 1,
-        backgroundColor: "#ffffff",
+        backgroundColor: "transparent",
       });
 
       const link = document.createElement("a");
@@ -224,7 +224,7 @@ export function KaplanMeierPlot({
     const dataUrl = instance.getDataURL({
       type: "png",
       pixelRatio: 3,
-      backgroundColor: "#ffffff",
+      backgroundColor: "transparent",
     });
 
     const panelTitle = `Kaplan-Meier Survival — ${dataSource || ""}`;

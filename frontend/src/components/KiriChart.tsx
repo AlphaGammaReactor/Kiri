@@ -101,7 +101,7 @@ export function KiriChart({
       const url = instance.getDataURL({
         type: format === "svg" ? "svg" : "png",
         pixelRatio: format === "png" ? 3 : 1, // 300 DPI for PNG
-        backgroundColor: "#ffffff",
+        backgroundColor: "transparent",
       });
 
       const link = document.createElement("a");
@@ -119,7 +119,7 @@ export function KiriChart({
     const dataUrl = instance.getDataURL({
       type: "png",
       pixelRatio: 3,
-      backgroundColor: "#ffffff",
+      backgroundColor: "transparent",
     });
 
     const panelTitle = title || "Analysis Plot";

@@ -14,6 +14,7 @@ import { loadPersistedGlobal, createPersistenceSubscriber } from "./persistence"
 /* ── App Slice ── */
 interface AppState {
   language: "en" | "zh";
+  theme: "dark" | "light";
   selectedGenes: string[];
   activeModule: string;
   heatmapOptions: HeatmapOptions;
@@ -24,6 +25,7 @@ const _persisted = loadPersistedGlobal();
 
 const initialState: AppState = {
   language: (_persisted.language as "en" | "zh") || "en",
+  theme: (localStorage.getItem("kiri-theme") as "dark" | "light") || "dark",
   selectedGenes: [],
   activeModule: "atlas",
   heatmapOptions: DEFAULT_HEATMAP_OPTIONS,
@@ -36,6 +38,10 @@ const appSlice = createSlice({
   reducers: {
     setLanguage(state, action: PayloadAction<"en" | "zh">) {
       state.language = action.payload;
+    },
+    setTheme(state, action: PayloadAction<"dark" | "light">) {
+      state.theme = action.payload;
+      localStorage.setItem("kiri-theme", action.payload);
     },
     setSelectedGenes(state, action: PayloadAction<string[]>) {
       state.selectedGenes = action.payload;
@@ -70,6 +76,7 @@ const appSlice = createSlice({
 
 export const {
   setLanguage,
+  setTheme,
   setSelectedGenes,
   addGene,
   removeGene,

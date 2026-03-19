@@ -48,7 +48,7 @@ export function DNBPanel({ expressionMatrix, stageLabels, loading: parentLoading
     try {
       const dataUrl = await toPng(compositeRef.current, {
         pixelRatio: 3,
-        backgroundColor: "#ffffff",
+        backgroundColor: "transparent",
       });
       const panelTitle = `DNB Composite Scores – Tipping Point: ${result.tipping_point || "N/A"}`;
       dispatch(addPanel({
