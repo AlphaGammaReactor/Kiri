@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from lifelines import KaplanMeierFitter
+from lifelines import KaplanMeierFitter, CoxPHFitter
 from lifelines.statistics import logrank_test
 
 from app.services.gdc import fetch_clinical, fetch_expression
@@ -77,6 +77,20 @@ async def run_kaplan_meier(
     )
     p_value = results.p_value
 
+    # 6b. Compute Hazard Ratio + 95% CI via Cox PH
+    hr, hr_ci_lower, hr_ci_upper = None, None, None
+    try:
+        cox_df = df[["time", "event", "group"]].copy()
+        cox_df["group_binary"] = (cox_df["group"] == "High").astype(int)
+        cph = CoxPHFitter()
+        cph.fit(cox_df[["time", "event", "group_binary"]], duration_col="time", event_col="event")
+        hr = float(cph.hazard_ratios_["group_binary"])
+        ci = cph.confidence_intervals_
+        hr_ci_lower = float(np.exp(ci.iloc[0, 0]))
+        hr_ci_upper = float(np.exp(ci.iloc[0, 1]))
+    except Exception as e:
+        logger.warning(f"Cox PH HR computation failed: {e}")
+
     # 7. Build At-Risk table (5 points)
     max_t = int(df["time"].max())
     time_points = [0, max_t // 4, max_t // 2, 3 * max_t // 4, max_t]
@@ -109,6 +123,9 @@ async def run_kaplan_meier(
         cutpoint_value=float(cutpoint),
         cutpoint_method=cutpoint_method.value,
         at_risk_table=at_risk_table,
+        hr=hr,
+        hr_ci_lower=hr_ci_lower,
+        hr_ci_upper=hr_ci_upper,
         cutpoint_search_data=cutpoint_search_data,
     )
 

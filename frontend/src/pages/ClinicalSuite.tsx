@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSelector } from "../store";
 import type { RootState } from "../store";
@@ -7,7 +7,7 @@ import { usePageState } from "../hooks/usePageState";
 import {
   fetchSurvivalAnalysis,
   fetchCoxRegression,
-  fetchSynergyScore
+  fetchSynergyScore,
 } from "../services/api";
 
 import { KaplanMeierPlot } from "../components/KaplanMeierPlot";
@@ -30,9 +30,31 @@ export default function ClinicalSuite() {
   const activeGenes = useAppSelector((s: RootState) => s.app.selectedGenes);
   
   // Use dynamic project IDs from project data sources
-  const { clinicalProjectIds: projectIds, expressionSources } = useProjectDataSources();
+  const { clinicalProjectIds, expressionSources } = useProjectDataSources();
 
   const [dataSource, setDataSource] = useState("tcga");
+
+  // ── Effective project IDs based on selected data source ──
+  const effectiveProjectIds = useMemo(() => {
+    if (dataSource === "tcga") return clinicalProjectIds;
+    // For non-TCGA sources the backend still needs project_ids;
+    // return default TCGA since GEO/CPTAC fetches route through
+    // their own endpoints. The survival API handles it.
+    return clinicalProjectIds;
+  }, [dataSource, clinicalProjectIds]);
+
+  // Human-readable dataset label for titles/exports
+  const dataSourceLabel = useMemo(() => {
+    const src = expressionSources.find((s) => s.type === dataSource);
+    if (!src) return clinicalProjectIds.join(", ");
+    if (dataSource === "tcga") {
+      return src.detail || clinicalProjectIds.join(", ");
+    }
+    if (dataSource === "geo") {
+      return src.config?.accession as string || src.detail || "GEO";
+    }
+    return src.label + (src.detail ? ` (${src.detail})` : "");
+  }, [dataSource, expressionSources, clinicalProjectIds]);
 
   // ── Persisted UI State ──
   const [uiState, setUiState] = usePageState<{
@@ -121,25 +143,25 @@ export default function ClinicalSuite() {
     try {
       if (activeTab === "survival") {
         if (!survivalGene) return;
-        const res = await fetchSurvivalAnalysis([survivalGene], projectIds, cutpointMethod, customCutpoint);
+        const res = await fetchSurvivalAnalysis([survivalGene], effectiveProjectIds, cutpointMethod, customCutpoint);
         if (res.status === "error") throw new Error(res.errors[0]);
         setSurvivalData(res.data);
         setProvenance(res.provenance);
       } else if (activeTab === "cox") {
-        const res = await fetchCoxRegression(activeGenes, ["stage"], projectIds);
+        const res = await fetchCoxRegression(activeGenes, ["stage"], effectiveProjectIds);
         if (res.status === "error") throw new Error(res.errors[0]);
         setCoxData(res.data);
         setProvenance(res.provenance);
       } else if (activeTab === "synergy") {
         if (!synergyGeneA || !synergyGeneB || synergyGeneA === synergyGeneB) return;
-        const res = await fetchSynergyScore(synergyGeneA, synergyGeneB, projectIds, cutpointMethod === "custom" ? "median" : cutpointMethod);
+        const res = await fetchSynergyScore(synergyGeneA, synergyGeneB, effectiveProjectIds, cutpointMethod === "custom" ? "median" : cutpointMethod);
         if (res.status === "error") throw new Error(res.errors[0]);
         setSynergyData(res.data);
         setProvenance(res.provenance);
       } else if (activeTab === "immune") {
-        const currentParams = JSON.stringify(projectIds);
+        const currentParams = JSON.stringify(effectiveProjectIds);
         if (!immuneData || lastImmuneProjectIds !== currentParams) {
-          const res = await fetchImmuneDeconvolution(null, projectIds, "cibersort", undefined, 100);
+          const res = await fetchImmuneDeconvolution(null, effectiveProjectIds, "cibersort", undefined, 100);
           if (res.status === "success" && res.data) {
             setImmuneData(res.data);
             setProvenance(res.provenance);
@@ -149,9 +171,9 @@ export default function ClinicalSuite() {
           }
         }
       } else if (activeTab === "pan_survival") {
-        const currentParams = JSON.stringify({ activeGenes, projectIds });
+        const currentParams = JSON.stringify({ activeGenes, effectiveProjectIds });
         if (!panSurvivalData || lastPanSurvivalParams !== currentParams) {
-          const res = await fetchPanSurvival(activeGenes, null, null, projectIds);
+          const res = await fetchPanSurvival(activeGenes, null, null, effectiveProjectIds);
           if (res.status === "success" && res.data) {
             setPanSurvivalData(res.data);
             setProvenance(res.provenance);
@@ -182,7 +204,7 @@ export default function ClinicalSuite() {
     synergyGeneA,
     synergyGeneB,
     activeTab,
-    projectIds,
+    effectiveProjectIds,
     cutpointMethod,
     customCutpoint,
     dataSource,
@@ -369,15 +391,23 @@ export default function ClinicalSuite() {
                             N = {survivalData.curves.reduce((sum: number, c: any) => sum + c.n_samples, 0)}
                           </span>
                         </h2>
-                        <div className="text-sm text-kiri-text-muted mt-2">
-                          {t("clinical.stratified_by", { method: survivalData.cutpoint_method, value: survivalData.cutpoint_value.toFixed(2) })}
+                        <div className="text-sm text-kiri-text-muted mt-2 flex items-center gap-4 flex-wrap">
+                          <span>
+                            {t("clinical.stratified_by", { method: survivalData.cutpoint_method, value: survivalData.cutpoint_value.toFixed(2) })}
+                          </span>
+                          <span className="text-xs text-kiri-text-dim px-2 py-0.5 rounded bg-kiri-bg border border-kiri-border">
+                            {dataSourceLabel}
+                          </span>
                         </div>
                       </div>
                       <KaplanMeierPlot
                         curves={survivalData.curves}
                         p_value={survivalData.p_value}
                         at_risk_table={survivalData.at_risk_table}
-                        dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                        hr={survivalData.hr}
+                        hr_ci_lower={survivalData.hr_ci_lower}
+                        hr_ci_upper={survivalData.hr_ci_upper}
+                        dataSource={dataSourceLabel}
                         citation={provenance?.method || "Kaplan-Meier, Lifelines"}
                       />
                       {survivalData.cutpoint_search_data && survivalData.cutpoint_search_data.length > 0 && (
@@ -387,7 +417,7 @@ export default function ClinicalSuite() {
                             optimalCutpoint={survivalData.cutpoint_value}
                             optimalPValue={survivalData.p_value}
                             gene={survivalGene}
-                            dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                            dataSource={dataSourceLabel}
                             citation={provenance?.method || "MaxStat cutpoint optimization"}
                           />
                         </div>
@@ -412,7 +442,7 @@ export default function ClinicalSuite() {
                       <CoxForestPlot 
                         hazardRatios={coxData.hazard_ratios}
                         concordanceIndex={coxData.concordance_index}
-                        dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                        dataSource={dataSourceLabel}
                         citation={provenance?.method || "Cox Proportional Hazards, Lifelines"}
                       />
                     </div>
@@ -428,7 +458,7 @@ export default function ClinicalSuite() {
                       synergyType={synergyData.synergy_type}
                       curves={synergyData.curves}
                       atRiskTable={synergyData.at_risk_table}
-                      dataSource={provenance?.source || `${projectIds.join("+")} (n=${synergyData.n_samples || 0})`}
+                      dataSource={dataSourceLabel}
                       citation={provenance?.method || "Gene-Gene Synergy, Lifelines"}
                     />
                   )}
@@ -454,7 +484,7 @@ export default function ClinicalSuite() {
                           cellTypes={immuneData.cell_types}
                           cellColors={immuneData.cell_colors || []}
                           method={immuneData.method || "CIBERSORT"}
-                          dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                          dataSource={dataSourceLabel}
                           citation={provenance?.method || "CIBERSORTx, Newman et al. (2015)"}
                         />
                       </div>
@@ -464,7 +494,7 @@ export default function ClinicalSuite() {
                           cellTypes={immuneData.cell_types}
                           cellColors={immuneData.cell_colors || []}
                           summary={immuneData.summary || {}}
-                          dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                          dataSource={dataSourceLabel}
                           citation={provenance?.method || "CIBERSORTx, Newman et al. (2015)"}
                         />
                       </div>
@@ -487,7 +517,7 @@ export default function ClinicalSuite() {
                         results={panSurvivalData.results || []}
                         summary={panSurvivalData.summary || {}}
                         metricLabels={{ OS: "Overall Survival", DFS: "Disease-Free", PFS: "Progression-Free", DSS: "Disease-Specific" }}
-                        dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                        dataSource={dataSourceLabel}
                         citation={provenance?.method || "Cox Proportional Hazards, Lifelines"}
                       />
                     </div>

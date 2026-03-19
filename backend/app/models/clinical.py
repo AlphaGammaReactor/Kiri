@@ -119,6 +119,9 @@ class SurvivalResult(BaseModel):
     cutpoint_value: float
     cutpoint_method: str
     at_risk_table: AtRiskTable
+    hr: float | None = Field(default=None, description="Hazard Ratio (High vs Low)")
+    hr_ci_lower: float | None = Field(default=None, description="HR 95% CI lower bound")
+    hr_ci_upper: float | None = Field(default=None, description="HR 95% CI upper bound")
     cutpoint_search_data: list[CutpointSearchPoint] | None = Field(
         default=None,
         description="MaxStat search landscape — cutpoint vs p-value pairs"

@@ -8,10 +8,10 @@
  * - Responsive sizing
  */
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
+import type { EChartsOption, ECharts } from "echarts";
 import { Card, ProvenanceFooter, ChartSkeleton, StatusBadge } from "./ui";
 import type { Provenance } from "../services/api";
 import { useAppDispatch } from "../store";
@@ -34,6 +34,8 @@ interface KiriChartProps {
   dataSource?: string;
   /** Citation / method label for the publication panel */
   citation?: string;
+  /** Optional external ref to expose the ECharts instance to parent */
+  externalChartRef?: React.MutableRefObject<ECharts | null>;
 }
 
 export function KiriChart({
@@ -48,10 +50,18 @@ export function KiriChart({
   sourceModule = "atlas",
   dataSource,
   citation,
+  externalChartRef,
 }: KiriChartProps) {
   const chartRef = useRef<ReactECharts>(null);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
+
+  // Sync external ref with chart instance
+  useEffect(() => {
+    if (externalChartRef) {
+      externalChartRef.current = chartRef.current?.getEchartsInstance() || null;
+    }
+  });
 
   // Apply Nature Cell Biology defaults
   const enhancedOption: EChartsOption = {

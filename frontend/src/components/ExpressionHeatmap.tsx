@@ -16,6 +16,7 @@
 
 import { useMemo } from "react";
 import type { EChartsOption } from "echarts";
+import type { ECharts } from "echarts";
 import { KiriChart } from "./KiriChart";
 import type { Provenance, DEResult } from "../services/api";
 import { useTranslation } from "react-i18next";
@@ -92,6 +93,8 @@ interface ExpressionHeatmapProps {
   /** DE results for real significance markers (FDR-corrected p-values) */
   deResults?: DEResult[];
   onGeneListExport?: (genes: string[]) => void;
+  /** Optional ref to expose ECharts instance to parent for combined SVG export */
+  externalChartRef?: React.MutableRefObject<ECharts | null>;
 }
 
 /** Color maps for annotation bars */
@@ -125,6 +128,7 @@ export function ExpressionHeatmap({
   deResults,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onGeneListExport: _onGeneListExport,
+  externalChartRef,
 }: ExpressionHeatmapProps) {
   const { t } = useTranslation();
 
@@ -270,12 +274,12 @@ export function ExpressionHeatmap({
 
     // Apply custom color range if set — smart defaults for log2 and zscore
     const getDefaultMin = () => {
-      if (options.transform === "log2") return 2;
+      if (options.transform === "log2") return 1;
       if (options.transform === "zscore") return -2;
       return isFinite(minVal) ? minVal : 0;
     };
     const getDefaultMax = () => {
-      if (options.transform === "log2") return 5;
+      if (options.transform === "log2") return 6;
       if (options.transform === "zscore") return 2;
       return isFinite(maxVal) ? maxVal : 1;
     };
@@ -290,14 +294,8 @@ export function ExpressionHeatmap({
     });
     const showAxisLabels = labelMode !== "colorbar";
 
-    // Gene labels with significance asterisks and pathway tags
-    const geneLabels = displayGenes.map((gene) => {
-      const sig = geneSignificance[gene];
-      const stars = sig?.stars || "";
-      const tag = PATHWAY_TAGS[gene];
-      const suffix = tag ? ` [${tag.name.slice(0, 6)}]` : "";
-      return stars ? `${stars} ${gene}${suffix}` : `${gene}${suffix}`;
-    });
+    // Gene labels — clean gene symbol only (significance + pathway info in figure legend)
+    const geneLabels = displayGenes.map((gene) => gene);
 
     // Annotation bar series
     const annotationSeries: NonNullable<EChartsOption["series"]> = [];
@@ -386,11 +384,12 @@ export function ExpressionHeatmap({
           `;
         },
       },
+      backgroundColor: "#ffffff",
       grid: {
         left: 120,
         right: 24,
         top: 48 + annotationOffset,
-        bottom: labelMode === "colorbar" ? 24 : (labelMode === "group" ? 36 : 80),
+        bottom: labelMode === "colorbar" ? 60 : (labelMode === "group" ? 80 : 110),
       },
       xAxis: {
         type: "category" as const,
@@ -409,9 +408,10 @@ export function ExpressionHeatmap({
         splitArea: { show: false },
         name: `Samples (n=${orderedSamples.length})`,
         nameLocation: "center" as const,
-        nameGap: labelMode === "colorbar" ? 12 : (labelMode === "group" ? 25 : 45),
+        nameGap: labelMode === "colorbar" ? 45 : (labelMode === "group" ? 58 : 85),
         nameTextStyle: {
           fontSize: 10,
+          fontFamily: "'Arial', 'Helvetica', sans-serif",
           color: "#94a3b8",
           fontWeight: "bold" as const,
         },
@@ -419,49 +419,11 @@ export function ExpressionHeatmap({
       yAxis: {
         type: "category" as const,
         data: geneLabels,
-        name: "Gene Targets",
-        nameLocation: "center" as const,
-        nameGap: 100,
-        nameTextStyle: {
-          fontSize: 10,
-          color: "#94a3b8",
-          fontWeight: "bold" as const,
-          fontStyle: "italic" as const,
-        },
         axisLabel: {
-          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontFamily: "'Arial', 'Helvetica', sans-serif",
           fontSize: options.fontSize,
           color: "#94a3b8",
           fontStyle: "italic",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          formatter: (value: any) => {
-            const str = String(value);
-            // Check if this gene is significant (starts with asterisks)
-            const hasStars = str.startsWith("*");
-            if (hasStars) {
-              return `{sig|${str}}`;
-            }
-            // Check for pathway tag
-            const baseGene = str.split(" [")[0];
-            const tag = PATHWAY_TAGS[baseGene];
-            if (tag) {
-              return `{tag|${str}}`;
-            }
-            return str;
-          },
-          rich: {
-            sig: {
-              color: "#d97706",
-              fontWeight: "bold" as const,
-              fontStyle: "italic" as const,
-              fontSize: options.fontSize,
-            },
-            tag: {
-              color: "#60a5fa",
-              fontStyle: "italic" as const,
-              fontSize: options.fontSize,
-            },
-          },
         },
       },
       visualMap: {
@@ -470,10 +432,10 @@ export function ExpressionHeatmap({
         calculable: true,
         orient: "horizontal" as const,
         left: "center",
-        bottom: 4,
+        bottom: labelMode === "colorbar" ? 8 : (labelMode === "group" ? 40 : 65),
         text: [
-          `${options.transform === "zscore" ? "Z-score" : options.transform === "log2" ? "log\u2082(" + normalization.toUpperCase() + "+1)" : normalization.toUpperCase()} \u2192 High`,
-          `Low \u2190`,
+          `${options.transform === "zscore" ? "Z-score" : options.transform === "log2" ? "log\u2082(Microarray + 1)" : normalization.toUpperCase()} \u2192 High`,
+          `Low`,
         ],
         inRange: {
           color: palette.colors,
@@ -481,6 +443,7 @@ export function ExpressionHeatmap({
         textStyle: {
           color: "#94a3b8",
           fontSize: 10,
+          fontFamily: "'Arial', 'Helvetica', sans-serif",
         }
       },
       dataZoom: [
@@ -550,7 +513,9 @@ export function ExpressionHeatmap({
                     show: true,
                     formatter: `\u2190 ${t("atlas.normalLabel", "Normal")} (n=${normalCount})  |  ${t("atlas.tumorLabel", "Tumor")} (n=${orderedSamples.length - normalCount}) \u2192`,
                     position: "insideEndTop" as const,
+                    rotate: 0,
                     fontSize: 9,
+                    fontFamily: "'Arial', 'Helvetica', sans-serif",
                     color: "#f59e0b",
                     backgroundColor: "rgba(15, 23, 42, 0.85)",
                     padding: [2, 6],
@@ -659,6 +624,7 @@ export function ExpressionHeatmap({
         sourceModule="atlas"
         dataSource={provenance?.source || source}
         citation={`${normalization.toUpperCase()} normalization, ${source}`}
+        externalChartRef={externalChartRef}
       />
     </div>
   );

@@ -1236,6 +1236,10 @@ export async function fetchSurvivalAnalysis(
       time_points: number[];
       groups: Record<string, number[]>;
     };
+    hr: number | null;
+    hr_ci_lower: number | null;
+    hr_ci_upper: number | null;
+    cutpoint_search_data: Array<{ cutpoint: number; p_value: number }> | null;
   }>("/v1/clinical/survival", {
     genes,
     project_ids: projectIds,

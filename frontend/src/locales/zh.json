@@ -443,7 +443,10 @@
       "median_survival": "中位生存期 (天)",
       "time_days": "时间 (天)",
       "survival_prob": "生存概率",
-      "at_risk": "风险人数"
+      "at_risk": "Number at Risk",
+      "hr_label": "HR",
+      "ci_label": "95% CI",
+      "dataset_label": "数据集"
     },
     "cox": {
       "title": "多变量 Cox 比例风险模型",
