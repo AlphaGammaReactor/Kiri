@@ -37,6 +37,7 @@ export default function CrossValidation() {
 
   const [concordance, setConcordance] = useState<ConcordanceResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dataSource, setDataSource] = useState("tcga");
   
   // ── Persisted UI State ──
   const [uiState, setUiState] = usePageState<{ selectedGene: string | null }>("crossval", { selectedGene: null });
@@ -71,6 +72,15 @@ export default function CrossValidation() {
   useEffect(() => {
     void loadConcordance();
   }, [loadConcordance]);
+
+  // Clear all cached data when data source changes
+  useEffect(() => {
+    setConcordance(null);
+    setValGridData(null);
+    setValGridError(null);
+    setOverlay(null);
+    setSelectedGene(null);
+  }, [dataSource, setSelectedGene]);
 
   // Fetch Validation Grid when sufficient data is available
   useEffect(() => {
@@ -142,9 +152,9 @@ export default function CrossValidation() {
           <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
             <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
             <select
-              value={expressionSources.find(s => s.type === "tcga")?.type || "tcga"}
+              value={dataSource}
               className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-pointer appearance-none"
-              onChange={() => {}}
+              onChange={(e) => setDataSource(e.target.value)}
             >
               {expressionSources
                 .filter((src) => ["tcga", "geo", "cptac", "scrna", "custom"].includes(src.type))

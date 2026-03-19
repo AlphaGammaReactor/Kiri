@@ -37,6 +37,7 @@ import {
   fetchInteractionContext,
 } from "../services/api";
 import type { Provenance } from "../services/api";
+import { useProjectDataSources } from "../hooks/useProjectDataSources";
 
 interface PPINetworkData {
   nodes: Array<{ id: string; label: string; is_query: boolean; sources: string[] }>;
@@ -70,6 +71,10 @@ interface CitationItem {
 export default function InteractionLab() {
   const { t } = useTranslation();
   const activeProject = useAppSelector((s: RootState) => s.project.activeProject);
+  const { interactionSources } = useProjectDataSources();
+
+  // PPI data source selection
+  const [ppiSource, setPpiSource] = useState("string");
 
   // Build dynamic gene→UniProt map from the active project's proteins
   const projectProteins = useMemo(
@@ -441,14 +446,25 @@ export default function InteractionLab() {
           {ppiData && (
             <Stat label={t("mito.samples", "Network")} value={`${ppiData.meta.total_nodes} nodes`} />
           )}
-          {/* Data Source Selector */}
           <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
-            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">PPI Source</p>
             <select
-              value="string"
-              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-default appearance-none"
+              value={ppiSource}
+              onChange={(e) => {
+                setPpiSource(e.target.value);
+                setPpiData(null); // clear cached PPI data so re-fetch uses new source
+              }}
+              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-pointer appearance-none"
             >
-              <option value="string" className="bg-kiri-surface text-kiri-text">🔗 STRING-DB</option>
+              {interactionSources.length > 0 ? (
+                interactionSources.map((src) => (
+                  <option key={src.type} value={src.type} className="bg-kiri-surface text-kiri-text">
+                    {src.icon} {src.label}
+                  </option>
+                ))
+              ) : (
+                <option value="string" className="bg-kiri-surface text-kiri-text">🔗 STRING-DB</option>
+              )}
             </select>
           </div>
           {/* Confidence slider */}
