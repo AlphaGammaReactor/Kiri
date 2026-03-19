@@ -1,13 +1,13 @@
 /**
  * Kiri Atlas — Differential Expression Results Table
  *
- * Sortable data table for DE results with CSV download.
- * Shows: gene, log2FC, avg expression, p-value, FDR, significance stars.
+ * Publication-grade sortable data table for DE results with CSV download.
+ * White-background, journal-standard styling (Nature Comm / Theranostics).
+ * Shows: gene, log₂FC, avg expression, p-value, FDR (BH), significance stars.
  */
 
 import { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Card } from "./ui";
 import type { DEResult } from "../services/api";
 import { pValueToAsterisks } from "../utils/heatmapUtils";
 
@@ -24,6 +24,11 @@ interface DEResultsTableProps {
 
 type SortKey = "gene" | "log2_fold_change" | "avg_expression" | "p_value" | "adjusted_p_value";
 type SortDir = "asc" | "desc";
+
+/** Proper English pluralization for "gene"/"genes" */
+function pluralize(n: number, singular: string, plural: string): string {
+  return n === 1 ? `${n} ${singular}` : `${n} ${plural}`;
+}
 
 export function DEResultsTable({
   results,
@@ -59,7 +64,7 @@ export function DEResultsTable({
       setSortDir(d => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(key === "gene" ? "asc" : "asc");
+      setSortDir("asc");
     }
   };
 
@@ -91,52 +96,125 @@ export function DEResultsTable({
 
   const sigCount = results.filter(r => r.adjusted_p_value < 0.05).length;
 
+  // Column definitions — journal-standard headers
+  const columns: { key: SortKey; label: string }[] = [
+    { key: "gene", label: t("atlas.gene", "Gene") },
+    { key: "log2_fold_change", label: "log\u2082FC" },
+    { key: "avg_expression", label: t("atlas.avgExpr", "Avg Expr") },
+    { key: "p_value", label: "P-Value" },
+    { key: "adjusted_p_value", label: "FDR (BH)" },
+  ];
+
   return (
-    <Card
-      title={`${t("atlas.deTable", "Differential Expression Results")} (${results.length} genes, ${sigCount} significant)`}
-      className={className}
+    <div
+      className={`de-results-pub ${className}`}
+      style={{
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 6,
+        padding: "16px 20px",
+        fontFamily: "'Arial', 'Helvetica', sans-serif",
+      }}
     >
+      {/* Title */}
+      <h3
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: "#1e293b",
+          margin: "0 0 6px 0",
+          letterSpacing: "0.01em",
+        }}
+      >
+        {t("atlas.deTable", "Differential Expression Results")}{" "}
+        ({pluralize(results.length, "gene", "genes")}, {pluralize(sigCount, "significant", "significant")})
+      </h3>
+
       {/* Method info + download */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] text-kiri-text-dim space-x-3">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ fontSize: 10, color: "#94a3b8", display: "flex", gap: 8 }}>
           <span>{method}</span>
-          <span>|</span>
+          <span style={{ color: "#cbd5e1" }}>|</span>
           <span>{correction}</span>
-          <span>|</span>
+          <span style={{ color: "#cbd5e1" }}>|</span>
           <span>{groupA} (n={nA}) vs {groupB} (n={nB})</span>
         </div>
         <button
           onClick={handleDownloadCsv}
-          className="text-[10px] text-kiri-accent hover:text-white px-2 py-1 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors flex items-center gap-1"
+          style={{
+            fontSize: 10,
+            color: "#64748b",
+            padding: "3px 10px",
+            borderRadius: 4,
+            border: "1px solid #e2e8f0",
+            background: "#f8fafc",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontFamily: "'Arial', 'Helvetica', sans-serif",
+          }}
         >
           📥 {t("atlas.downloadCsv", "Download CSV")}
         </button>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto max-h-[400px] overflow-y-auto scrollbar-thin">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-kiri-surface z-10">
-            <tr className="border-b border-kiri-border">
-              {(
-                [
-                  ["gene", t("atlas.gene", "Gene")] as const,
-                  ["log2_fold_change", "log₂FC"] as const,
-                  ["avg_expression", t("atlas.avgExpr", "Avg Expr")] as const,
-                  ["p_value", "p-value"] as const,
-                  ["adjusted_p_value", "FDR"] as const,
-                ] as const
-              ).map(([key, label]) => (
+      <div style={{ overflowX: "auto", maxHeight: 400, overflowY: "auto" }}>
+        <table
+          style={{
+            width: "100%",
+            fontSize: 11,
+            borderCollapse: "collapse",
+            fontFamily: "'Arial', 'Helvetica', sans-serif",
+          }}
+        >
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
+              {columns.map(({ key, label }) => (
                 <th
                   key={key}
                   onClick={() => handleSort(key)}
-                  className="text-left px-2 py-2 text-kiri-text-dim uppercase tracking-wider cursor-pointer hover:text-kiri-accent transition-colors whitespace-nowrap select-none"
+                  style={{
+                    textAlign: "left",
+                    padding: "6px 10px",
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    background: "#f8fafc",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    userSelect: "none",
+                    borderBottom: "2px solid #e2e8f0",
+                  }}
                 >
                   {label}{sortArrow(key)}
                 </th>
               ))}
-              <th className="text-left px-2 py-2 text-kiri-text-dim uppercase tracking-wider whitespace-nowrap">
-                {t("atlas.significance", "Sig.")}
+              <th
+                style={{
+                  textAlign: "left",
+                  padding: "6px 10px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  background: "#f8fafc",
+                  whiteSpace: "nowrap",
+                  borderBottom: "2px solid #e2e8f0",
+                }}
+              >
+                {t("atlas.significance", "Significance")}
               </th>
             </tr>
           </thead>
@@ -147,26 +225,65 @@ export function DEResultsTable({
               return (
                 <tr
                   key={r.gene}
-                  className={`border-b border-kiri-border/30 hover:bg-kiri-surface-hover transition-colors ${
-                    sig ? "bg-kiri-accent-glow/5" : ""
-                  }`}
+                  style={{
+                    borderBottom: "1px solid #f1f5f9",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
-                  <td className="px-2 py-1.5 font-mono font-medium text-kiri-text italic">{r.gene}</td>
-                  <td className={`px-2 py-1.5 font-mono ${r.log2_fold_change > 0 ? "text-kiri-error" : "text-kiri-success"}`}>
+                  <td
+                    style={{
+                      padding: "5px 10px",
+                      fontFamily: "'Arial', 'Helvetica', sans-serif",
+                      fontWeight: 600,
+                      fontStyle: "italic",
+                      color: "#1e293b",
+                    }}
+                  >
+                    {r.gene}
+                  </td>
+                  <td
+                    style={{
+                      padding: "5px 10px",
+                      fontFamily: "monospace",
+                      color: r.log2_fold_change > 0 ? "#dc2626" : "#16a34a",
+                    }}
+                  >
                     {r.log2_fold_change > 0 ? "+" : ""}{r.log2_fold_change.toFixed(3)}
                   </td>
-                  <td className="px-2 py-1.5 font-mono text-kiri-text-muted">{r.avg_expression.toFixed(2)}</td>
-                  <td className="px-2 py-1.5 font-mono text-kiri-text-muted">{r.p_value < 0.001 ? r.p_value.toExponential(2) : r.p_value.toFixed(4)}</td>
-                  <td className={`px-2 py-1.5 font-mono ${sig ? "text-kiri-accent font-bold" : "text-kiri-text-muted"}`}>
+                  <td style={{ padding: "5px 10px", fontFamily: "monospace", color: "#64748b" }}>
+                    {r.avg_expression.toFixed(2)}
+                  </td>
+                  <td style={{ padding: "5px 10px", fontFamily: "monospace", color: "#64748b" }}>
+                    {r.p_value < 0.001 ? r.p_value.toExponential(2) : r.p_value.toFixed(4)}
+                  </td>
+                  <td
+                    style={{
+                      padding: "5px 10px",
+                      fontFamily: "monospace",
+                      color: sig ? "#0284c7" : "#64748b",
+                      fontWeight: sig ? 700 : 400,
+                    }}
+                  >
                     {r.adjusted_p_value < 0.001 ? r.adjusted_p_value.toExponential(2) : r.adjusted_p_value.toFixed(4)}
                   </td>
-                  <td className="px-2 py-1.5 text-amber-400 font-bold">{stars}</td>
+                  <td
+                    style={{
+                      padding: "5px 10px",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      color: "#ea580c",
+                    }}
+                  >
+                    {stars}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-    </Card>
+    </div>
   );
 }

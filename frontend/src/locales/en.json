@@ -441,7 +441,10 @@
       "median_survival": "Median Survival (days)",
       "time_days": "Time (days)",
       "survival_prob": "Survival Probability",
-      "at_risk": "Number at risk"
+      "at_risk": "Number at Risk",
+      "hr_label": "HR",
+      "ci_label": "95% CI",
+      "dataset_label": "Dataset"
     },
     "cox": {
       "title": "Multivariate Cox Proportional Hazards",

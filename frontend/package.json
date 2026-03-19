@@ -21,6 +21,7 @@
     "echarts-for-react": "^3.0.6",
     "framer-motion": "^12.36.0",
     "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
     "i18next": "^25.8.18",
     "lucide-react": "^0.577.0",
     "ml-distance": "^4.0.1",

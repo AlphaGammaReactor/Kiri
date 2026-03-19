@@ -139,6 +139,9 @@ const interactomicsSlice = createSlice({
     setSubstrateData(state, action: PayloadAction<AnyData>) {
       state.substrateData = action.payload;
     },
+    clearSubstrateData(state) {
+      state.substrateData = null;
+    },
 
     // Regulatory
     setRegulatoryData(state, action: PayloadAction<{ data: AnyData; provenance: Provenance | null }>) {
@@ -186,6 +189,7 @@ export const {
   setGeoResults,
   setDeAnalysis,
   setSubstrateData,
+  clearSubstrateData,
   setRegulatoryData,
   setFdrCutoff,
   setLfcCutoff,

@@ -48,6 +48,7 @@ import {
   setGeoResults as setGeoResultsAction,
   setDeAnalysis as setDeAnalysisAction,
   setSubstrateData as setSubstrateDataAction,
+  clearSubstrateData as clearSubstrateDataAction,
   setRegulatoryData as setRegulatoryDataAction,
   setFdrCutoff as setFdrCutoffAction,
   setLfcCutoff as setLfcCutoffAction,
@@ -196,6 +197,7 @@ function InteractomicsPage() {
     dispatch(setIncludeBiogridAction(value === "biogrid" || value === "all"));
     dispatch(setIncludeIntactAction(value === "intact" || value === "all"));
     dispatch(clearNetworkDataAction()); // Force refetch
+    dispatch(clearSubstrateDataAction()); // Force substrate refetch with new sources
   };
 
   // Derive current source value for the dropdown

@@ -10,7 +10,7 @@
  * - Gene summary cards
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSelector, useAppDispatch, setHeatmapOptions } from "../store";
 import { ExpressionHeatmap, type HeatmapOptions } from "../components/ExpressionHeatmap";
@@ -40,6 +40,7 @@ import {
 } from "../services/api";
 import { motion } from "framer-motion";
 import { pValueToAsterisks } from "../utils/heatmapUtils";
+import type { ECharts } from "echarts";
 
 interface Sample {
   sample_id: string;
@@ -113,6 +114,9 @@ export default function AtlasPage() {
   // ── Exported gene list from brush selection ──
   const [exportedGenes, setExportedGenes] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+
+  // ── Chart ref for combined SVG export ──
+  const heatmapChartRef = useRef<ECharts | null>(null);
 
   // ── Lifted Analysis State (survives tab switches) ──
   // DNB
@@ -373,6 +377,134 @@ export default function AtlasPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // ── Combined SVG Export (Heatmap + DE Table) ──
+  const handleExportCombinedSvg = useCallback(() => {
+    const chart = heatmapChartRef.current;
+    if (!chart || !deResponse || deResults.length === 0) return;
+
+    // 1. Get heatmap SVG from ECharts
+    const heatmapSvgUrl = chart.getDataURL({ type: "svg", backgroundColor: "#ffffff" });
+    // Extract raw SVG from data URL
+    const svgPrefix = "data:image/svg+xml;charset=UTF-8,";
+    const rawHeatmapSvg = decodeURIComponent(heatmapSvgUrl.replace(svgPrefix, ""));
+
+    // Parse heatmap SVG to get dimensions
+    const parser = new DOMParser();
+    const heatmapDoc = parser.parseFromString(rawHeatmapSvg, "image/svg+xml");
+    const heatmapSvgEl = heatmapDoc.querySelector("svg");
+    if (!heatmapSvgEl) return;
+
+    const heatmapWidth = parseFloat(heatmapSvgEl.getAttribute("width") || "900");
+    const heatmapHeight = parseFloat(heatmapSvgEl.getAttribute("height") || "450");
+
+    // 2. Build DE table as native SVG
+    const sigCount = deResults.filter(r => r.adjusted_p_value < 0.05).length;
+    const geneLabel = deResults.length === 1 ? "gene" : "genes";
+    const sigLabel = "significant";
+    const tableTitle = `Differential Expression Results (${deResults.length} ${geneLabel}, ${sigCount} ${sigLabel})`;
+    const methodInfo = `${deResponse.method}  |  ${deResponse.correction}  |  ${deResponse.group_a} (n=${deResponse.n_a}) vs ${deResponse.group_b} (n=${deResponse.n_b})`;
+
+    const colHeaders = ["Gene", "log\u2082FC", "Avg Expr", "P-Value", "FDR (BH)", "Significance"];
+    const colWidths = [120, 100, 100, 120, 120, 100];
+    const tableWidth = colWidths.reduce((a, b) => a + b, 0) + 40; // +40 for padding
+    const rowHeight = 22;
+    const headerHeight = 28;
+    const titleBlockHeight = 50;
+    const tableHeight = titleBlockHeight + headerHeight + deResults.length * rowHeight + 20;
+
+    // Center table horizontally
+    const tableOffsetX = Math.max(20, (heatmapWidth - tableWidth) / 2);
+
+    let tableSvg = "";
+
+    // Title
+    tableSvg += `<text x="${tableOffsetX}" y="20" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#1e293b">${tableTitle}</text>`;
+    // Method info
+    tableSvg += `<text x="${tableOffsetX}" y="38" font-family="Arial, Helvetica, sans-serif" font-size="9" fill="#94a3b8">${methodInfo}</text>`;
+
+    // Header row background
+    const headerY = titleBlockHeight;
+    tableSvg += `<rect x="${tableOffsetX}" y="${headerY}" width="${tableWidth}" height="${headerHeight}" fill="#f8fafc" />`;
+    // Header bottom border
+    tableSvg += `<line x1="${tableOffsetX}" y1="${headerY + headerHeight}" x2="${tableOffsetX + tableWidth}" y2="${headerY + headerHeight}" stroke="#cbd5e1" stroke-width="1.5" />`;
+
+    // Column headers
+    let xCursor = tableOffsetX + 10;
+    colHeaders.forEach((h, i) => {
+      tableSvg += `<text x="${xCursor}" y="${headerY + 18}" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#64748b" text-transform="uppercase">${h}</text>`;
+      xCursor += colWidths[i];
+    });
+
+    // Data rows
+    deResults.forEach((r, rowIdx) => {
+      const rowY = headerY + headerHeight + rowIdx * rowHeight;
+      const textY = rowY + 16;
+
+      // Row bottom border
+      tableSvg += `<line x1="${tableOffsetX}" y1="${rowY + rowHeight}" x2="${tableOffsetX + tableWidth}" y2="${rowY + rowHeight}" stroke="#f1f5f9" stroke-width="0.5" />`;
+
+      let cx = tableOffsetX + 10;
+
+      // Gene (italic)
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="600" font-style="italic" fill="#1e293b">${r.gene}</text>`;
+      cx += colWidths[0];
+
+      // log2FC (colored)
+      const fcColor = r.log2_fold_change > 0 ? "#dc2626" : "#16a34a";
+      const fcSign = r.log2_fold_change > 0 ? "+" : "";
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="monospace" font-size="11" fill="${fcColor}">${fcSign}${r.log2_fold_change.toFixed(3)}</text>`;
+      cx += colWidths[1];
+
+      // Avg Expr
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="monospace" font-size="11" fill="#64748b">${r.avg_expression.toFixed(2)}</text>`;
+      cx += colWidths[2];
+
+      // P-Value
+      const pStr = r.p_value < 0.001 ? r.p_value.toExponential(2) : r.p_value.toFixed(4);
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="monospace" font-size="11" fill="#64748b">${pStr}</text>`;
+      cx += colWidths[3];
+
+      // FDR
+      const sig = r.adjusted_p_value < 0.05;
+      const fdrColor = sig ? "#0284c7" : "#64748b";
+      const fdrWeight = sig ? "700" : "400";
+      const fdrStr = r.adjusted_p_value < 0.001 ? r.adjusted_p_value.toExponential(2) : r.adjusted_p_value.toFixed(4);
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="monospace" font-size="11" fill="${fdrColor}" font-weight="${fdrWeight}">${fdrStr}</text>`;
+      cx += colWidths[4];
+
+      // Significance stars
+      const stars = pValueToAsterisks(r.adjusted_p_value);
+      if (stars) {
+        tableSvg += `<text x="${cx}" y="${textY}" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#ea580c">${stars}</text>`;
+      }
+    });
+
+    // 3. Compose final SVG
+    const gap = 32;
+    const totalWidth = Math.max(heatmapWidth, tableWidth + 40);
+    const totalHeight = heatmapHeight + gap + tableHeight;
+
+    const combinedSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}">
+  <rect width="${totalWidth}" height="${totalHeight}" fill="#ffffff" />
+  <g transform="translate(0, 0)">
+    ${rawHeatmapSvg.replace(/<\?xml[^?]*\?>/, "").replace(/<svg[^>]*>/, "").replace(/<\/svg>/, "")}
+  </g>
+  <g transform="translate(0, ${heatmapHeight + gap})">
+    ${tableSvg}
+  </g>
+</svg>`;
+
+    // 4. Download
+    const blob = new Blob([combinedSvg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = `kiri_heatmap_de_combined_${data?.source?.replace(/\s+/g, "_") || "export"}.svg`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [heatmapChartRef, deResponse, deResults, data?.source]);
+
   // ── Computed Values ──
   const filteredData = data ? applyFilters(data, stages, msiFilter) : null;
   const tumorCount = filteredData?.samples.filter((s) => s.sample_type === "tumor").length ?? 0;
@@ -592,6 +724,7 @@ export default function AtlasPage() {
               options={heatmapOptions}
               deResults={deResults}
               onGeneListExport={handleGeneListExport}
+              externalChartRef={heatmapChartRef}
             />
           ) : (
             <Card>
@@ -606,15 +739,26 @@ export default function AtlasPage() {
 
           {/* Differential Expression Results Table */}
           {deResponse && deResults.length > 0 && !deLoading && (
-            <DEResultsTable
-              results={deResults}
-              groupA={deResponse.group_a}
-              groupB={deResponse.group_b}
-              nA={deResponse.n_a}
-              nB={deResponse.n_b}
-              method={deResponse.method}
-              correction={deResponse.correction}
-            />
+            <>
+              {/* Combined SVG Export button */}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+                <button
+                  onClick={() => handleExportCombinedSvg()}
+                  className="text-[10px] text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors flex items-center gap-1"
+                >
+                  📄 Export Combined SVG (Heatmap + Table)
+                </button>
+              </div>
+              <DEResultsTable
+                results={deResults}
+                groupA={deResponse.group_a}
+                groupB={deResponse.group_b}
+                nA={deResponse.n_a}
+                nB={deResponse.n_b}
+                method={deResponse.method}
+                correction={deResponse.correction}
+              />
+            </>
           )}
           {deLoading && (
             <Card>
