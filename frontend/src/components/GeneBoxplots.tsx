@@ -129,21 +129,22 @@ export function GeneBoxplots({
 
       // ── ECharts graphic elements: Stats card embedded in canvas ──
       const statsRows = [
-        { metric: "Gene",          value: de.gene },
-        { metric: "FDR",           value: fdrStr },
-        { metric: "log₂FC",       value: fcLabel },
-        { metric: "Normal (n)",    value: String(normalVals.length) },
-        { metric: "Tumor (n)",     value: String(tumorVals.length) },
-        { metric: "Normal Mean",   value: normalMean.toFixed(2) },
-        { metric: "Tumor Mean",    value: tumorMean.toFixed(2) },
-        { metric: "Significance",  value: stars },
+        { metric: "Gene",       value: de.gene },
+        { metric: "FDR",        value: fdrStr },
+        { metric: "log₂FC",    value: fcLabel },
+        { metric: "N (n)",      value: String(normalVals.length) },
+        { metric: "T (n)",      value: String(tumorVals.length) },
+        { metric: "N Mean",     value: normalMean.toFixed(2) },
+        { metric: "T Mean",     value: tumorMean.toFixed(2) },
+        { metric: "Sig.",       value: stars },
       ];
 
       // Build graphic text elements for the stats card (right side)
-      const statsCardX = "72%"; // positioned to the right of boxplot
-      const statsCardYStart = 72;
-      const lineHeight = 14;
+      const statsCardX = "68%"; // positioned to the right of boxplot
+      const statsCardYStart = 80;
+      const lineHeight = 18;
 
+      const statsValueX = "96%"; // right-aligned value column
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const graphicElements: any[] = [
         // Stats card header
@@ -183,12 +184,12 @@ export function GeneBoxplots({
         // Value
         graphicElements.push({
           type: "text",
-          left: "88%",
+          left: statsValueX,
           top: y,
           style: {
             text: row.value,
             font: `bold 10px ${FONT_FAMILY}`,
-            fill: row.metric === "Significance"
+            fill: row.metric === "Sig."
               ? (stars === "ns" ? "#64748b" : "#f59e0b")
               : "#e2e8f0",
             textAlign: "right",
@@ -281,9 +282,9 @@ export function GeneBoxplots({
         },
         grid: {
           left: 55,
-          right: "35%",
-          top: 75,
-          bottom: 50,
+          right: "36%",
+          top: 80,
+          bottom: 55,
         },
         xAxis: {
           type: "category" as const,
@@ -296,6 +297,7 @@ export function GeneBoxplots({
             fontFamily: FONT_FAMILY,
             color: "#94a3b8",
             fontWeight: "bold",
+            interval: 0,       // force ALL category labels to render
           },
           axisTick: { show: false },
           axisLine: { lineStyle: { color: "#334155" } },
@@ -403,7 +405,7 @@ export function GeneBoxplots({
             title={`${gene} — Tumor vs Normal`}
             option={option}
             provenance={provenance}
-            height="320px"
+            height="400px"
             sourceModule="atlas"
             dataSource={provenance?.source || "TCGA"}
             citation={`Wilcoxon rank-sum test, BH FDR correction`}

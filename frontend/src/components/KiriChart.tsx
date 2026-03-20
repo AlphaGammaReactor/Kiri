@@ -80,8 +80,9 @@ export function KiriChart({
       bottom: 8,
       ...(option.grid && typeof option.grid === "object" && !Array.isArray(option.grid) ? option.grid : {}),
     },
-    // Colorblind-safe palette (Okabe-Ito + extensions)
-    color: [
+    // Use component-specified colors if provided, otherwise fallback to
+    // colorblind-safe Okabe-Ito palette
+    color: (option.color as string[] | undefined) ?? [
       "#E69F00", // orange
       "#56B4E9", // sky blue
       "#009E73", // bluish green
