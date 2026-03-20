@@ -2,7 +2,7 @@
  * Kiri Atlas — Differential Expression Results Table
  *
  * Publication-grade sortable data table for DE results with CSV download.
- * White-background, journal-standard styling (Nature Comm / Theranostics).
+ * Theme-aware styling that respects dark/light mode using CSS custom properties.
  * Shows: gene, log₂FC, avg expression, p-value, FDR (BH), significance stars.
  */
 
@@ -109,8 +109,8 @@ export function DEResultsTable({
     <div
       className={`de-results-pub ${className}`}
       style={{
-        background: "#ffffff",
-        border: "1px solid #e2e8f0",
+        background: "var(--kiri-surface)",
+        border: "1px solid var(--kiri-border)",
         borderRadius: 6,
         padding: "16px 20px",
         fontFamily: "'Arial', 'Helvetica', sans-serif",
@@ -121,7 +121,7 @@ export function DEResultsTable({
         style={{
           fontSize: 13,
           fontWeight: 700,
-          color: "#1e293b",
+          color: "var(--kiri-text)",
           margin: "0 0 6px 0",
           letterSpacing: "0.01em",
         }}
@@ -139,22 +139,22 @@ export function DEResultsTable({
           marginBottom: 10,
         }}
       >
-        <div style={{ fontSize: 10, color: "#94a3b8", display: "flex", gap: 8 }}>
+        <div style={{ fontSize: 10, color: "var(--kiri-text-dim)", display: "flex", gap: 8 }}>
           <span>{method}</span>
-          <span style={{ color: "#cbd5e1" }}>|</span>
+          <span style={{ color: "var(--kiri-border-focus)" }}>|</span>
           <span>{correction}</span>
-          <span style={{ color: "#cbd5e1" }}>|</span>
+          <span style={{ color: "var(--kiri-border-focus)" }}>|</span>
           <span>{groupA} (n={nA}) vs {groupB} (n={nB})</span>
         </div>
         <button
           onClick={handleDownloadCsv}
           style={{
             fontSize: 10,
-            color: "#64748b",
+            color: "var(--kiri-text-dim)",
             padding: "3px 10px",
             borderRadius: 4,
-            border: "1px solid #e2e8f0",
-            background: "#f8fafc",
+            border: "1px solid var(--kiri-border)",
+            background: "var(--kiri-surface-hover)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
@@ -177,7 +177,7 @@ export function DEResultsTable({
           }}
         >
           <thead>
-            <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
+            <tr style={{ borderBottom: "2px solid var(--kiri-border)" }}>
               {columns.map(({ key, label }) => (
                 <th
                   key={key}
@@ -187,14 +187,14 @@ export function DEResultsTable({
                     padding: "6px 10px",
                     fontSize: 10,
                     fontWeight: 600,
-                    color: "#64748b",
+                    color: "var(--kiri-text-dim)",
                     textTransform: "uppercase",
                     letterSpacing: "0.04em",
-                    background: "#f8fafc",
+                    background: "var(--kiri-surface-hover)",
                     cursor: "pointer",
                     whiteSpace: "nowrap",
                     userSelect: "none",
-                    borderBottom: "2px solid #e2e8f0",
+                    borderBottom: "2px solid var(--kiri-border)",
                   }}
                 >
                   {label}{sortArrow(key)}
@@ -206,12 +206,12 @@ export function DEResultsTable({
                   padding: "6px 10px",
                   fontSize: 10,
                   fontWeight: 600,
-                  color: "#64748b",
+                  color: "var(--kiri-text-dim)",
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
-                  background: "#f8fafc",
+                  background: "var(--kiri-surface-hover)",
                   whiteSpace: "nowrap",
-                  borderBottom: "2px solid #e2e8f0",
+                  borderBottom: "2px solid var(--kiri-border)",
                 }}
               >
                 {t("atlas.significance", "Significance")}
@@ -226,10 +226,10 @@ export function DEResultsTable({
                 <tr
                   key={r.gene}
                   style={{
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid var(--kiri-border)",
                     transition: "background 0.15s",
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
+                  onMouseEnter={e => (e.currentTarget.style.background = "var(--kiri-surface-hover)")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
                   <td
@@ -238,7 +238,7 @@ export function DEResultsTable({
                       fontFamily: "'Arial', 'Helvetica', sans-serif",
                       fontWeight: 600,
                       fontStyle: "italic",
-                      color: "#1e293b",
+                      color: "var(--kiri-text)",
                     }}
                   >
                     {r.gene}
@@ -252,17 +252,17 @@ export function DEResultsTable({
                   >
                     {r.log2_fold_change > 0 ? "+" : ""}{r.log2_fold_change.toFixed(3)}
                   </td>
-                  <td style={{ padding: "5px 10px", fontFamily: "monospace", color: "#64748b" }}>
+                  <td style={{ padding: "5px 10px", fontFamily: "monospace", color: "var(--kiri-text-dim)" }}>
                     {r.avg_expression.toFixed(2)}
                   </td>
-                  <td style={{ padding: "5px 10px", fontFamily: "monospace", color: "#64748b" }}>
+                  <td style={{ padding: "5px 10px", fontFamily: "monospace", color: "var(--kiri-text-dim)" }}>
                     {r.p_value < 0.001 ? r.p_value.toExponential(2) : r.p_value.toFixed(4)}
                   </td>
                   <td
                     style={{
                       padding: "5px 10px",
                       fontFamily: "monospace",
-                      color: sig ? "#0284c7" : "#64748b",
+                      color: sig ? "var(--kiri-info)" : "var(--kiri-text-dim)",
                       fontWeight: sig ? 700 : 400,
                     }}
                   >
