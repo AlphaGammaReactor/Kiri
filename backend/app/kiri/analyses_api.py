@@ -145,3 +145,63 @@ def run(body: RunBody):
             pass
     record["saved"] = not op.read_only
     return record
+
+
+# ── Notebook entries (the Notebook screen itself comes later) ──
+class NoteBody(BaseModel):
+    kind: Literal["figure", "text", "result"]
+    body: dict
+
+
+@router.post("/notebook")
+def add_note(body: NoteBody):
+    try:
+        op = ws().require()
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    if op.read_only:
+        return JSONResponse(status_code=409, content={"error": "read_only"})
+    nid = uuid.uuid4().hex
+    op.con.execute("INSERT INTO notebook(id, kind, body, pinned, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)",
+                   (nid, body.kind, json.dumps(body.body, ensure_ascii=False), now(), now()))
+    try:
+        ws().autosave()
+    except KiriFileError:
+        pass
+    return {"id": nid, "count": op.con.execute("SELECT COUNT(*) FROM notebook").fetchone()[0]}
+
+
+@router.get("/notebook")
+def list_notes():
+    try:
+        op = ws().require()
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    rows = op.con.execute("SELECT id, kind, body, pinned, created_at FROM notebook ORDER BY created_at")
+    return [{"id": r[0], "kind": r[1], "body": json.loads(r[2]), "pinned": bool(r[3]), "created_at": r[4]} for r in rows]
+
+
+# ── Saving a figure or table to a file the person picked in the Save dialog ──
+EXPORT_TYPES = {".png", ".svg", ".pdf", ".csv", ".tsv", ".txt"}
+
+
+class ExportBody(BaseModel):
+    path: str
+    data_base64: str
+
+
+@router.post("/export")
+def export_file(body: ExportBody):
+    import base64
+    import os
+
+    p = Path(body.path).expanduser()
+    if p.suffix.lower() not in EXPORT_TYPES or not p.is_absolute():
+        return JSONResponse(status_code=400, content={"error": "bad_export_path"})
+    if not p.parent.is_dir():
+        return JSONResponse(status_code=400, content={"error": "folder_missing"})
+    data = base64.b64decode(body.data_base64)
+    tmp = p.with_name(f".{p.name}.{uuid.uuid4().hex[:8]}.tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, p)
+    return {"path": str(p), "bytes": len(data)}

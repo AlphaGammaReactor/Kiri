@@ -9,7 +9,7 @@ export const LangProvider = ({ lang, children }: { lang: Lang; children: ReactNo
 );
 
 function format(s: string, vars?: Record<string, string | number>) {
-  return vars ? s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? "")) : s;
+  return vars ? s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? "")).replace(/= </g, "<") : s;
 }
 
 export function useT() {

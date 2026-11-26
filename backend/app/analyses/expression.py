@@ -84,8 +84,26 @@ def tumour_vs_normal(c: Cohort, gene: str, paired: bool = False) -> dict:
     checks.append(check("replication", "info", "replication.notYet"))
     checks.append(check("reproducibility", "pass", "repro.recorded", built=c.built))
 
+    # The same comparison inside each TCGA project, BH-corrected across projects
+    per_project = []
+    projects = list(dict.fromkeys(s["project"]))
+    if len(projects) > 1:
+        raw = []
+        for pr in projects:
+            inp = (s["project"] == pr).to_numpy()
+            pa, pb = y[tum & inp], y[nor & inp]
+            entry = {"project": pr, "tumour": {**summary(pa), "values": [clean(v) for v in pa]},
+                     "normal": {**summary(pb), "values": [clean(v) for v in pb]}, "p": None}
+            if len(pa) >= 3 and len(pb) >= 3:
+                entry["p"] = clean(stats.mannwhitneyu(pa, pb, alternative="two-sided").pvalue)
+                raw.append(entry["p"])
+            per_project.append(entry)
+        adj = iter(bh(raw))
+        for e in per_project:
+            e["p_adj"] = clean(next(adj)) if e["p"] is not None else None
+
     return {
-        "kind": "expression_tn", "gene": gene, "units": c.units, "paired": paired,
+        "kind": "expression_tn", "gene": gene, "units": c.units, "paired": paired, "per_project": per_project,
         "groups": [
             {"key": "tumour", **summary(a), "values": [clean(v) for v in a]},
             {"key": "normal", **summary(b), "values": [clean(v) for v in b]},

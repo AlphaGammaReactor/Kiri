@@ -8,7 +8,7 @@ import type { StringKey } from "../i18n/strings";
 import type { EngineState } from "../lib/engine";
 import { APP_VERSION } from "../lib/platform";
 
-export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about";
+export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression";
 
 const Item = ({ icon, label, active, disabled, onClick, title }: { icon: ReactNode; label: string; active?: boolean; disabled?: boolean; onClick?: () => void; title?: string }) => (
   <button className="nav-item" aria-current={active ? "page" : undefined} disabled={disabled} onClick={onClick} title={title}>
@@ -21,10 +21,10 @@ export function Sidebar({ screen, onNav, engine, projectOpen, onLater }: { scree
   const off = !projectOpen;
   const tip = off ? t("nav.noProject") : undefined;
   const ic = { size: 16, strokeWidth: 1.75 };
-  const analyses: [StringKey, ReactNode][] = [
+  const analyses: [StringKey, ReactNode, Screen?][] = [
     ["nav.figureGuide", <Compass {...ic} />],
-    ["nav.expression", <SlidersHorizontal {...ic} />],
-    ["nav.survival", <ChartSpline {...ic} />],
+    ["nav.expression", <SlidersHorizontal {...ic} />, "expression"],
+    ["nav.survival", <ChartSpline {...ic} />, "survival"],
     ["nav.correlation", <ChartLine {...ic} />],
     ["nav.de", <ChartArea {...ic} />],
     ["nav.interactions", <Share2 {...ic} />],
@@ -43,7 +43,9 @@ export function Sidebar({ screen, onNav, engine, projectOpen, onLater }: { scree
       <div className="group">{t("nav.project")}</div>
       <Item icon={<LayoutGrid {...ic} />} label={t("nav.overview")} disabled={off} title={tip} active={screen === "overview"} onClick={() => onNav("overview")} />
       <div className="group">{t("nav.analyses")}</div>
-      {analyses.map(([k, i]) => <Item key={k} icon={i} label={t(k)} disabled={off} title={off ? tip : t("common.notYet")} onClick={onLater} />)}
+      {analyses.map(([k, i, to]) => to
+        ? <Item key={k} icon={i} label={t(k)} disabled={off} title={tip} active={screen === to} onClick={() => onNav(to)} />
+        : <Item key={k} icon={i} label={t(k)} disabled={off} title={off ? tip : t("common.notYet")} onClick={onLater} />)}
       <div className="group">{t("nav.record")}</div>
       {record.map(([k, i]) => <Item key={k} icon={i} label={t(k)} disabled={off} title={off ? tip : t("common.notYet")} onClick={onLater} />)}
       <div className="foot">

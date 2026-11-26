@@ -20,6 +20,16 @@ export async function pickKiriToSave(title: string, defaultName: string): Promis
   return r ?? null;
 }
 
+export async function pickExportPath(title: string, defaultName: string, ext: "png" | "svg" | "pdf" | "csv"): Promise<string | null> {
+  if (!isTauri) return previewDir ? `${previewDir}/${defaultName}.${ext}` : null;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const { documentDir, join } = await import("@tauri-apps/api/path");
+  const dir = await documentDir().catch(() => "");
+  const safe = defaultName.replace(/[\\/:*?"<>|]/g, "-").trim() || "figure";
+  const r = await save({ title, defaultPath: dir ? await join(dir, `${safe}.${ext}`) : `${safe}.${ext}`, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
+  return r ?? null;
+}
+
 /** Calls `onOpen` for .kiri files opened from Finder (including the one that launched Kiri) and dropped on the window. */
 export async function listenForFiles(onOpen: (path: string) => void, onDragging: (over: boolean) => void) {
   if (!isTauri) return () => {};

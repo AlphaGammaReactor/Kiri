@@ -10,6 +10,8 @@ import { About } from "./screens/About";
 import { FirstRun } from "./screens/FirstRun";
 import { NewProject, type NewProjectData } from "./screens/NewProject";
 import { Overview } from "./screens/Overview";
+import { Survival } from "./screens/workspace/Survival";
+import { Expression } from "./screens/workspace/Expression";
 import { useSettings } from "./lib/settings";
 import { useEngine } from "./lib/engine";
 import { useUpdater } from "./lib/updater";
@@ -41,6 +43,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
   const [dragging, setDragging] = useState(false);
   const [versionDialog, setVersionDialog] = useState(false);
   const [pendingDoor, setPendingDoor] = useState<string | null>(null);
+  const [survGene, setSurvGene] = useState<string>("");
 
   const say = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
   const notYet = () => say(t("common.notYet"));
@@ -102,14 +105,15 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
     );
   }
 
-  const docName = proj.project && (screen === "overview") ? proj.project.file_name
+  const inProject = screen === "overview" || screen === "survival" || screen === "expression";
+  const docName = proj.project && inProject ? proj.project.file_name
     : screen === "home" ? t("home.title") : screen === "new" ? t("home.new") : screen === "settings" ? t("settings.title") : screen === "about" ? t("about.title") : "Kiri";
 
   return (
     <div className="app">
       <TitleBar
         docName={docName} lang={lang} level={settings.level}
-        fileMenu={proj.project && screen === "overview" && !proj.project.read_only ? { onVersion: () => setVersionDialog(true), onCopy: saveCopy, onClose: closeProject } : proj.project && screen === "overview" ? { onVersion: notYet, onCopy: saveCopy, onClose: closeProject } : null}
+        fileMenu={proj.project && inProject && !proj.project.read_only ? { onVersion: () => setVersionDialog(true), onCopy: saveCopy, onClose: closeProject } : proj.project && inProject ? { onVersion: notYet, onCopy: saveCopy, onClose: closeProject } : null}
         onLang={(l) => update({ lang: l })} onLevel={(l) => update({ level: l })}
         onSettings={() => setScreen("settings")} onHelp={() => setScreen("about")} onActivity={notYet} onSearch={notYet}
         activityDot={updater.state.kind === "ready"}
@@ -127,6 +131,8 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
           )}
           {screen === "new" && <NewProject key={newTpl} initialTemplate={newTpl} onCancel={() => setScreen("home")} onCreate={create} notYet={notYet} />}
           {screen === "overview" && proj.project && <Overview p={proj.project} notYet={notYet} />}
+          {screen === "survival" && proj.project && <Survival key={`s-${proj.project.path}-${survGene}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} initialGene={survGene} />}
+          {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
           {screen === "settings" && <Settings s={settings} update={update} />}
           {screen === "about" && <About update={updater.state} onCheck={updater.check} engine={engine} />}
         </main>
