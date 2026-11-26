@@ -13,7 +13,7 @@ from app.services.drugs import fetch_drug_interactions
 from app.services.ctd import fetch_chemical_disease_associations
 from app.services.targets import rank_targets
 from app.services.pubchem import search_compounds, get_compounds_for_gene, get_compound_description
-from app.services.chembl import get_bioactivities, get_bioactivities_multi
+from app.services.chembl import get_bioactivities_multi
 
 logger = logging.getLogger("kiri.api.drugs")
 router = APIRouter(prefix="/drugs", tags=["Drugs"])
@@ -63,7 +63,7 @@ async def get_associations(genes: str = Query(..., description="Comma-separated 
         
     return success_response(
         data={"associations": results},
-        source="CTD (Mock)",
+        source="CTD",
         method="fetch_chemical_disease_associations",
         sample_count=sum(len(v) for v in results.values()),
     )
@@ -79,7 +79,7 @@ async def get_ranking(genes: str = Query(..., description="Comma-separated gene 
         
     return success_response(
         data={"rankings": rankings},
-        source="Aggregated (MyChem.info, CTD, ChEMBL)",
+        source="Aggregated (MyChem.info, ChEMBL)",
         method="rank_targets",
         sample_count=len(rankings),
     )

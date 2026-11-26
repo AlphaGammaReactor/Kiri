@@ -30,7 +30,7 @@ class TestDiscoveryLLMServiceInit:
             
             from app.services.discovery_llm import DiscoveryLLMService
             # This should not raise even if genai.Client fails
-            service = DiscoveryLLMService()
+            DiscoveryLLMService()
             # It may or may not have gemini depending on whether the library validates key at init
 
 

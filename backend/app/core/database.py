@@ -2,14 +2,14 @@
 Kiri — Async Database Layer
 
 Provides the async SQLAlchemy engine, session factory, and FastAPI dependency.
-Uses PostgreSQL via asyncpg in production/Docker, with a sync SQLite fallback
-for tests if needed.
+SQLite (one file in the data folder) by default. Postgres still works if
+DATABASE_URL points at one and the "server" extra is installed.
 """
 
 import logging
-from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -28,13 +28,25 @@ class Base(DeclarativeBase):
 
 
 # ── Engine ──
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-)
+if settings.is_sqlite:
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _sqlite_pragmas(dbapi_connection, _record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")      # readers do not block the writer
+        cursor.execute("PRAGMA foreign_keys=ON")       # SQLite leaves these off by default
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
+else:
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+    )
 
 # ── Session Factory ──
 async_session_factory = async_sessionmaker(
@@ -56,10 +68,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Create all tables (dev fallback — prefer Alembic migrations)."""
+    """Create any missing tables."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created (create_all fallback).")
+    logger.info("Database tables ready.")
 
 
 async def close_db() -> None:

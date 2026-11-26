@@ -16,7 +16,6 @@ from typing import Any
 import httpx
 
 from app.core.cache import cache
-from app.core.errors import KiriExternalAPIError
 
 logger = logging.getLogger("kiri.interaction.context")
 

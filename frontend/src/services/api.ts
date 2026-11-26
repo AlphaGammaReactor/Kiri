@@ -10,7 +10,9 @@
 
 import axios, { AxiosError } from "axios";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000/api";
+// Same origin by default: the backend serves the frontend, and in development
+// the Vite server proxies /api to it. Set VITE_API_BASE only for a split setup.
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
 export interface Provenance {
   source: string;
@@ -67,6 +69,43 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * True for answers that will not change if asked again: a refusal, a bad
+ * request, or "Kiri has no real data for this" (501). Only network failures
+ * and temporary server errors are retried.
+ */
+function isFinalAnswer(err: unknown): boolean {
+  if (!axios.isAxiosError(err) || !err.response) return false;
+  const status = err.response.status;
+  return status < 500 || status === 501;
+}
+
+/** HTTP 501: Kiri has no real data source for this request and did not invent any. */
+export function isNotAvailable(err: unknown): boolean {
+  return axios.isAxiosError(err) && err.response?.status === 501;
+}
+
+// Put the server's own explanation in err.message, so screens that show
+// err.message tell the person what actually happened.
+client.interceptors.response.use(
+  (resp) => resp,
+  (err) => {
+    if (axios.isAxiosError(err) && err.response) {
+      const data = err.response.data as { errors?: string[]; detail?: unknown } | undefined;
+      const fromEnvelope = data?.errors?.find((e) => typeof e === "string" && e.length > 0);
+      const fromDetail = typeof data?.detail === "string" ? data.detail : undefined;
+      const message = fromEnvelope || fromDetail;
+      if (message) err.message = message;
+
+      // The test-build password expired: reloading shows the password page.
+      if (err.response.status === 401 && fromEnvelope?.includes("test-build password")) {
+        window.location.reload();
+      }
+    }
+    return Promise.reject(err);
+  }
+);
+
 // Retry wrapper for transient failures
 async function withRetry<T>(
   fn: () => Promise<T>,
@@ -79,6 +118,7 @@ async function withRetry<T>(
       return await fn();
     } catch (err) {
       lastError = err as Error;
+      if (isFinalAnswer(err)) break;
       if (attempt < maxRetries) {
         await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
       }
@@ -538,13 +578,17 @@ export async function fetchImmuneDeconvolution(
     cell_types: string[];
     samples: Array<{
       sample_id: string;
-      proportions: Record<string, number>;
-      p_value: number | null;
-      correlation: number | null;
-      rmse: number | null;
+      /** null when the sample could not be deconvolved */
+      fractions: Record<string, number> | null;
+      failed?: boolean;
+      p_value?: number;
+      correlation?: number;
     }>;
     summary: Record<string, { mean: number; median: number; std: number }>;
-    palette: Record<string, string>;
+    cell_colors: string[];
+    failed_samples: string[];
+    genes_used: number;
+    genes_total: number;
   }>("/v1/atlas/immune-deconvolution", {
     expression_matrix: expressionMatrix,
     project_ids: projectIds,
@@ -579,6 +623,10 @@ export async function fetchValidationGrid(
     grid: Record<string, Record<string, {
       log2fc: number;
       p_value: number;
+    /** Nominal p-value at the chosen cutpoint, before adjusting for the search (optimal cutpoint only) */
+    p_value_unadjusted?: number | null;
+    p_value_method?: string;
+    hr_note?: string | null;
       adj_p_value: number;
       significant: boolean;
       test_used: string;
@@ -1272,26 +1320,6 @@ export async function fetchCoxRegression(
   });
 }
 
-export async function fetchRSF(
-  genes: string[],
-  projectIds: string[] = ["TCGA-COAD", "TCGA-READ"],
-  nEstimators: number = 100
-) {
-  return apiPost<{
-    feature_importances: Array<{
-      feature: string;
-      importance: number;
-    }>;
-    concordance_index: number;
-    n_samples: number;
-    n_estimators: number;
-  }>("/v1/clinical/rsf", {
-    genes,
-    project_ids: projectIds,
-    n_estimators: nEstimators,
-  });
-}
-
 export async function fetchSynergyScore(
   geneA: string,
   geneB: string,
@@ -1373,7 +1401,7 @@ export async function fetchDrugInteractions(genes: string[]) {
         drug_id: string;
         pharmacology: string;
         indication: string;
-        evidence_level: "High" | "Medium" | "Low";
+        evidence_level: string;
         source: string;
       }>
     >;
@@ -1386,10 +1414,10 @@ export async function fetchTargetRanking(genes: string[]) {
       gene: string;
       score: number;
       drug_count: number;
-      high_evidence_drugs: number;
-      ctd_associations: number;
+      high_evidence_drugs: number | null;
+      ctd_associations: number | null;
       chembl_bioactivities: number;
-      total_references: number;
+      total_references: number | null;
       druggability_tier: string;
     }>;
   }>("/v1/drugs/ranking", { genes: genes.join(",") });

@@ -24,6 +24,8 @@ interface AtRiskTable {
 interface KaplanMeierPlotProps {
   curves: SurvivalCurveData[];
   p_value: number;
+  /** Set when p_value was adjusted for an optimal-cutpoint search: the nominal value before adjustment */
+  p_value_unadjusted?: number | null;
   at_risk_table: AtRiskTable;
   /** Hazard Ratio (High vs Low) */
   hr?: number | null;
@@ -40,6 +42,7 @@ interface KaplanMeierPlotProps {
 export function KaplanMeierPlot({
   curves,
   p_value,
+  p_value_unadjusted,
   at_risk_table,
   hr,
   hr_ci_lower,
@@ -53,12 +56,17 @@ export function KaplanMeierPlot({
 
   // Build stat annotation string
   const statAnnotation = useMemo(() => {
-    let txt = `${t("clinical.km.p_value")}: ${p_value < 0.001 ? p_value.toExponential(2) : p_value.toFixed(4)}`;
+    const fmt = (p: number) => (p < 0.001 ? p.toExponential(2) : p.toFixed(4));
+    const adjusted = p_value_unadjusted != null;
+    let txt = `${t(adjusted ? "clinical.km.p_value_adjusted" : "clinical.km.p_value")}: ${fmt(p_value)}`;
+    if (adjusted) {
+      txt += ` (${t("clinical.km.p_value_nominal")}: ${fmt(p_value_unadjusted)})`;
+    }
     if (hr != null && hr_ci_lower != null && hr_ci_upper != null) {
       txt += `   HR = ${hr.toFixed(2)} (95% CI: ${hr_ci_lower.toFixed(2)}\u2013${hr_ci_upper.toFixed(2)})`;
     }
     return txt;
-  }, [p_value, hr, hr_ci_lower, hr_ci_upper, t]);
+  }, [p_value, p_value_unadjusted, hr, hr_ci_lower, hr_ci_upper, t]);
 
   const option = useMemo(() => {
     // Okabe-Ito colorblind-safe palette

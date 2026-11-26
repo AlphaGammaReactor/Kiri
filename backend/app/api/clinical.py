@@ -1,26 +1,23 @@
 """
 Kiri Clinical — API Router
 
-Endpoints for Survival Analysis, Cox Regression, RSF, and Synergy.
+Endpoints for Survival Analysis, Cox Regression, and Synergy.
 All endpoints catch domain exceptions and return structured error responses.
 """
 
 import logging
 
 from fastapi import APIRouter
-from pydantic import BaseModel
 
 from app.core.responses import success_response, error_response
 from app.core.errors import KiriComputationError, KiriExternalAPIError
 from app.models.clinical import (
     SurvivalRequest,
     CoxRequest,
-    RSFRequest,
     SynergyRequest,
 )
 from app.services.survival import run_kaplan_meier
 from app.services.cox import run_cox_regression
-from app.services.rsf import run_random_survival_forest
 from app.services.synergy import run_synergy_analysis
 
 logger = logging.getLogger("kiri.clinical")
@@ -80,32 +77,6 @@ async def api_cox(body: CoxRequest):
         return error_response(
             errors=[f"Cox regression failed: {str(e)}"],
             source="clinical-cox",
-        )
-
-
-@clinical_router.post("/rsf")
-async def api_rsf(body: RSFRequest):
-    """Run Random Survival Forest feature importance."""
-    try:
-        result = await run_random_survival_forest(
-            genes=body.genes,
-            project_ids=body.project_ids,
-            n_estimators=body.n_estimators,
-            max_depth=body.max_depth,
-        )
-        return success_response(
-            data=result.model_dump(mode="json"),
-            source="+" .join(body.project_ids) + " (GDC)",
-            method=f"RSF (n_estimators={body.n_estimators})",
-            sample_count=result.n_samples,
-        )
-    except (KiriComputationError, KiriExternalAPIError):
-        raise
-    except Exception as e:
-        logger.exception(f"RSF failed: {e}")
-        return error_response(
-            errors=[f"RSF analysis failed: {str(e)}"],
-            source="clinical-rsf",
         )
 
 

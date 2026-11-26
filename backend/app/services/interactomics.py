@@ -13,58 +13,25 @@ import logging
 from typing import Any
 
 import numpy as np
-import pandas as pd
 from scipy import stats
 
-from app.core.cache import cache
+from app.core.errors import KiriDataUnavailableError
 
 logger = logging.getLogger("kiri.interactomics")
 
-# Known CoIP-MS datasets from PRIDE (curated, expandable)
-KNOWN_PRIDE_DATASETS: dict[str, dict[str, Any]] = {
-    "PXD000001": {
-        "title": "Human mitochondrial interactome",
-        "description": "CoIP-MS of mitochondrial protein complexes",
-        "organism": "Homo sapiens",
-        "genes_covered": ["PARL", "OPA1", "PINK1", "MFN2", "DNM1L"],
-    },
-}
+# Kiri has no PRIDE integration yet. An earlier version listed a hand-written
+# "curated" dataset and generated random abundances for it. Both are removed.
 
 
 async def search_pride_datasets(
     genes: list[str],
 ) -> dict[str, Any]:
-    """
-    Search for relevant CoIP-MS datasets in PRIDE archive.
-
-    Args:
-        genes: Target gene symbols to search for
-
-    Returns:
-        Available datasets with relevance info.
-    """
-    genes_upper = {g.upper() for g in genes}
-
-    # Match against known curated datasets
-    matches = []
-    for accession, info in KNOWN_PRIDE_DATASETS.items():
-        overlap = genes_upper.intersection(set(info.get("genes_covered", [])))
-        if overlap:
-            matches.append({
-                "accession": accession,
-                "title": info["title"],
-                "description": info["description"],
-                "organism": info["organism"],
-                "matching_genes": list(overlap),
-                "relevance_score": len(overlap) / len(genes_upper),
-            })
-
-    matches.sort(key=lambda x: x["relevance_score"], reverse=True)
-
+    """PRIDE dataset discovery. Not integrated yet, so this finds nothing."""
     return {
-        "datasets": matches,
-        "total_found": len(matches),
-        "query_genes": list(genes_upper),
+        "datasets": [],
+        "total_found": 0,
+        "query_genes": sorted({g.upper() for g in genes}),
+        "note": "PRIDE search is not available yet. Upload your own abundance table.",
     }
 
 
@@ -72,60 +39,12 @@ async def load_pride_dataset(
     accession: str,
     genes: list[str],
 ) -> dict[str, Any]:
-    """
-    Load quantitative data from a PRIDE dataset for analysis.
-
-    Since actual PRIDE API integration requires dataset-specific processing,
-    this generates realistic simulated CoIP-MS abundance data based on
-    known interaction patterns. The analysis pipeline (t-test + BH FDR)
-    is fully real — only the raw data is simulated.
-
-    Args:
-        accession: PRIDE dataset accession (e.g., PXD000001)
-        genes: Project target genes
-
-    Returns:
-        Abundance matrix + group labels ready for run_proteomics_analysis()
-    """
-    dataset_info = KNOWN_PRIDE_DATASETS.get(accession)
-    if not dataset_info:
-        return {"error": f"Dataset {accession} not found"}
-
-    rng = np.random.default_rng(hash(accession) % (2**32))
-    genes_covered = dataset_info.get("genes_covered", [])
-    all_proteins = list(set(genes_covered + [g.upper() for g in genes]))
-
-    # Simulate 5 bait + 5 control replicates (sufficient for t-test power)
-    n_bait, n_ctrl = 5, 5
-    groups = ["bait"] * n_bait + ["control"] * n_ctrl
-
-    abundance_matrix: dict[str, list[float]] = {}
-    for protein in all_proteins:
-        is_target = protein.upper() in {g.upper() for g in genes}
-        # Targets: strong enrichment in bait vs control (multiplicative)
-        base = abs(rng.normal(6.0, 1.0)) + 1.0  # Baseline abundance
-        fold = 4.0 if is_target else (1.5 if protein in genes_covered else 1.0 + abs(rng.normal(0, 0.05)))
-
-        bait_vals = [max(0.5, base * fold + rng.normal(0, base * 0.08)) for _ in range(n_bait)]
-        ctrl_vals = [max(0.5, base + rng.normal(0, base * 0.08)) for _ in range(n_ctrl)]
-        abundance_matrix[protein] = [round(v, 4) for v in bait_vals + ctrl_vals]
-
-    # Add ~20 background proteins (no differential)
-    bg_proteins = [f"BG_{i}" for i in range(20)]
-    for protein in bg_proteins:
-        base = rng.normal(5.5, 0.8)
-        abundance_matrix[protein] = [
-            round(max(0.1, base + rng.normal(0, 0.25)), 4)
-            for _ in range(n_bait + n_ctrl)
-        ]
-
-    return {
-        "abundance_matrix": abundance_matrix,
-        "groups": groups,
-        "accession": accession,
-        "title": dataset_info.get("title", accession),
-        "total_proteins": len(abundance_matrix),
-    }
+    """Load quantitative data from a PRIDE dataset. Not integrated yet."""
+    raise KiriDataUnavailableError(
+        "pride",
+        f"PRIDE dataset {accession} cannot be loaded: Kiri has no PRIDE download yet. "
+        "No abundances were generated. Upload your own abundance table instead.",
+    )
 
 
 async def run_proteomics_analysis(

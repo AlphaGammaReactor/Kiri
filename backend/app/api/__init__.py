@@ -5,11 +5,11 @@ All module routers are registered here and mounted in main.py.
 Includes Trust Layer validation endpoints and task status endpoints.
 """
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.responses import success_response, error_response
-from app.core.tasks import create_task, get_task, run_task
+from app.core.tasks import get_task
 from app.services.validation import (
     validate_gene_symbol,
     validate_gene_list,

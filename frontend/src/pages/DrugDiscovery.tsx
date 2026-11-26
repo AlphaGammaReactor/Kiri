@@ -26,7 +26,7 @@ type Interaction = {
   drug_id: string;
   pharmacology: string;
   indication: string;
-  evidence_level: "High" | "Medium" | "Low";
+  evidence_level: string;
   source: string;
 };
 
@@ -34,10 +34,10 @@ type Ranking = {
   gene: string;
   score: number;
   drug_count: number;
-  high_evidence_drugs: number;
-  ctd_associations: number;
+  high_evidence_drugs: number | null;
+  ctd_associations: number | null;
   chembl_bioactivities: number;
-  total_references: number;
+  total_references: number | null;
   druggability_tier: string;
 };
 
@@ -503,10 +503,10 @@ function RankingDetailDialog({ ranking, onClose }: { ranking: Ranking; onClose: 
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-kiri-text flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-kiri-success" />{t("drugs.high_evidence")}</span>
-                <span className="text-sm font-mono font-bold text-kiri-success">{ranking.high_evidence_drugs}</span>
+                <span className="text-sm font-mono font-bold text-kiri-success">{ranking.high_evidence_drugs ?? "—"}</span>
               </div>
               <div className="h-2 bg-kiri-surface rounded-full overflow-hidden">
-                <div className="h-full bg-kiri-success rounded-full transition-all" style={{ width: `${Math.min(100, ranking.high_evidence_drugs * 10)}%` }} />
+                <div className="h-full bg-kiri-success rounded-full transition-all" style={{ width: `${Math.min(100, (ranking.high_evidence_drugs ?? 0) * 10)}%` }} />
               </div>
             </div>
 
@@ -514,10 +514,10 @@ function RankingDetailDialog({ ranking, onClose }: { ranking: Ranking; onClose: 
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-kiri-text">{t("drugs.detail_ctd", "CTD Associations")}</span>
-                <span className="text-sm font-mono font-bold text-kiri-text">{ranking.ctd_associations}</span>
+                <span className="text-sm font-mono font-bold text-kiri-text">{ranking.ctd_associations ?? t("common.not_available_short")}</span>
               </div>
               <div className="h-2 bg-kiri-surface rounded-full overflow-hidden">
-                <div className="h-full bg-kiri-accent rounded-full transition-all" style={{ width: `${Math.min(100, ranking.ctd_associations * 5)}%` }} />
+                <div className="h-full bg-kiri-accent rounded-full transition-all" style={{ width: `${Math.min(100, (ranking.ctd_associations ?? 0) * 5)}%` }} />
               </div>
             </div>
 
@@ -536,10 +536,10 @@ function RankingDetailDialog({ ranking, onClose }: { ranking: Ranking; onClose: 
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-kiri-text">{t("drugs.lit_references")}</span>
-                <span className="text-sm font-mono font-bold text-kiri-text">{ranking.total_references}</span>
+                <span className="text-sm font-mono font-bold text-kiri-text">{ranking.total_references ?? t("common.not_available_short")}</span>
               </div>
               <div className="h-2 bg-kiri-surface rounded-full overflow-hidden">
-                <div className="h-full bg-kiri-warning rounded-full transition-all" style={{ width: `${Math.min(100, ranking.total_references * 3)}%` }} />
+                <div className="h-full bg-kiri-warning rounded-full transition-all" style={{ width: `${Math.min(100, (ranking.total_references ?? 0) * 3)}%` }} />
               </div>
             </div>
           </div>
@@ -815,7 +815,7 @@ export default function DrugDiscovery() {
                 <td className="p-4 text-right">
                   <div className="flex flex-col items-end">
                     <span>{target.drug_count}</span>
-                    {target.high_evidence_drugs > 0 && (
+                    {(target.high_evidence_drugs ?? 0) > 0 && (
                       <span className="text-xs text-kiri-success flex items-center gap-1">
                         <ShieldCheck className="w-3 h-3" /> {target.high_evidence_drugs} {t("drugs.high_evidence")}
                       </span>
@@ -823,7 +823,7 @@ export default function DrugDiscovery() {
                   </div>
                 </td>
                 <td className="p-4 text-right text-kiri-text-muted">
-                  {target.total_references}
+                  {target.total_references ?? "—"}
                 </td>
               </tr>
             ))}

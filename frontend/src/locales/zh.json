@@ -168,7 +168,9 @@
       "toast_failed_title": "提交失败",
       "toast_task_failed_title": "对接失败",
       "toast_task_failed_desc": "后台任务失败",
-      "view_details": "查看详情"
+      "view_details": "查看详情",
+      "not_available_title": "蛋白对接功能尚未提供",
+      "not_available_body": "Kiri 目前还没有对接计算引擎，因此此处无法运行任何计算。早期版本在此页面显示的是模拟结果，现已移除。如需查看单个蛋白的预测结构，请使用互作实验室中的结构查看器。"
     }
   },
   "common": {
@@ -194,7 +196,8 @@
     "copy": "复制",
     "under_construction": "模块开发中。",
     "saved": "已保存",
-    "ns": "无显著性"
+    "ns": "无显著性",
+    "not_available_short": "未接入"
   },
   "errors": {
     "crash_title": "出现了问题",
@@ -446,7 +449,9 @@
       "at_risk": "Number at Risk",
       "hr_label": "HR",
       "ci_label": "95% CI",
-      "dataset_label": "数据集"
+      "dataset_label": "数据集",
+      "p_value_adjusted": "Log-rank p值（已针对最佳截断值搜索校正）",
+      "p_value_nominal": "校正前"
     },
     "cox": {
       "title": "多变量 Cox 比例风险模型",
@@ -524,7 +529,7 @@
     "color_palette": "配色方案",
     "bilingual_labels": "双语标签",
     "cart": "购物车",
-    "cart_empty": "购物车为空。请在图表上使用\u201c添加到图表\u201d按钮来构建导出内容。",
+    "cart_empty": "购物车为空。请在图表上使用“添加到图表”按钮来构建导出内容。",
     "preview_title": "出版预览",
     "preview_footer": "由 Kiri 研究平台生成",
     "empty_canvas": "选择多个分析模块以构建出版图表。",
@@ -741,5 +746,10 @@
     "empty_hint": "创建快照以保存项目的当前状态。",
     "proteins": "个蛋白质",
     "sources": "个数据源"
+  },
+  "test_build": {
+    "title": "测试版",
+    "body": "仅用于示例数据和公开数据的测试，请勿输入私人数据。",
+    "sign_out": "退出测试版"
   }
 }

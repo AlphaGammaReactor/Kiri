@@ -37,8 +37,7 @@ async def fetch_drug_interactions(gene_symbol: str) -> list[dict[str, Any]]:
             data = resp.json()
     except Exception as e:
         logger.warning(f"Failed to fetch MyChem data for {gene_symbol}: {e}")
-        # Fallback to mock data on failure
-        return _mock_drug_interactions(gene_symbol)
+        raise KiriExternalAPIError("MyChem.info", f"Could not fetch drug data for {gene_symbol}: {e}")
 
     results = []
     for hit in data.get("hits", []):
@@ -49,11 +48,12 @@ async def fetch_drug_interactions(gene_symbol: str) -> list[dict[str, Any]]:
             
         drug_name = db.get("name", "Unknown Drug")
         drug_id = db.get("id", hit.get("_id", ""))
-        pharmacology = db.get("pharmacology", "No pharmacology data available.")
-        indication = db.get("indication", "No indication data available.")
-        
-        # Determine an evidence level randomly or by checking pharmacology presence
-        evidence_level = "High" if len(pharmacology) > 50 else "Medium"
+        pharmacology = db.get("pharmacology") or ""
+        indication = db.get("indication") or ""
+
+        # Kiri has no evidence grading for drug-target links. An earlier version
+        # labelled rows "High" or "Medium" from the length of the description text.
+        evidence_level = "Not graded"
         
         results.append({
             "drug_name": drug_name,
@@ -64,25 +64,5 @@ async def fetch_drug_interactions(gene_symbol: str) -> list[dict[str, Any]]:
             "source": "DrugBank via MyChem.info"
         })
 
-    # If MyChem returns no hits, fallback to mock to ensure we show something in dev UI
-    if not results:
-        results = _mock_drug_interactions(gene_symbol)
-
     await cache.set("drugs_mychem", cache_params, results)
     return results
-
-
-def _mock_drug_interactions(gene_symbol: str) -> list[dict[str, Any]]:
-    """Mock drug interactions for UI development."""
-    base_interactions = {
-        "PARL": [
-            {"drug_name": "Rhomboid Inhibitor X", "drug_id": "DBX001", "pharmacology": "Inhibits PARL cleavage activity.", "indication": "Experimental.", "evidence_level": "Low", "source": "Synthetic List"},
-        ],
-        "EGFR": [
-            {"drug_name": "Erlotinib", "drug_id": "DB00530", "pharmacology": "EGFR tyrosine kinase inhibitor.", "indication": "Non-small cell lung cancer.", "evidence_level": "High", "source": "Synthetic List"},
-            {"drug_name": "Cetuximab", "drug_id": "DB00002", "pharmacology": "Monoclonal antibody binding to EGFR.", "indication": "Colorectal cancer.", "evidence_level": "High", "source": "Synthetic List"},
-        ],
-    }
-    return base_interactions.get(gene_symbol.upper(), [
-        {"drug_name": f"Generic Inhibitor of {gene_symbol}", "drug_id": "DB_GENERIC", "pharmacology": "Unknown mechanism.", "indication": "Research use only.", "evidence_level": "Low", "source": "Synthetic List"},
-    ])

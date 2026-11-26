@@ -6,10 +6,10 @@ enabling trend analysis and IDE agent auto-prioritization.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy import JSON, Uuid as UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base

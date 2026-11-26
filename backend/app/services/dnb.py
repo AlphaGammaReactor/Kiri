@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from app.core.errors import KiriComputationError, KiriValidationError
+from app.core.errors import KiriValidationError
 
 logger = logging.getLogger("kiri.dnb")
 

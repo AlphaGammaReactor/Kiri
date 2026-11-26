@@ -13,15 +13,13 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     DateTime,
-    Float,
     ForeignKey,
-    Integer,
     String,
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSON, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import JSON, Uuid as UUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 

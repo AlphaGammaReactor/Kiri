@@ -12,7 +12,6 @@ All parameters are project-scoped (generic, not gene-specific).
 import logging
 from typing import Any
 
-from app.core.cache import cache
 
 logger = logging.getLogger("kiri.regulatory_network")
 

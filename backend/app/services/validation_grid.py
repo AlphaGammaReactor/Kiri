@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 from scipy import stats
 
-from app.core.errors import KiriComputationError, KiriValidationError
+from app.core.errors import KiriValidationError
 
 logger = logging.getLogger("kiri.validation_grid")
 
@@ -67,7 +67,6 @@ def compute_validation_grid(
 
     cohort_names = [c["name"] for c in cohort_data]
     grid: dict[str, list[dict]] = {g: [] for g in genes}
-    gene_concordance: dict[str, dict[str, str]] = {}
 
     for cohort in cohort_data:
         name = cohort["name"]

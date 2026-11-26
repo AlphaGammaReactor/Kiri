@@ -18,7 +18,6 @@ from app.services.interaction_cleavage import (
     fetch_uniprot_sequence,
     DEFAULT_PARL_MOTIF,
 )
-from app.services.interaction_ppi import MITOCARTA_GENES
 
 logger = logging.getLogger("kiri.substrate_prediction")
 

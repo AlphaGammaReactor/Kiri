@@ -15,12 +15,11 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 
-from app.services.publication_themes import get_theme, list_themes as get_available_themes
+from app.services.publication_themes import get_theme
 
 try:
     from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.units import inch
     from reportlab.graphics import renderPDF
     from reportlab.lib.utils import ImageReader
     _HAS_REPORTLAB = True

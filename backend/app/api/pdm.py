@@ -13,7 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.responses import success_response, error_response
+from app.core.guards import require_private_data_allowed
+from app.core.responses import success_response
 from app.models.pdm import Assay, LabImage, AnimalExperiment
 
 pdm_router = APIRouter(prefix="/pdm", tags=["PDM Vault"])
@@ -103,7 +104,7 @@ async def list_assays(project_id: str, db: AsyncSession = Depends(get_db)):
     )
 
 
-@pdm_router.post("/assays")
+@pdm_router.post("/assays", dependencies=[Depends(require_private_data_allowed)])
 async def create_assay(body: AssayCreate, db: AsyncSession = Depends(get_db)):
     """Create a new assay record."""
     assay = Assay(
@@ -124,7 +125,7 @@ async def create_assay(body: AssayCreate, db: AsyncSession = Depends(get_db)):
     )
 
 
-@pdm_router.patch("/assays/{assay_id}")
+@pdm_router.patch("/assays/{assay_id}", dependencies=[Depends(require_private_data_allowed)])
 async def update_assay(assay_id: str, body: AssayUpdate, db: AsyncSession = Depends(get_db)):
     """Update an existing assay record."""
     stmt = select(Assay).where(Assay.id == uuid.UUID(assay_id))
@@ -144,7 +145,7 @@ async def update_assay(assay_id: str, body: AssayUpdate, db: AsyncSession = Depe
     )
 
 
-@pdm_router.delete("/assays/{assay_id}")
+@pdm_router.delete("/assays/{assay_id}", dependencies=[Depends(require_private_data_allowed)])
 async def delete_assay(assay_id: str, db: AsyncSession = Depends(get_db)):
     """Delete an assay record."""
     stmt = select(Assay).where(Assay.id == uuid.UUID(assay_id))
@@ -184,7 +185,7 @@ async def list_images(project_id: str, db: AsyncSession = Depends(get_db)):
     )
 
 
-@pdm_router.post("/images")
+@pdm_router.post("/images", dependencies=[Depends(require_private_data_allowed)])
 async def create_image(body: LabImageCreate, db: AsyncSession = Depends(get_db)):
     """Create a new lab image record."""
     image = LabImage(
@@ -206,7 +207,7 @@ async def create_image(body: LabImageCreate, db: AsyncSession = Depends(get_db))
     )
 
 
-@pdm_router.delete("/images/{image_id}")
+@pdm_router.delete("/images/{image_id}", dependencies=[Depends(require_private_data_allowed)])
 async def delete_image(image_id: str, db: AsyncSession = Depends(get_db)):
     """Delete a lab image record."""
     stmt = select(LabImage).where(LabImage.id == uuid.UUID(image_id))
@@ -246,7 +247,7 @@ async def list_animal_experiments(project_id: str, db: AsyncSession = Depends(ge
     )
 
 
-@pdm_router.post("/animal-models")
+@pdm_router.post("/animal-models", dependencies=[Depends(require_private_data_allowed)])
 async def create_animal_experiment(body: AnimalExperimentCreate, db: AsyncSession = Depends(get_db)):
     """Create a new animal experiment record."""
     experiment = AnimalExperiment(
@@ -267,7 +268,7 @@ async def create_animal_experiment(body: AnimalExperimentCreate, db: AsyncSessio
     )
 
 
-@pdm_router.patch("/animal-models/{experiment_id}")
+@pdm_router.patch("/animal-models/{experiment_id}", dependencies=[Depends(require_private_data_allowed)])
 async def update_animal_experiment(
     experiment_id: str, body: AnimalExperimentUpdate, db: AsyncSession = Depends(get_db)
 ):
@@ -289,7 +290,7 @@ async def update_animal_experiment(
     )
 
 
-@pdm_router.delete("/animal-models/{experiment_id}")
+@pdm_router.delete("/animal-models/{experiment_id}", dependencies=[Depends(require_private_data_allowed)])
 async def delete_animal_experiment(experiment_id: str, db: AsyncSession = Depends(get_db)):
     """Delete an animal experiment record."""
     stmt = select(AnimalExperiment).where(AnimalExperiment.id == uuid.UUID(experiment_id))

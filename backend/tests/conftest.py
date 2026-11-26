@@ -1,11 +1,18 @@
 """
 Kiri — Test Configuration (conftest.py)
 
-Async httpx client for tests against Docker-hosted Kiri backend.
+Unit tests run against the code directly. Tests marked "live" use the async
+httpx client below against a running backend and are skipped when none is up.
 """
 
 import sys
 import os
+import tempfile
+
+# Tests never touch a real data folder, and never inherit a developer's .env secrets.
+os.environ["KIRI_DATA_DIR"] = tempfile.mkdtemp(prefix="kiri-test-")
+os.environ.setdefault("KIRI_SERVER_MODE", "false")
+
 import pytest
 import pytest_asyncio
 import httpx

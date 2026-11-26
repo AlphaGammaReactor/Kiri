@@ -163,7 +163,10 @@ export default function ClinicalSuite() {
         if (!immuneData || lastImmuneProjectIds !== currentParams) {
           const res = await fetchImmuneDeconvolution(null, effectiveProjectIds, "cibersort", undefined, 100);
           if (res.status === "success" && res.data) {
-            setImmuneData(res.data);
+            // Samples that could not be deconvolved come back without fractions.
+            // They are left out of the charts instead of being drawn as zeros.
+            const samples = (res.data.samples || []).filter((s) => s.fractions != null);
+            setImmuneData({ ...res.data, samples });
             setProvenance(res.provenance);
             setLastImmuneProjectIds(currentParams);
           } else {
@@ -403,6 +406,7 @@ export default function ClinicalSuite() {
                       <KaplanMeierPlot
                         curves={survivalData.curves}
                         p_value={survivalData.p_value}
+                        p_value_unadjusted={survivalData.p_value_unadjusted}
                         at_risk_table={survivalData.at_risk_table}
                         hr={survivalData.hr}
                         hr_ci_lower={survivalData.hr_ci_lower}
@@ -415,7 +419,7 @@ export default function ClinicalSuite() {
                           <CutpointOptCurve
                             data={survivalData.cutpoint_search_data}
                             optimalCutpoint={survivalData.cutpoint_value}
-                            optimalPValue={survivalData.p_value}
+                            optimalPValue={survivalData.p_value_unadjusted ?? survivalData.p_value}
                             gene={survivalGene}
                             dataSource={dataSourceLabel}
                             citation={provenance?.method || "MaxStat cutpoint optimization"}
@@ -483,7 +487,7 @@ export default function ClinicalSuite() {
                           samples={immuneData.samples}
                           cellTypes={immuneData.cell_types}
                           cellColors={immuneData.cell_colors || []}
-                          method={immuneData.method || "CIBERSORT"}
+                          method={immuneData.method || "nu-SVR deconvolution"}
                           dataSource={dataSourceLabel}
                           citation={provenance?.method || "CIBERSORTx, Newman et al. (2015)"}
                         />

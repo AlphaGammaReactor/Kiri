@@ -15,7 +15,7 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,7 +41,7 @@ from app.models.atlas import (
     PanCancerRequest,
     TCGA_PAN_CANCER_PROJECTS,
 )
-from app.models.project import Project, ProjectDataSource, ProjectProtein
+from app.models.project import Project
 from app.services.gdc import fetch_expression, fetch_clinical
 from app.services.geo import fetch_geo_dataset, list_supported_datasets
 from app.services.normalization import normalize, differential_expression
@@ -468,10 +468,10 @@ async def run_immune_deconvolution_analysis(body: ImmuneDeconvolutionRequest):
     expression_matrix = body.expression_matrix
     
     if not expression_matrix and body.project_ids:
-        from app.services.cibersort import LM22_MARKERS
+        from app.services.cibersort import load_signature_matrix
         from app.services.gdc import fetch_expression
-        
-        cibersort_genes = list(LM22_MARKERS.keys())
+
+        cibersort_genes = list(load_signature_matrix().index)
         expr_result = await fetch_expression(
             project_ids=body.project_ids,
             genes=cibersort_genes,
@@ -589,7 +589,9 @@ async def run_pan_survival_analysis(body: PanSurvivalRequest):
 
     expression_data = body.expression_data
     clinical_records = body.clinical_records
-    
+    gdc_metrics: list[str] | None = None
+    unavailable_metrics: list[str] = []
+
     if (not expression_data or not clinical_records) and body.project_ids:
         from app.services.gdc import fetch_expression, fetch_clinical
         
@@ -626,13 +628,15 @@ async def run_pan_survival_analysis(body: PanSurvivalRequest):
                     "vital_status": "Dead" if vital == "dead" else "Alive",
                     "days_to_death": dtd,
                     "days_to_last_follow_up": dtl,
-                    # Fallback values for DFS/PFS/DSS if not present
-                    "disease_free_status": "Recurred/Progressed" if vital == "dead" else "DiseaseFree",
-                    "days_to_recurrence": dtd if dtd is not None else dtl,
-                    "progression_status": "Progressed" if vital == "dead" else "ProgressionFree",
-                    "days_to_progression": dtd if dtd is not None else dtl,
-                    "cause_of_death": "cancer" if vital == "dead" else "alive"
                 })
+
+            # Kiri only has overall survival from GDC. An earlier version filled in
+            # disease-free, progression-free and disease-specific survival by copying
+            # the overall-survival data (every death counted as a recurrence, a
+            # progression and a cancer death). Those endpoints are not computed now.
+            requested = body.metrics or ["OS", "DFS", "PFS", "DSS"]
+            unavailable_metrics = [m for m in requested if m != "OS"]
+            gdc_metrics = ["OS"]
             
     if not expression_data or not clinical_records:
         raise KiriValidationError(
@@ -644,9 +648,15 @@ async def run_pan_survival_analysis(body: PanSurvivalRequest):
         genes=body.genes,
         expression_data=expression_data,
         clinical_records=clinical_records,
-        metrics=body.metrics,
+        metrics=gdc_metrics or body.metrics,
         covariates=body.covariates,
     )
+    result["unavailable_metrics"] = unavailable_metrics
+    if unavailable_metrics:
+        result["note"] = (
+            f"{', '.join(unavailable_metrics)} not computed: Kiri has only overall survival "
+            "for TCGA cohorts. Upload clinical data with those endpoints to analyse them."
+        )
 
     return success_response(
         data=result,

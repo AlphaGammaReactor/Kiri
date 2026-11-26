@@ -22,7 +22,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.responses import success_response, error_response
+from app.core.responses import success_response
 from app.core.errors import KiriValidationError
 from app.models.project import Project
 from app.models.interactomics import (

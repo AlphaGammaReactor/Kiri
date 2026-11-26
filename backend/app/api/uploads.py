@@ -6,7 +6,6 @@ Files are stored on disk + metadata in Postgres via ProjectUploadedFile model.
 """
 
 import logging
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -14,7 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.responses import success_response, error_response
+from app.core.guards import require_private_data_allowed
+from app.core.responses import success_response
 from app.models.uploaded_file import ProjectUploadedFile
 from app.services.upload import save_uploaded_file, get_file_path, delete_file
 
@@ -26,7 +26,7 @@ upload_router = APIRouter(prefix="/uploads", tags=["uploads"])
 # ── Upload File ──
 
 
-@upload_router.post("/{project_id}/files")
+@upload_router.post("/{project_id}/files", dependencies=[Depends(require_private_data_allowed)])
 async def upload_file(
     project_id: str,
     file: UploadFile = File(...),
@@ -165,7 +165,7 @@ async def download_file(
 # ── Delete File ──
 
 
-@upload_router.delete("/{project_id}/files/{file_id}")
+@upload_router.delete("/{project_id}/files/{file_id}", dependencies=[Depends(require_private_data_allowed)])
 async def delete_uploaded_file(
     project_id: str,
     file_id: str,

@@ -7,7 +7,7 @@ All responses wrapped in the standard Kiri response envelope with provenance.
 """
 
 import uuid
-from fastapi import APIRouter, Query, Depends, HTTPException
+from fastapi import APIRouter, Query, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload

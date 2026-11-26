@@ -1,0 +1,33 @@
+Kiri
+Copyright (c) 2026 Alexei Golob. All rights reserved.
+
+This repository is published so that the software can be inspected. It is not
+open source, and no licence is granted.
+
+Without prior written permission from the copyright holder you may not:
+
+  - copy, modify, merge or adapt the source code or any part of it;
+  - redistribute it, or anything built from it, in source or binary form;
+  - use it to provide a product or a hosted service;
+  - remove or change this notice.
+
+You may read the source code on the hosting platform where the copyright
+holder has published it, to the extent that platform's terms of service
+require.
+
+Kiri depends on third-party software and public data sources that are provided
+under their own licences. Those licences apply to that software and data and
+are not changed by this notice. See NOTICE.md.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE. KIRI IS A RESEARCH
+TOOL AND IS NOT FOR CLINICAL OR DIAGNOSTIC USE.
+
+The copyright holder may release Kiri under an open-source licence in the
+future. Until such a release is published in this repository, this notice
+applies.
+
+Contact: open an issue at https://github.com/AlphaGammaReactor/Kiri

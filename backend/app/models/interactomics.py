@@ -10,7 +10,6 @@ Request/response models for Phase 9 endpoints:
 - Regulatory Network
 """
 
-from typing import Any
 from pydantic import BaseModel, Field
 
 

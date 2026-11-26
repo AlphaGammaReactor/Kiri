@@ -1,10 +1,71 @@
 [project]
 name = "kiri-backend"
-version = "0.1.0"
-description = "Kiri Research Platform — FastAPI Backend"
-requires-python = ">=3.11"
-readme = "README.md"
+version = "0.2.0"
+description = "Kiri backend: analysis API"
+requires-python = ">=3.11,<3.13"
+license = { text = "Proprietary. All rights reserved." }
+dependencies = [
+    # Web framework
+    "fastapi>=0.115,<0.116",
+    "uvicorn[standard]>=0.34,<0.35",
+    "pydantic>=2.9,<3",
+    "pydantic-settings>=2.6,<3",
+    "python-multipart>=0.0.18",
+    "email-validator>=2.0",
+    "httpx>=0.28,<0.29",
+    "orjson>=3.10,<4",
+    "structlog>=24.4",
+    # Statistics and analysis
+    "numpy>=1.26,<2",
+    "pandas>=2.2,<3",
+    "scipy>=1.13,<2",
+    "statsmodels>=0.14,<0.15",
+    "scikit-learn>=1.5,<2",
+    "lifelines>=0.29,<0.31",
+    "gseapy>=1.1,<2",
+    "pydeseq2>=0.4,<0.5",
+    # Storage
+    "sqlalchemy[asyncio]>=2.0.36,<3",
+    "aiosqlite>=0.20",
+    "alembic>=1.14,<2",
+    # Sign-in
+    "pyjwt>=2.9,<3",
+    "bcrypt>=4.2,<5",
+    # Figure and report export
+    "svglib>=1.5,<2",
+    "reportlab>=4.2,<5",
+    "matplotlib>=3.9,<4",
+]
 
-[build-system]
-requires = ["setuptools>=68.0"]
-build-backend = "setuptools.build_meta"
+[project.optional-dependencies]
+# Optional AI literature mining. Off unless installed and GEMINI_API_KEY is set.
+ai = ["google-genai>=1.0"]
+# Optional Postgres and Redis for a multi-user server. The default is SQLite and an in-process cache.
+server = ["asyncpg>=0.30", "redis>=5"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "anyio>=4",
+    "ruff>=0.8",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "live: needs a running Kiri backend and the public data services (not run in CI)",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["alembic"]
+
+[tool.ruff.lint]
+# Correctness rules only for now: undefined names, unused imports, syntax errors.
+select = ["E9", "F"]

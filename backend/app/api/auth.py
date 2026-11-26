@@ -4,13 +4,14 @@ Kiri — Auth API Routes
 Endpoints for user registration, login, token refresh, logout, and profile.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from datetime import datetime, timezone
 import collections
+import hmac
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -21,6 +22,7 @@ from app.core.auth import (
     create_refresh_token,
     decode_token,
     get_current_user,
+    MAX_PASSWORD_BYTES,
 )
 from app.models.user import User
 
@@ -76,7 +78,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     display_name: str
-    invite_code: str
+    invite_code: str = ""
 
 
 class LoginRequest(BaseModel):
@@ -111,7 +113,9 @@ def _user_dict(user: User) -> dict:
 async def register(body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)):
     """Create a new user account and return tokens."""
     # Validate invite code
-    if body.invite_code != settings.INVITE_CODE:
+    if settings.INVITE_CODE and not hmac.compare_digest(
+        body.invite_code.encode("utf-8"), settings.INVITE_CODE.encode("utf-8")
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid invite code",
@@ -126,10 +130,15 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
         )
 
     # Validate password length
-    if len(body.password) < 6:
+    if len(body.password) < 8:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Password must be at least 6 characters",
+            detail="Password must be at least 8 characters",
+        )
+    if len(body.password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password is too long (72 bytes at most)",
         )
 
     # Create user
@@ -150,7 +159,7 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,  # Set True in production with HTTPS
+        secure=settings.KIRI_SERVER_MODE,
         samesite="lax",
         max_age=7 * 24 * 60 * 60,  # 7 days
         path="/api/v1/auth",
@@ -185,7 +194,7 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
+        secure=settings.KIRI_SERVER_MODE,
         samesite="lax",
         max_age=7 * 24 * 60 * 60,
         path="/api/v1/auth",
@@ -217,7 +226,14 @@ async def refresh(
 
     user_id = payload.get("sub")
     from uuid import UUID
-    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+    try:
+        user_uuid = UUID(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+    result = await db.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
 
     if not user:
@@ -234,7 +250,7 @@ async def refresh(
         key="refresh_token",
         value=new_refresh,
         httponly=True,
-        secure=False,
+        secure=settings.KIRI_SERVER_MODE,
         samesite="lax",
         max_age=7 * 24 * 60 * 60,
         path="/api/v1/auth",

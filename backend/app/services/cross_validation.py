@@ -12,7 +12,6 @@ Key functions:
 
 import logging
 import uuid
-from dataclasses import dataclass, field
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession

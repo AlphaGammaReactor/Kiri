@@ -9,6 +9,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastContainer } from "./components/Toast";
 import { SettingsFloatingButton } from "./components/SettingsFloatingButton";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { TestBuildBanner } from "./components/TestBuildBanner";
 import { refreshToken } from "./store/authSlice";
 import { usePageTitle } from "./hooks/usePageTitle";
 import { fetchProject } from "./store/projectSlice";
@@ -262,6 +263,7 @@ function App() {
     <ErrorBoundary moduleName="App">
       <BrowserRouter>
         <PageTitleUpdater />
+        <TestBuildBanner />
         <AuthInitializer>
           <ToastContainer />
           <SettingsFloatingButton />

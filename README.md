@@ -11,16 +11,16 @@
 
 ## Status
 
+Kiri is being rebuilt. This is an alpha: check any result independently before you rely on it.
+
 | Area | Status |
 |---|---|
-| Core modules | ✅ Implemented (alpha) |
-| Backend API | ✅ Functional |
-| Frontend UI | ✅ Functional |
-| i18n (EN/ZH) | ✅ Implemented |
-| Bug testing | ⚠️ Not systematically done |
-| E2E tests | ⚠️ Partial coverage |
-| Security audit | ❌ Not done |
-| Performance tuning | ❌ Not done |
+| Results come only from real data | Done for the paths listed below; the rest of the code has not been audited line by line |
+| Install from a lockfile, CI | Done |
+| Hosted test build behind a password | Done |
+| Golden-number tests against published TCGA results | Not done |
+| Independent security review | Not done |
+| End-to-end browser tests in CI | Not done (the Playwright tests need a running stack) |
 
 ## Architecture
 
@@ -46,8 +46,8 @@ Kiri/
 │   │   ├── services/      # Business logic, external APIs
 │   │   ├── utils/         # Helpers, validation
 │   │   └── main.py        # FastAPI app
-│   ├── requirements.txt
-│   └── pyproject.toml
+│   ├── pyproject.toml     # dependencies
+│   └── uv.lock            # exact versions (the lockfile)
 ├── docs/              # Source of truth (PRD, system design, research brief)
 ├── TODO.md
 ├── development_log.md
@@ -63,120 +63,78 @@ Kiri/
 | 3 | Clinical Suite | Survival analysis, Cox regression, synergy scores | Alpha |
 | 4 | AI Discovery | LLM literature mining with anti-hallucination controls | Alpha |
 | 5 | Publication Engine | Journal-ready SVG/PDF export (Nature Cell Bio grade) | Alpha |
-| 6 | Drug Discovery | DrugBank/CTD compound screening | Alpha |
+| 6 | Drug Discovery | DrugBank, PubChem and ChEMBL compound lookup | Alpha |
 | 7 | Mito Lab | Mitochondrial gene analysis | Alpha |
 | 8 | Cross-Validation | Independent dataset validation | Alpha |
 
-## Quick Start
+## What Kiri will not do
 
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev       # → http://localhost:5173
-```
+Kiri never shows generated, random or example numbers in place of real data.
+When a data source or engine is missing, the screen says so and the API
+answers `501` with a plain explanation. Not available yet:
 
-### Backend
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload   # → http://localhost:8000
-```
-
-### Docker (dev — all services)
-```bash
-docker-compose up --build
-```
-
-## Deployment
-
-### Branch Topology
-```
-main                         ← stable baseline
-  └── ag-docker-dev          ← latest development (all features)
-        └── deploy/railway-production  ← production-ready Docker configs
-```
-
-### Railway (Production)
-
-The `deploy/railway-production` branch includes production-hardened Dockerfiles and Railway configs.
-
-**Architecture:** 2 Railway services from 1 repo
-| Service | Root Dir | Build | Serves |
-|---------|----------|-------|--------|
-| Backend (FastAPI) | `backend/` | Dockerfile (Python 3.11, 2 workers) | `/api/*` |
-| Frontend (Vite→nginx) | `frontend/` | Dockerfile (multi-stage: build → nginx) | SPA + proxy to backend |
-
-**Required env vars (set in Railway dashboard, never committed):**
-| Variable | Service | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | Backend | Auto-injected by Railway PostgreSQL plugin |
-| `JWT_SECRET_KEY` | Backend | Strong random secret for auth |
-| `CORS_ORIGINS` | Backend | Comma-separated: `https://<frontend>.up.railway.app` |
-| `INVITE_CODE` | Backend | Registration gate code |
-| `DEBUG` | Backend | Set to `false` |
-| `BACKEND_URL` | Frontend | `https://<backend>.up.railway.app` |
-
-### Railway Operations
-
-**List services:**
-```bash
-railway link          # Link to the Kiri project (one-time)
-railway service list  # Shows: Kiri, Frontend, Postgres-soBQ, Postgres-3_4W, Redis
-```
-
-**Connect to production database (interactive psql):**
-```bash
-railway connect Postgres-soBQ
-```
-
-**Run SQL non-interactively (pipe):**
-```bash
-echo "SELECT count(*) FROM users;" | railway connect Postgres-soBQ
-```
-
-> [!IMPORTANT]
-> **`railway connect` is the only reliable method from local.**
-> Direct TCP proxy (`switchyard.proxy.rlwy.net:47381`) and `railway run` both fail from local machines. Always use `railway connect <service-name>` to pipe SQL or open an interactive session.
-
-**Delete a user (cascade-safe):**
-```sql
-BEGIN;
-DELETE FROM projects WHERE owner_id = (SELECT id FROM users WHERE email = 'user@example.com');
-DELETE FROM project_collaborators WHERE user_id = (SELECT id FROM users WHERE email = 'user@example.com');
-DELETE FROM users WHERE email = 'user@example.com';
-COMMIT;
-```
-
-**View deployment logs:**
-```bash
-railway logs --service Kiri          # Backend logs
-railway logs --service Frontend      # Frontend logs
-```
-
-
-## Data Sources
-
-Kiri pulls from public databases at runtime. No bulk datasets are bundled in the repo — users download/generate data files as needed during analysis.
-
-| Source | Type |
+| Feature | State |
 |---|---|
-| TCGA (GDC API) | Bulk RNA-seq, clinical |
-| GEO (NCBI) | Microarray, RNA-seq |
-| UniProt | Protein annotation |
-| STRING | Protein-protein interactions |
-| RCSB PDB | 3D structures |
-| DrugBank / CTD | Drug-target interactions |
-| PubMed / NCBI | Literature mining |
+| GEO expression cohorts | Accession check only. No expression download yet. |
+| GEO perturbation datasets, PRIDE proteomics | Upload your own table. No public download yet. |
+| Protein docking | No engine yet. |
+| CTD chemical-disease associations | Not integrated. |
+| Immune deconvolution | Works once you install your own copy of LM22 (see `NOTICE.md`). |
+| DFS / PFS / DSS for TCGA cohorts | Only overall survival is available from GDC. |
+| Random survival forest | Removed with its GPL dependency. |
 
-## Trust Layer
+The p-value shown after an optimal-cutpoint search is adjusted for the search
+(Miller-Siegmund, as in Altman et al. 1994); the unadjusted value is shown beside it.
 
-Every analysis output includes: data provenance, p-values with CIs, sample sizes, and normalization method. AI outputs are labeled "AI-Suggested" with verified PubMed citations. See `docs/prd_en.md` for full specifications.
+## Quick start (your own computer)
+
+You need [uv](https://docs.astral.sh/uv/) and Node 22.
+
+```bash
+# Backend: http://127.0.0.1:8000
+cd backend
+uv sync --frozen
+uv run uvicorn app.main:app --reload
+
+# Frontend: http://localhost:5173 (proxies /api to the backend)
+cd frontend
+npm ci
+npm run dev
+```
+
+Kiri keeps everything in `backend/data/` (a SQLite database, a signing key,
+uploads). Nothing else needs to be installed or configured.
+
+```bash
+# Checks (the same ones CI runs)
+cd backend  && uv run ruff check app tests && uv run pytest -m "not live"
+cd frontend && npx tsc -b && npx eslint . && npx vitest run && npm run build
+```
+
+## Hosted test build (Railway)
+
+One container serves the frontend and the API. It always runs in **server mode**:
+
+- the whole site is behind one shared password, and the app refuses to start without it;
+- adding your own data (uploads, lab records) is turned off, so testers use sample and public data only;
+- the API docs are hidden and the site asks search engines not to index it.
+
+```bash
+docker build -t kiri-test .
+docker run -p 8000:8000 -v kiri-data:/data -e KIRI_ACCESS_PASSWORD='a-long-password' kiri-test
+```
+
+On Railway: one service built from the root `Dockerfile` (`railway.toml` sets
+this up), a volume mounted at `/data`, and one variable, `KIRI_ACCESS_PASSWORD`
+(12 or more characters). Change the variable to sign every tester out.
+
+## Licence
+
+Kiri is **not open source**. All rights reserved; see [`LICENSE`](LICENSE).
+The source is published for inspection only: it may not be copied, modified or
+redistributed without written permission. This may change at or after 1.0.
+Third-party software and data keep their own licences; see [`NOTICE.md`](NOTICE.md).
 
 ## Bilingual
 
 All UI strings pass through `i18next` — switch between English and Chinese (Simplified) with one click.
-
-## License
-
-Private repository. All rights reserved.

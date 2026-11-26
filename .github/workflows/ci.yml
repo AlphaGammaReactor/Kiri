@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (install from lockfile, lint, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install exactly what the lockfile says
+        run: uv sync --frozen --python 3.11
+      - name: Lockfile matches pyproject.toml
+        run: uv lock --check
+      - name: Lint
+        run: uv run --frozen ruff check app tests
+      - name: Tests
+        run: uv run --frozen pytest -q -m "not live"
+      - name: App starts in server mode and is closed without the password
+        env:
+          KIRI_SERVER_MODE: "true"
+          KIRI_ACCESS_PASSWORD: ci-only-password-not-a-secret
+          KIRI_DATA_DIR: ${{ runner.temp }}/kiri-data
+        run: |
+          uv run --frozen uvicorn app.main:app --port 8000 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/api/health && break; sleep 1; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/api/v1/meta)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/)" = "401"
+
+  frontend:
+    name: Frontend (install from lockfile, types, lint, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Type check
+        run: npx tsc -b
+      - name: Lint
+        run: npx eslint .
+      - name: Unit tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Test-build image builds and gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t kiri-test .
+      - name: Refuses to start without a password
+        run: |
+          if docker run --rm kiri-test; then
+            echo "Container started without KIRI_ACCESS_PASSWORD" && exit 1
+          fi
+      - name: Starts with a password, serves the gate, opens after sign-in
+        run: |
+          docker run -d --name kiri -p 8000:8000 -e KIRI_ACCESS_PASSWORD=ci-only-password-not-a-secret kiri-test
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8000/api/health && break; sleep 1; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/api/v1/meta)" = "401"
+          curl -s -c jar -o /dev/null -d 'password=ci-only-password-not-a-secret' http://127.0.0.1:8000/gate/login
+          curl -fsS -b jar http://127.0.0.1:8000/api/v1/meta | grep '"server_mode":true'
+          curl -fsS -b jar http://127.0.0.1:8000/ | grep -qi '<div id="root"'
+          docker exec kiri sh -c 'grep "^Uid:" /proc/1/status' | grep -q 10001
+      - name: Container logs
+        if: always()
+        run: docker logs kiri || true

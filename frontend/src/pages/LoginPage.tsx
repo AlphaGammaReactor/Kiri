@@ -12,6 +12,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useBuildMeta } from "../services/meta";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppDispatch, useAppSelector } from "../store";
 import type { RootState } from "../store";
@@ -31,6 +32,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const { invite_code_required: inviteCodeRequired } = useBuildMeta();
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -172,9 +174,9 @@ export default function LoginPage() {
               )}
             </AnimatePresence>
 
-            {/* Invite code (register only) */}
+            {/* Invite code (register only, and only where one is asked for) */}
             <AnimatePresence>
-              {mode === "register" && (
+              {mode === "register" && inviteCodeRequired && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}

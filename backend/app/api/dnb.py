@@ -6,15 +6,11 @@ Endpoints for tipping point detection via the DNB algorithm.
 - GET  /dnb/modules — list available gene modules
 """
 
-from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.core.responses import success_response
-from app.core.errors import KiriValidationError
 from app.services.dnb import compute_dnb_score, get_default_modules
 
 dnb_router = APIRouter(prefix="/dnb", tags=["DNB Analysis"])
