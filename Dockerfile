@@ -52,7 +52,7 @@ COPY --from=frontend /build/dist ./static
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
 
-VOLUME ["/data"]
+# No VOLUME line: Railway rejects it. Mount a volume at /data (Railway Volume, or docker run -v).
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
