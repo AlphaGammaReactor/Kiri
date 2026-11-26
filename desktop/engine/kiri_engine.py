@@ -53,6 +53,8 @@ def main() -> None:
     if os.environ.get("KIRI_ENGINE_WATCH_STDIN", "1") == "1":
         threading.Thread(target=_exit_when_parent_goes, daemon=True).start()
 
+    # The app shell keeps stderr (engine.log) and discards stdout, where Kiri's logger writes.
+    sys.stdout = sys.stderr
     _matplotlib_without_font_scan()
     import uvicorn
     from app.main import app
