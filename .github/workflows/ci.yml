@@ -43,7 +43,10 @@ jobs:
           KIRI_ACCESS_PASSWORD: ci-only-password-not-a-secret
           KIRI_DATA_DIR: ${{ runner.temp }}/kiri-data
         run: |
-          uv run --frozen uvicorn app.main:app --port 8000 &
+          # Run from the venv directly and stop it on exit: a server left running under
+          # `uv run` holds uv's cache lock and stalls the cache step after the job.
+          .venv/bin/uvicorn app.main:app --port 8000 &
+          trap 'kill %1' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/api/health && break; sleep 1; done
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/api/v1/meta)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/)" = "401"
