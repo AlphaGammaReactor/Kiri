@@ -3,22 +3,22 @@
 They let the sample projects open and run offline on first start. The data are
 the GDC harmonised STAR TPM values, survival and clinical tables as published
 by the UCSC Xena GDC hub (Goldman et al., Nat Biotechnol 2020), for a handful
-of genes. Run on a machine that can reach the hub (GitHub Actions does this):
+of genes. Uses the hub's query API (xenaPython), so only the listed genes are fetched.
+Run on a machine that can reach the hub (GitHub Actions does this):
 
     python scripts/build_sample_slice.py out_dir
 """
 
 import gzip
-import io
 import json
+import math
 import sys
-import urllib.request
 from datetime import date
 from pathlib import Path
 
-import pandas as pd
+import xenaPython as xena
 
-HUB = "https://gdc-hub.s3.us-east-1.amazonaws.com/download"
+HUB = "https://gdc.xenahubs.net"
 SLICES = {
     "TCGA-COADREAD": {"projects": ["TCGA-COAD", "TCGA-READ"],
                       "genes": ["PARL", "MAVS", "TP53", "MKI67", "CDX2", "VIL1", "GAPDH", "ACTB",
@@ -30,23 +30,54 @@ SLICES = {
 }
 
 
-def fetch(url: str) -> bytes:
-    print("GET", url, flush=True)
-    with urllib.request.urlopen(url, timeout=600) as r:
-        return r.read()
+def num(v):
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(f) else f
 
 
-def table(url: str) -> pd.DataFrame:
-    raw = fetch(url)
-    if url.endswith(".gz"):
-        raw = gzip.decompress(raw)
-    return pd.read_csv(io.BytesIO(raw), sep="\t", low_memory=False)
+def cohort_of(proj: str) -> str:
+    code = proj.split("-", 1)[1]
+    names = [c for c in xena.all_cohorts(HUB, []) if c.startswith("GDC TCGA") and c.endswith(f"({code})")]
+    if not names:
+        raise SystemExit(f"No GDC cohort for {proj}")
+    return names[0]
 
 
-def gene_map() -> dict:
-    """Ensembl id (no version) → symbol, from the hub's gene annotation."""
-    t = table(f"{HUB}/gencode.v36.annotation.gtf.gene.probemap")
-    return {r["id"].split(".")[0]: r["gene"] for _, r in t.iterrows()}
+def datasets(cohort: str) -> dict:
+    found = {}
+    for d in xena.dataset_list(HUB, [cohort]):
+        n = d["name"]
+        print("  dataset:", n, d.get("type"), flush=True)
+        for key, pat in (("expr", "star_tpm"), ("surv", "survival"), ("clin", "clinical")):
+            if pat in n and key not in found:
+                found[key] = n
+    missing = {"expr", "surv", "clin"} - found.keys()
+    if missing:
+        raise SystemExit(f"{cohort}: no dataset for {missing}")
+    return found
+
+
+def phenotype(ds: str, samples: list, wanted: dict) -> dict:
+    """Field values for the samples, categorical codes decoded. wanted: key -> candidate names."""
+    fields = set(xena.dataset_field(HUB, ds))
+    pick = {k: next((f for f in names if f in fields), None) for k, names in wanted.items()}
+    print("  fields from", ds, pick, flush=True)
+    use = [f for f in pick.values() if f]
+    vals = xena.dataset_fetch(HUB, ds, samples, use) if use else []
+    codes = {c["name"]: (c["code"].split("\t") if c.get("code") else None)
+             for c in xena.field_codes(HUB, ds, use)} if use else {}
+    out = {}
+    for k, f in pick.items():
+        if not f:
+            out[k] = [None] * len(samples)
+            continue
+        col = vals[use.index(f)]
+        cs = codes.get(f)
+        out[k] = [(cs[int(v)] if cs and num(v) is not None else num(v)) for v in col]
+    return out
 
 
 def stage_of(s) -> str:
@@ -59,38 +90,48 @@ def stage_of(s) -> str:
     return ""
 
 
-def build(name: str, spec: dict, ens2sym: dict) -> dict:
-    sym2ens = {v: k for k, v in ens2sym.items()}
+def build(name: str, spec: dict) -> dict:
     samples, values = [], {g: [] for g in spec["genes"]}
     for proj in spec["projects"]:
-        expr = table(f"{HUB}/{proj}.star_tpm.tsv.gz")
-        expr["ens"] = expr.iloc[:, 0].str.split(".").str[0]
-        expr = expr.set_index("ens").drop(columns=expr.columns[0])
-        surv = table(f"{HUB}/{proj}.survival.tsv").set_index("sample")
-        clin = table(f"{HUB}/{proj}.clinical.tsv.gz")
-        clin = clin.set_index(clin.columns[0])
-        for sid in expr.columns:
+        cohort = cohort_of(proj)
+        print(proj, "->", cohort, flush=True)
+        ds = datasets(cohort)
+        ids = xena.dataset_samples(HUB, ds["expr"], None)
+        keep = []
+        for sid in ids:
             code = sid.split("-")[3][:2] if len(sid.split("-")) > 3 else ""
             kind = "tumor" if code in ("01", "02", "03", "05", "06") else "normal" if code == "11" else None
-            if kind is None:
-                continue
-            c = clin.loc[sid] if sid in clin.index else None
-            sv = surv.loc[sid] if sid in surv.index else None
-            stage_col = next((k for k in ("ajcc_pathologic_stage.diagnoses", "ajcc_pathologic_stage") if c is not None and k in c.index), None)
-            age_col = next((k for k in ("age_at_index.demographic", "age_at_index") if c is not None and k in c.index), None)
-            sex_col = next((k for k in ("gender.demographic", "gender") if c is not None and k in c.index), None)
+            if kind:
+                keep.append((sid, kind))
+        sids = [s for s, _ in keep]
+        expr = {}
+        for row in xena.dataset_gene_probe_avg(HUB, ds["expr"], sids, spec["genes"]):
+            sc = row["scores"]
+            if sc and isinstance(sc[0], list):
+                sc = sc[0]
+            expr[row["gene"]] = sc if sc and len(sc) == len(sids) else [None] * len(sids)
+            if not (sc and len(sc) == len(sids)):
+                print("  WARNING: no values for", row["gene"], flush=True)
+        surv = phenotype(ds["surv"], sids, {"t": ["OS.time"], "e": ["OS"]})
+        clin = phenotype(ds["clin"], sids, {
+            "stage": ["ajcc_pathologic_stage.diagnoses", "ajcc_pathologic_stage"],
+            "age": ["age_at_index.demographic", "age_at_index"],
+            "sex": ["gender.demographic", "gender"],
+        })
+        for i, (sid, kind) in enumerate(keep):
+            age = num(clin["age"][i])
+            ev = num(surv["e"][i])
             samples.append({
                 "id": sid, "case": sid[:12], "type": kind, "project": proj,
-                "stage": stage_of(c[stage_col]) if stage_col else "",
-                "age": float(c[age_col]) if age_col and pd.notna(c[age_col]) else None,
-                "sex": str(c[sex_col]) if sex_col and pd.notna(c[sex_col]) else "",
-                "os_time": float(sv["OS.time"]) if sv is not None and pd.notna(sv["OS.time"]) else None,
-                "os_event": int(sv["OS"]) if sv is not None and pd.notna(sv["OS"]) else None,
+                "stage": stage_of(clin["stage"][i]),
+                "age": age,
+                "sex": clin["sex"][i] if isinstance(clin["sex"][i], str) else "",
+                "os_time": num(surv["t"][i]),
+                "os_event": int(ev) if ev is not None else None,
             })
             for g in spec["genes"]:
-                e = sym2ens.get(g)
-                v = expr.at[e, sid] if e in expr.index else None
-                values[g].append(round(float(v), 4) if v is not None and pd.notna(v) else None)
+                v = num(expr[g][i])
+                values[g].append(round(v, 4) if v is not None else None)
     return {
         "name": name, "projects": spec["projects"], "built": date.today().isoformat(),
         "source": "GDC harmonised data (STAR, GENCODE v36) via the UCSC Xena GDC hub",
@@ -101,9 +142,8 @@ def build(name: str, spec: dict, ens2sym: dict) -> dict:
 def main(out: str) -> None:
     out_dir = Path(out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    ens2sym = gene_map()
     for name, spec in SLICES.items():
-        data = build(name, spec, ens2sym)
+        data = build(name, spec)
         n_t = sum(s["type"] == "tumor" for s in data["samples"])
         n_n = sum(s["type"] == "normal" for s in data["samples"])
         print(f"{name}: {n_t} tumour, {n_n} normal samples, {len(data['genes'])} genes")

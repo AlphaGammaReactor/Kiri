@@ -19,12 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install "pandas>=2.2,<3"
-      - name: Which hub files exist
-        run: |
-          for f in TCGA-COAD.star_tpm.tsv.gz TCGA-COAD.survival.tsv TCGA-COAD.clinical.tsv.gz gencode.v36.annotation.gtf.gene.probemap; do
-            echo "$f $(curl -s -o /dev/null -w '%{http_code}' -I https://gdc-hub.s3.us-east-1.amazonaws.com/download/$f)"
-          done
+      - run: pip install "xenaPython==1.0.14"
       - name: Build the slices
         run: python backend/scripts/build_sample_slice.py backend/app/cohorts/samples
       - name: Commit them
