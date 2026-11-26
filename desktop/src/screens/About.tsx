@@ -8,7 +8,8 @@ import { APP_VERSION } from "../lib/platform";
 import type { UpdateState } from "../lib/updater";
 import type { EngineState } from "../lib/engine";
 import type { ProjectSummary } from "../lib/api";
-import notes from "../../release-notes/v0.1.0.md?raw";
+const NOTES = import.meta.glob("../../release-notes/*.md", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const notes = NOTES[`../../release-notes/v${APP_VERSION}.md`] ?? "";
 
 type Tab = "about" | "checked" | "new" | "licences" | "privacy";
 
