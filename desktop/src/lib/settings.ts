@@ -12,8 +12,10 @@ export type Settings = {
   firstRunDone: boolean;
   purpose: "course" | "research" | "explore" | null;
   familiarity: "new" | "class" | "often" | null;
+  textSize: "normal" | "large";
+  reduceMotion: boolean;
 };
-const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true, firstRunDone: false, purpose: null, familiarity: null };
+const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true, firstRunDone: false, purpose: null, familiarity: null, textSize: "normal", reduceMotion: false };
 
 type StoreLike = { get<T>(k: string): Promise<T | undefined>; set(k: string, v: unknown): Promise<void>; save(): Promise<void> };
 let storePromise: Promise<StoreLike | null> | null = null;

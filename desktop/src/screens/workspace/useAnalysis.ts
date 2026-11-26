@@ -35,7 +35,8 @@ export function useAnalysis(kinds: Kind[]) {
 
   const run = useCallback(async (p: RunParams) => {
     setPhase({ kind: "running" });
-    busy.start();
+    const job = busy.start(`${p.kind === "survival" ? "Survival" : "Expression"} · ${p.gene.trim().toUpperCase()}`);
+    let failed: string | undefined;
     const started = Date.now();
     try {
       const sameGene = current && current.params.gene === p.gene.trim().toUpperCase() && current.kind === p.kind;
@@ -43,16 +44,18 @@ export function useAnalysis(kinds: Kind[]) {
       // Keep the progress view on screen long enough to read.
       const wait = 700 - (Date.now() - started);
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      failed = (a.result as { error?: string }).error;
       if ((a.result as { error?: string }).error) setPhase({ kind: "error", code: (a.result as { error: string }).error, extra: a.result as Record<string, unknown> });
       else setPhase({ kind: "idle" });
       setCurrent(a);
     } catch (e) {
+      failed = e instanceof ApiError ? e.code : "engine";
       if (e instanceof ApiError && (e.code === "needs_download" || e.code === "gene_not_in_cohort")) {
         const projects = (e.extra.projects as string[] | undefined) ?? cohort?.projects ?? [];
         setPhase(e.code === "needs_download" ? { kind: "download", projects } : { kind: "error", code: e.code, extra: e.extra });
       } else if (e instanceof ApiError) setPhase({ kind: "error", code: e.code, extra: e.extra });
       else setPhase({ kind: "error", code: "engine", extra: {} });
-    } finally { busy.end(); }
+    } finally { busy.end(job, failed); }
   }, [current, cohort]);
 
   const download = useCallback(async (projects: string[]) => {

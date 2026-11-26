@@ -20,7 +20,7 @@ export async function pickKiriToSave(title: string, defaultName: string): Promis
   return r ?? null;
 }
 
-export async function pickExportPath(title: string, defaultName: string, ext: "png" | "svg" | "pdf" | "csv" | "html"): Promise<string | null> {
+export async function pickExportPath(title: string, defaultName: string, ext: "png" | "svg" | "pdf" | "csv" | "html" | "txt"): Promise<string | null> {
   if (!isTauri) return previewDir ? `${previewDir}/${defaultName}.${ext}` : null;
   const { save } = await import("@tauri-apps/plugin-dialog");
   const { documentDir, join } = await import("@tauri-apps/api/path");

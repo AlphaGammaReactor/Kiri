@@ -1,5 +1,5 @@
 // Expression workspace: tumour against normal tissue, or across stages (page 13 of the design).
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { useT } from "../../i18n";
 import type { ProjectSummary } from "../../lib/api";
@@ -14,28 +14,37 @@ import { errorText } from "./errors";
 type Mode = "tn" | "stage";
 const STAGE_COLORS: Record<string, string> = { I: "#7a9a5a", II: "#2a6fa8", III: "#c8641a", IV: "#a3392b" };
 
-export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSurvival }: {
-  p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void; onSurvival: (gene: string) => void;
+export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSurvival, initialGene }: {
+  p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void; onSurvival: (gene: string) => void; initialGene?: string;
 }) {
   const { t } = useT();
   const a = useAnalysis(["expression_tn", "expression_stage"]);
   const r = a.current && !(a.current.result as { error?: string }).error && a.current.kind !== "survival" ? (a.current.result as ExpressionResult) : null;
   const saved = a.current?.params;
   const targets = p.project.targets.length ? p.project.targets : ["TP53"];
-  const [gene, setGene] = useState<string>(targets[0]);
+  const [gene, setGene] = useState<string>(initialGene || targets[0]);
   const [mode, setMode] = useState<Mode>("tn");
   const [paired, setPaired] = useState(false);
   const [points, setPoints] = useState(true);
   const [synced, setSynced] = useState<string | null>(null);
   if (a.current && synced !== a.current.id) {
+    const keepAsked = !synced && !!initialGene && a.current.params.gene !== initialGene.toUpperCase();
     setSynced(a.current.id);
-    setGene(a.current.params.gene); setMode(a.current.kind === "expression_stage" ? "stage" : "tn"); setPaired(!!a.current.params.paired);
+    if (!keepAsked) setGene(a.current.params.gene);
+    setMode(a.current.kind === "expression_stage" ? "stage" : "tn"); setPaired(!!a.current.params.paired);
   }
   const svgRef = useRef<SVGSVGElement>(null);
   const projects = a.cohort?.projects ?? p.project.datasets;
   const kind = mode === "tn" ? "expression_tn" : "expression_stage";
   const run = useCallback(() => a.run({ kind, gene, paired: mode === "tn" ? paired : false }), [a, kind, gene, paired, mode]);
   useRunShortcut(run, a.phase.kind !== "running" && !!gene.trim());
+  // Arriving with a gene (from search): run it unless it is already the stored result.
+  const asked = useRef(false);
+  useEffect(() => {
+    if (!initialGene || asked.current || !a.loaded) return;
+    asked.current = true;
+    if (a.current?.params.gene !== initialGene.toUpperCase()) a.run({ kind: "expression_tn", gene: initialGene, paired: false });
+  }, [a.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const stale = !!r && !!saved && (saved.gene !== gene.trim().toUpperCase() || saved.kind !== kind || (mode === "tn" && !!saved.paired !== paired));
   const F = figText[figLang];
 

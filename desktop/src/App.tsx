@@ -13,6 +13,10 @@ import { Overview } from "./screens/Overview";
 import { Survival } from "./screens/workspace/Survival";
 import { Expression } from "./screens/workspace/Expression";
 import { Notebook } from "./screens/Notebook";
+import { Data } from "./screens/Data";
+import { Glossary } from "./screens/Glossary";
+import { Palette } from "./shell/Palette";
+import { ActivityPanel, HelpMenu, ReportProblem, Shortcuts } from "./shell/Help";
 import { useSettings } from "./lib/settings";
 import { useEngine } from "./lib/engine";
 import { useUpdater } from "./lib/updater";
@@ -45,6 +49,26 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
   const [versionDialog, setVersionDialog] = useState(false);
   const [pendingDoor, setPendingDoor] = useState<string | null>(null);
   const [survGene, setSurvGene] = useState<string>("");
+  const [expGene, setExpGene] = useState<string>("");
+  const [term, setTerm] = useState<string | undefined>(undefined);
+  const [overlay, setOverlay] = useState<null | "palette" | "activity" | "help" | "shortcuts" | "report">(null);
+  const closeOverlay = useCallback(() => setOverlay(null), []);
+
+  // Text size and motion follow Settings → Accessibility.
+  useEffect(() => {
+    document.documentElement.dataset.text = settings.textSize;
+    document.documentElement.dataset.motion = settings.reduceMotion ? "reduce" : "";
+  }, [settings.textSize, settings.reduceMotion]);
+  // ⌘K search, F1 or ? for shortcuts.
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? "");
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setOverlay((o) => (o === "palette" ? null : "palette")); }
+      else if (e.key === "F1" || (e.key === "?" && !typing)) { e.preventDefault(); setOverlay("shortcuts"); }
+    };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, []);
 
   const say = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
   const notYet = () => say(t("common.notYet"));
@@ -106,9 +130,10 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
     );
   }
 
-  const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook";
+  const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook" || screen === "data";
+  const openGene = (k: "survival" | "expression", g: string) => { if (k === "survival") setSurvGene(g); else setExpGene(g); setScreen(k); };
   const docName = proj.project && inProject ? proj.project.file_name
-    : screen === "home" ? t("home.title") : screen === "new" ? t("home.new") : screen === "settings" ? t("settings.title") : screen === "about" ? t("about.title") : "Kiri";
+    : screen === "home" ? t("home.title") : screen === "new" ? t("home.new") : screen === "settings" ? t("settings.title") : screen === "about" ? t("about.title") : screen === "glossary" ? t("gl.title") : "Kiri";
 
   return (
     <div className="app">
@@ -116,7 +141,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
         docName={docName} lang={lang} level={settings.level}
         fileMenu={proj.project && inProject && !proj.project.read_only ? { onVersion: () => setVersionDialog(true), onCopy: saveCopy, onClose: closeProject } : proj.project && inProject ? { onVersion: notYet, onCopy: saveCopy, onClose: closeProject } : null}
         onLang={(l) => update({ lang: l })} onLevel={(l) => update({ level: l })}
-        onSettings={() => setScreen("settings")} onHelp={() => setScreen("about")} onActivity={notYet} onSearch={notYet}
+        onSettings={() => setScreen("settings")} onHelp={() => setOverlay((o) => (o === "help" ? null : "help"))} onActivity={() => setOverlay((o) => (o === "activity" ? null : "activity"))} onSearch={() => setOverlay("palette")}
         activityDot={updater.state.kind === "ready"}
       />
       <div><UpdateBanner state={updater.state} onRestart={updater.restart} /></div>
@@ -133,15 +158,25 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
           {screen === "new" && <NewProject key={newTpl} initialTemplate={newTpl} onCancel={() => setScreen("home")} onCreate={create} notYet={notYet} />}
           {screen === "overview" && proj.project && <Overview p={proj.project} notYet={notYet} />}
           {screen === "survival" && proj.project && <Survival key={`s-${proj.project.path}-${survGene}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} initialGene={survGene} />}
-          {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
+          {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}-${expGene}`} initialGene={expGene} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
           {screen === "notebook" && proj.project && <Notebook key={`n-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onOpenAnalysis={(k, g) => { if (k === "survival") setSurvGene(g ?? ""); setScreen(k === "survival" ? "survival" : "expression"); }} />}
-          {screen === "settings" && <Settings s={settings} update={update} />}
-          {screen === "about" && <About update={updater.state} onCheck={updater.check} engine={engine} />}
+          {screen === "data" && proj.project && <Data key={`d-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} />}
+          {screen === "glossary" && <Glossary key={term} initial={term} />}
+          {screen === "settings" && <Settings s={settings} update={update} engineReady={ready} />}
+          {screen === "about" && <About update={updater.state} onCheck={updater.check} engine={engine} project={proj.project} />}
         </main>
       </div>
       {dragging && <div className="drop-overlay">{t("home.dropHere")}</div>}
       {versionDialog && proj.project && <SaveVersion onClose={() => setVersionDialog(false)} onSaved={(n) => { setVersionDialog(false); say(t("file.version.saved", { n })); proj.refresh(); }} versions={proj.project.versions} />}
       {proj.problem && <ProblemDialog problem={proj.problem} onClose={() => proj.setProblem(null)} onRestore={(p) => proj.restore(p).then(opened)} />}
+      {overlay === "palette" && <Palette onClose={closeOverlay} a={{
+        projectOpen: !!proj.project, go: setScreen, openGene, glossary: (id) => { setTerm(id); setScreen("glossary"); },
+        lang: (l) => update({ lang: l }), shortcuts: () => setOverlay("shortcuts"), report: () => setOverlay("report"),
+      }} />}
+      {overlay === "activity" && <ActivityPanel onClose={closeOverlay} update={updater.state} onRestart={updater.restart} engineReady={ready} />}
+      {overlay === "help" && <HelpMenu onClose={closeOverlay} go={(k) => { if (k === "glossary") { setTerm(undefined); setScreen("glossary"); } else if (k === "about") setScreen("about"); else setOverlay(k); }} />}
+      {overlay === "shortcuts" && <Shortcuts onClose={closeOverlay} />}
+      {overlay === "report" && <ReportProblem onClose={closeOverlay} screen={screen} level={settings.level} say={say} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );

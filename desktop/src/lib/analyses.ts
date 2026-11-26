@@ -37,7 +37,7 @@ export type Note = {
 };
 export type CohortStatus = { projects: string[]; sample_slice: string | null; packs: Record<string, { ready: boolean; state: string; done?: number; total?: number; file?: string; error?: string }> };
 
-async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+export async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   const r = await engineFetch(`/api/v1/kiri${path}`, {
     method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined,
   });
