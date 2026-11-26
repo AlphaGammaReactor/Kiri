@@ -6,6 +6,7 @@ on:
   push:
     branches: [claude/project-thread-btcqwn]
     paths: ["backend/scripts/build_sample_slice.py", ".github/workflows/sample-data.yml"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -20,6 +21,14 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install "xenaPython==1.0.14"
+      - name: Cohort pack files are reachable (what the app downloads)
+        continue-on-error: true
+        run: |
+          for hub in https://gdc.xenahubs.net/download https://gdc-hub.s3.us-east-1.amazonaws.com/download; do
+            for f in TCGA-COAD.star_tpm.tsv.gz TCGA-COAD.survival.tsv TCGA-COAD.clinical.tsv.gz gencode.v36.annotation.gtf.gene.probemap; do
+              echo "$hub/$f -> $(curl -s -L -o /dev/null -r 0-99 -w '%{http_code} %{url_effective}' "$hub/$f")"
+            done
+          done
       - name: Build the slices
         run: python backend/scripts/build_sample_slice.py backend/app/cohorts/samples
       - name: Commit them
