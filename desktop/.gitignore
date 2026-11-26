@@ -1,0 +1,7 @@
+node_modules
+dist
+engine/build
+engine/dist
+src-tauri/target
+src-tauri/gen
+src-tauri/resources/kiri-engine

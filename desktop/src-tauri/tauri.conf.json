@@ -1,0 +1,76 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Kiri",
+  "version": "0.1.0",
+  "identifier": "science.kiri.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Kiri",
+        "width": 1366,
+        "height": 768,
+        "minWidth": 1100,
+        "minHeight": 680,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 22
+        }
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "category": "Education",
+    "copyright": "\u00a9 2026 Kiri developers. All rights reserved.",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/kiri-engine/": "kiri-engine/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "kiri"
+        ],
+        "name": "Kiri project",
+        "description": "Kiri project",
+        "role": "Editor",
+        "mimeType": "application/x-kiri"
+      }
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERCMEJBNUJDQ0QxOEVCNzYKUldSMjZ4ak52S1VMMjRaVGhwc1RUcFF0Z1p0amkrelRUVXIvS1pTSTdoelVZV3VnWGRlVDF0SlAK",
+      "endpoints": [
+        "https://github.com/AlphaGammaReactor/Kiri/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}
