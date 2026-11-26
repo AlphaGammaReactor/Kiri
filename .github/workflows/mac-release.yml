@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-14
+          - runner: macos-15
             arch: aarch64
           - runner: macos-15-intel
             arch: x64
@@ -174,7 +174,7 @@ jobs:
   update-test:
     name: Update from the previous release on a real Mac
     needs: [version, publish]
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
