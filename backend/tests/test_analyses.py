@@ -84,3 +84,44 @@ def test_results_are_json_safe():
     json.dumps(survival.run(make_cohort(), "G"), allow_nan=False)
     json.dumps(expression.tumour_vs_normal(make_cohort(), "G"), allow_nan=False)
     json.dumps(expression.by_stage(make_cohort(), "G"), allow_nan=False)
+
+
+def test_api_runs_and_stores_in_the_kiri_file(tmp_path, monkeypatch):
+    import gzip
+    import json as js
+
+    from fastapi.testclient import TestClient
+
+    from app.cohorts import store
+    from app.kiri import api as kapi
+    from app.kiri.fileformat import Workspace
+    from app.main import app
+
+    c = make_cohort()
+    sl = {"name": "TEST", "projects": ["TCGA-COAD"], "built": "2026-11-26", "source": "synthetic", "units": "log2(TPM + 1)",
+          "samples": c.samples.astype(object).where(c.samples.notna(), None).to_dict("records"),
+          "genes": {"G": [float(x) for x in c.gene("G")]}}
+    with gzip.open(tmp_path / "TEST.slice.json.gz", "wt") as f:
+        js.dump(sl, f)
+    monkeypatch.setattr(store, "SAMPLES_DIR", tmp_path)
+    store.load_slice.cache_clear()
+    monkeypatch.setattr(kapi, "_ws", Workspace(tmp_path / "data", "test"))
+
+    cl = TestClient(app)
+    r = cl.post("/api/v1/kiri/new", json={"path": str(tmp_path / "p.kiri"), "name": "P", "cancers": ["COAD"]})
+    assert r.status_code == 200, r.text
+    assert cl.get("/api/v1/kiri/cohort").json()["sample_slice"] == "TEST"
+    r = cl.post("/api/v1/kiri/analyses/run", json={"kind": "survival", "gene": "g"})
+    assert r.status_code == 200, r.text
+    rec = r.json()
+    assert rec["saved"] and rec["params"]["gene"] == "G"
+    r = cl.post("/api/v1/kiri/analyses/run", json={"kind": "survival", "gene": "G", "cut": "quartile", "replace": rec["id"]})
+    assert r.json()["id"] == rec["id"]
+    lst = cl.get("/api/v1/kiri/analyses").json()
+    assert len(lst) == 1 and lst[0]["params"]["cut"] == "quartile"
+    r = cl.post("/api/v1/kiri/analyses/run", json={"kind": "expression_tn", "gene": "NOPE"})
+    assert r.status_code == 409 and r.json()["error"] in ("gene_not_in_cohort", "needs_download")
+    cl.post("/api/v1/kiri/close")
+    con = __import__("sqlite3").connect(tmp_path / "p.kiri")
+    assert con.execute("SELECT COUNT(*) FROM analyses").fetchone()[0] == 1
+    store.load_slice.cache_clear()

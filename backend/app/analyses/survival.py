@@ -107,6 +107,18 @@ def _curve(t: pd.Series, e: pd.Series) -> dict:
     }
 
 
+def _stability(main_sig: bool, stab: list, same_dir: int, same_sig: int, boot_same) -> dict:
+    """Does the answer hold at other cutpoints? A significant result should stay significant;
+    a null result should not turn significant at some other cutpoint."""
+    any_sig = sum(1 for s in stab if s["p"] is not None and s["p"] < 0.05)
+    v = {"same_direction": same_dir, "significant": any_sig, "of": len(stab), "boot_same": boot_same}
+    if main_sig:
+        status = "pass" if same_sig >= 4 else "caution" if same_dir >= 4 else "problem"
+        return check("stability", status, "stability.cutpoints", **v)
+    return check("stability", "pass" if any_sig == 0 else "caution",
+                 "stability.nullHolds" if any_sig == 0 else "stability.nullSomeSig", **v)
+
+
 def run(c: Cohort, gene: str, cut: str = "median", adjust: list[str] | None = None) -> dict:
     adjust = adjust or []
     t, counts = _patients(c, gene)
@@ -166,9 +178,7 @@ def run(c: Cohort, gene: str, cut: str = "median", adjust: list[str] | None = No
         check("effect", "pass" if (cox["lo"] or 0) > 1 or (cox["hi"] or 2) < 1 else "caution",
               "effect.hrExcludes1" if (cox["lo"] or 0) > 1 or (cox["hi"] or 2) < 1 else "effect.hrIncludes1",
               hr=cox["hr"], lo=cox["lo"], hi=cox["hi"]),
-        check("stability", "pass" if same_sig >= 4 else "caution" if same_dir >= 4 else "problem",
-              "stability.cutpoints", same_direction=same_dir, significant=same_sig, of=len(stab),
-              boot_same=boot_same),
+        _stability(p_report < 0.05, stab, same_dir, same_sig, boot_same),
         check("replication", "info", "replication.notYet"),
         check("reproducibility", "pass", "repro.recorded", built=c.built),
     ]

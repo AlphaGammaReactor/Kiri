@@ -47,6 +47,8 @@ router.include_router(export_router)
 router.include_router(drugs_router)
 from app.kiri.api import router as kiri_router  # noqa: E402
 router.include_router(kiri_router)
+from app.kiri.analyses_api import router as kiri_analyses_router  # noqa: E402
+router.include_router(kiri_analyses_router)
 router.include_router(pdm_router)
 router.include_router(cross_validation_router)
 router.include_router(

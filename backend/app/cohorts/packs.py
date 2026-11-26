@@ -12,6 +12,8 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -20,7 +22,8 @@ import pandas as pd
 
 from app.cohorts.store import Cohort, CohortUnavailable
 
-HUB = "https://gdc-hub.s3.us-east-1.amazonaws.com/download"
+# Tried in order. The hub's own address redirects to its file store.
+HUBS = ["https://gdc.xenahubs.net/download", "https://gdc-hub.s3.us-east-1.amazonaws.com/download"]
 FILES = {"expr": "{p}.star_tpm.tsv.gz", "survival": "{p}.survival.tsv", "clinical": "{p}.clinical.tsv.gz"}
 PROBEMAP = "gencode.v36.annotation.gtf.gene.probemap"
 
@@ -31,6 +34,51 @@ def pack_dir(data_dir: Path, project: str) -> Path:
 
 def is_ready(data_dir: Path, project: str) -> bool:
     return (pack_dir(data_dir, project) / "ready.json").exists()
+
+
+_progress: dict[str, dict] = {}
+_threads: dict[str, threading.Thread] = {}
+
+
+def progress_of(project: str) -> dict:
+    return dict(_progress.get(project, {"state": "idle"}))
+
+
+def start_download(data_dir: Path, project: str) -> None:
+    """Download and convert one project in the background (one at a time per project)."""
+    t = _threads.get(project)
+    if t and t.is_alive() or is_ready(data_dir, project):
+        return
+
+    def work():
+        _progress[project] = {"state": "downloading", "file": "", "done": 0, "total": 0, "started": time.time()}
+
+        def prog(key, done, total):
+            _progress[project].update({"file": key, "done": done, "total": total})
+
+        try:
+            build_pack(data_dir, project, prog)
+            _progress[project] = {"state": "ready"}
+        except Exception as e:  # noqa: BLE001 - reported to the UI as a code
+            _progress[project] = {"state": "failed", "error": type(e).__name__, "detail": str(e)[:300]}
+
+    t = threading.Thread(target=work, name=f"pack-{project}", daemon=True)
+    _threads[project] = t
+    t.start()
+
+
+def _fetch(name: str, dest: Path, progress=None) -> None:
+    last = None
+    for hub in HUBS:
+        try:
+            _download(f"{hub}/{name}", dest, progress)
+            return
+        except httpx.HTTPStatusError as e:
+            last = e
+            part = dest.with_suffix(dest.suffix + ".part")
+            if part.exists() and part.stat().st_size == 0:
+                part.unlink()
+    raise last or RuntimeError(name)
 
 
 def _download(url: str, dest: Path, progress=None) -> None:
@@ -63,11 +111,11 @@ def build_pack(data_dir: Path, project: str, progress=None) -> None:
         name = pattern.format(p=project)
         dest = d / name
         if not dest.exists():
-            _download(f"{HUB}/{name}", dest, (lambda a, b, k=key: progress(k, a, b)) if progress else None)
+            _fetch(name, dest, (lambda a, b, k=key: progress(k, a, b)) if progress else None)
         raw[key] = dest
     probemap = data_dir / "cohorts" / PROBEMAP
     if not probemap.exists():
-        _download(f"{HUB}/{PROBEMAP}", probemap)
+        _fetch(PROBEMAP, probemap)
     convert(raw["expr"], raw["survival"], raw["clinical"], probemap, d, project)
 
 
