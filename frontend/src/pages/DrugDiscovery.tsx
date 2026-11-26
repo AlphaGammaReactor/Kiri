@@ -1,14 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, AlertTriangle, ShieldCheck, Activity, Database, Beaker,
   FlaskConical, BarChart3, Settings, X, ExternalLink, Copy, Check
 } from "lucide-react";
-import { InfoTooltip } from "../components/ui";
-import { useAppSelector } from "../store";
+import { InfoTooltip, Stat } from "../components/ui";
+import { useAppSelector, useAppDispatch } from "../store";
 import type { RootState } from "../store";
-import { fetchSourceCachedData, fetchCompoundDescription } from "../services/api";
+import { hydrateSource } from "../store/dataSourceSlice";
+import {
+  fetchSourceCachedData,
+  fetchCompoundDescription,
+  fetchDrugInteractions,
+  fetchTargetRanking,
+  fetchPubChemCompounds,
+  fetchChEMBLBioactivities,
+} from "../services/api";
 import { useNavigate } from "react-router-dom";
 
 // ─── Types ─────────────────────────────────────────────────────
@@ -18,7 +26,7 @@ type Interaction = {
   drug_id: string;
   pharmacology: string;
   indication: string;
-  evidence_level: "High" | "Medium" | "Low";
+  evidence_level: string;
   source: string;
 };
 
@@ -26,10 +34,10 @@ type Ranking = {
   gene: string;
   score: number;
   drug_count: number;
-  high_evidence_drugs: number;
-  ctd_associations: number;
+  high_evidence_drugs: number | null;
+  ctd_associations: number | null;
   chembl_bioactivities: number;
-  total_references: number;
+  total_references: number | null;
   druggability_tier: string;
 };
 
@@ -495,10 +503,10 @@ function RankingDetailDialog({ ranking, onClose }: { ranking: Ranking; onClose: 
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-kiri-text flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-kiri-success" />{t("drugs.high_evidence")}</span>
-                <span className="text-sm font-mono font-bold text-kiri-success">{ranking.high_evidence_drugs}</span>
+                <span className="text-sm font-mono font-bold text-kiri-success">{ranking.high_evidence_drugs ?? "—"}</span>
               </div>
               <div className="h-2 bg-kiri-surface rounded-full overflow-hidden">
-                <div className="h-full bg-kiri-success rounded-full transition-all" style={{ width: `${Math.min(100, ranking.high_evidence_drugs * 10)}%` }} />
+                <div className="h-full bg-kiri-success rounded-full transition-all" style={{ width: `${Math.min(100, (ranking.high_evidence_drugs ?? 0) * 10)}%` }} />
               </div>
             </div>
 
@@ -506,10 +514,10 @@ function RankingDetailDialog({ ranking, onClose }: { ranking: Ranking; onClose: 
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-kiri-text">{t("drugs.detail_ctd", "CTD Associations")}</span>
-                <span className="text-sm font-mono font-bold text-kiri-text">{ranking.ctd_associations}</span>
+                <span className="text-sm font-mono font-bold text-kiri-text">{ranking.ctd_associations ?? t("common.not_available_short")}</span>
               </div>
               <div className="h-2 bg-kiri-surface rounded-full overflow-hidden">
-                <div className="h-full bg-kiri-accent rounded-full transition-all" style={{ width: `${Math.min(100, ranking.ctd_associations * 5)}%` }} />
+                <div className="h-full bg-kiri-accent rounded-full transition-all" style={{ width: `${Math.min(100, (ranking.ctd_associations ?? 0) * 5)}%` }} />
               </div>
             </div>
 
@@ -528,10 +536,10 @@ function RankingDetailDialog({ ranking, onClose }: { ranking: Ranking; onClose: 
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-kiri-text">{t("drugs.lit_references")}</span>
-                <span className="text-sm font-mono font-bold text-kiri-text">{ranking.total_references}</span>
+                <span className="text-sm font-mono font-bold text-kiri-text">{ranking.total_references ?? t("common.not_available_short")}</span>
               </div>
               <div className="h-2 bg-kiri-surface rounded-full overflow-hidden">
-                <div className="h-full bg-kiri-warning rounded-full transition-all" style={{ width: `${Math.min(100, ranking.total_references * 3)}%` }} />
+                <div className="h-full bg-kiri-warning rounded-full transition-all" style={{ width: `${Math.min(100, (ranking.total_references ?? 0) * 3)}%` }} />
               </div>
             </div>
           </div>
@@ -548,6 +556,7 @@ function RankingDetailDialog({ ranking, onClose }: { ranking: Ranking; onClose: 
 export default function DrugDiscovery() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const activeProject = useAppSelector((s: RootState) => s.project.activeProject);
 
   const [activeTab, setActiveTab] = useState<"interactions" | "ranking" | "compounds" | "bioactivity">("interactions");
@@ -565,7 +574,10 @@ export default function DrugDiscovery() {
   const [selectedActivity, setSelectedActivity] = useState<{ activity: ChEMBLActivity; gene: string } | null>(null);
   const [selectedRanking, setSelectedRanking] = useState<Ranking | null>(null);
 
-  const projectGenes = activeProject?.proteins?.map((p) => p.gene_symbol) ?? [];
+  const projectGenes = useMemo(
+    () => activeProject?.proteins?.map((p) => p.gene_symbol) ?? [],
+    [activeProject?.proteins]
+  );
 
   const hydrationStatus = useAppSelector((s: RootState) => s.dataSource.hydrationStatus);
 
@@ -583,56 +595,104 @@ export default function DrugDiscovery() {
     (ds) => ds.source_type === "chembl" && isLoaded(ds)
   );
 
-  const hasDrugSources = !!(drugbankSource || pubchemSource || chemblSource);
   const hasAnyDrugConfig = activeProject?.data_sources.some(
     (ds) => ["drugbank", "pubchem", "chembl"].includes(ds.source_type)
   );
+  const hasDrugSources = !!hasAnyDrugConfig;
 
-  // Load cached data from backend when available sources are present
-  const loadCachedData = useCallback(async () => {
-    if (!activeProject || !hasDrugSources) return;
+  // Auto-hydrate pending drug sources on first visit
+  const hydratedRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!activeProject) return;
+    const pendingDrugSources = activeProject.data_sources.filter(
+      (ds) => ["drugbank", "pubchem", "chembl"].includes(ds.source_type) &&
+        ds.status === "pending" && !hydratedRef.current.has(ds.id)
+    );
+    for (const ds of pendingDrugSources) {
+      hydratedRef.current.add(ds.id);
+      dispatch(hydrateSource({ projectId: activeProject.id, sourceId: ds.id }));
+    }
+  }, [activeProject, dispatch]);
+
+  // Load data: try cached first, then fall back to live API calls
+  const loadData = useCallback(async () => {
+    if (!activeProject || !hasDrugSources || projectGenes.length === 0) return;
 
     setLoading(true);
     setError(null);
 
+    const anyLoaded = !!(drugbankSource || pubchemSource || chemblSource);
+
     try {
-      const promises: Promise<void>[] = [];
+      if (anyLoaded) {
+        // Try to load from cached data
+        const promises: Promise<void>[] = [];
 
-      if (drugbankSource) {
-        promises.push(
-          fetchSourceCachedData(activeProject.id, drugbankSource.id).then((res) => {
-            const data = res.data?.cached_data as Record<string, unknown> | null;
-            if (data) {
-              setInteractions((data.interactions as Record<string, Interaction[]>) || null);
-              setRankings((data.rankings as Ranking[]) || null);
-            }
-          })
+        if (drugbankSource) {
+          promises.push(
+            fetchSourceCachedData(activeProject.id, drugbankSource.id).then((res) => {
+              const data = res.data?.cached_data as Record<string, unknown> | null;
+              if (data) {
+                setInteractions((data.interactions as Record<string, Interaction[]>) || null);
+                setRankings((data.rankings as Ranking[]) || null);
+              }
+            })
+          );
+        }
+
+        if (pubchemSource) {
+          promises.push(
+            fetchSourceCachedData(activeProject.id, pubchemSource.id).then((res) => {
+              const data = res.data?.cached_data as Record<string, unknown> | null;
+              if (data) {
+                setCompounds((data.compounds as Record<string, PubChemCompound[]>) || null);
+              }
+            })
+          );
+        }
+
+        if (chemblSource) {
+          promises.push(
+            fetchSourceCachedData(activeProject.id, chemblSource.id).then((res) => {
+              const data = res.data?.cached_data as Record<string, unknown> | null;
+              if (data) {
+                setBioactivities((data.bioactivities as Record<string, { activities: ChEMBLActivity[]; total_count: number; target: { pref_name?: string } | null }>) || null);
+              }
+            })
+          );
+        }
+
+        await Promise.all(promises);
+      } else {
+        // No loaded sources — fall back to live API calls
+        const livePromises: Promise<void>[] = [];
+
+        livePromises.push(
+          fetchDrugInteractions(projectGenes).then((res) => {
+            if (res.data?.interactions) setInteractions(res.data.interactions);
+          }).catch(() => { /* live API may fail gracefully */ })
         );
-      }
 
-      if (pubchemSource) {
-        promises.push(
-          fetchSourceCachedData(activeProject.id, pubchemSource.id).then((res) => {
-            const data = res.data?.cached_data as Record<string, unknown> | null;
-            if (data) {
-              setCompounds((data.compounds as Record<string, PubChemCompound[]>) || null);
-            }
-          })
+        livePromises.push(
+          fetchTargetRanking(projectGenes).then((res) => {
+            if (res.data?.rankings) setRankings(res.data.rankings);
+          }).catch(() => { /* live API may fail gracefully */ })
         );
-      }
 
-      if (chemblSource) {
-        promises.push(
-          fetchSourceCachedData(activeProject.id, chemblSource.id).then((res) => {
-            const data = res.data?.cached_data as Record<string, unknown> | null;
-            if (data) {
-              setBioactivities((data.bioactivities as Record<string, { activities: ChEMBLActivity[]; total_count: number; target: { pref_name?: string } | null }>) || null);
-            }
-          })
+        livePromises.push(
+          fetchPubChemCompounds(projectGenes).then((res) => {
+            if (res.data?.compounds) setCompounds(res.data.compounds);
+          }).catch(() => { /* live API may fail gracefully */ })
         );
-      }
 
-      await Promise.all(promises);
+        livePromises.push(
+          fetchChEMBLBioactivities(projectGenes).then((res) => {
+            if (res.data?.bioactivities) setBioactivities(res.data.bioactivities as Record<string, { activities: ChEMBLActivity[]; total_count: number; target: { pref_name?: string } | null }>);
+          }).catch(() => { /* live API may fail gracefully */ })
+        );
+
+        await Promise.all(livePromises);
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message || t("drugs.load_error"));
@@ -642,11 +702,11 @@ export default function DrugDiscovery() {
     } finally {
       setLoading(false);
     }
-  }, [activeProject, drugbankSource, pubchemSource, chemblSource, hasDrugSources, t]);
+  }, [activeProject, drugbankSource, pubchemSource, chemblSource, hasDrugSources, projectGenes, t]);
 
   useEffect(() => {
-    loadCachedData();
-  }, [loadCachedData]);
+    loadData();
+  }, [loadData]);
 
   // ─── Tab Renderers ─────────────────────────────────────────
 
@@ -755,7 +815,7 @@ export default function DrugDiscovery() {
                 <td className="p-4 text-right">
                   <div className="flex flex-col items-end">
                     <span>{target.drug_count}</span>
-                    {target.high_evidence_drugs > 0 && (
+                    {(target.high_evidence_drugs ?? 0) > 0 && (
                       <span className="text-xs text-kiri-success flex items-center gap-1">
                         <ShieldCheck className="w-3 h-3" /> {target.high_evidence_drugs} {t("drugs.high_evidence")}
                       </span>
@@ -763,7 +823,7 @@ export default function DrugDiscovery() {
                   </div>
                 </td>
                 <td className="p-4 text-right text-kiri-text-muted">
-                  {target.total_references}
+                  {target.total_references ?? "—"}
                 </td>
               </tr>
             ))}
@@ -940,15 +1000,41 @@ export default function DrugDiscovery() {
   // ─── Main Render ───────────────────────────────────────────
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-8 space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-kiri-accent to-purple-400 mb-2 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
             {t("drugs.title")}
             <InfoTooltip tooltipKey="tooltips.drugs" />
           </h1>
-          <p className="text-kiri-text-muted">{t("drugs.subtitle")}</p>
+          <p className="text-sm text-kiri-text-muted mt-1">{t("drugs.subtitle")}</p>
+        </div>
+        <div className="flex items-center gap-4">
+          {projectGenes.length > 0 && (
+            <Stat label="Target Genes" value={projectGenes.join(", ")} />
+          )}
+          {/* Drug source status badges */}
+          <div className="flex items-center gap-2">
+            {(["drugbank", "pubchem", "chembl"] as const).map((type) => {
+              const src = activeProject?.data_sources.find(ds => ds.source_type === type);
+              if (!src) return null;
+              const loaded = isLoaded(src);
+              return (
+                <span
+                  key={type}
+                  className={`text-xs px-2 py-1 rounded-full border font-medium ${
+                    loaded
+                      ? "bg-kiri-success/10 text-kiri-success border-kiri-success/20"
+                      : "bg-kiri-warning/10 text-kiri-warning border-kiri-warning/20"
+                  }`}
+                >
+                  {type === "drugbank" ? "DrugBank" : type === "pubchem" ? "PubChem" : "ChEMBL"}
+                  {loaded ? " ✓" : " ⏳"}
+                </span>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -977,9 +1063,7 @@ export default function DrugDiscovery() {
             {t("dataSource.no_drug_sources", "No drug data sources attached")}
           </h3>
           <p className="text-kiri-text-muted mb-4">
-            {hasAnyDrugConfig
-              ? t("dataSource.sources_loading", "Drug data sources are still loading. Please wait or check Project Settings.")
-              : t("dataSource.no_drug_sources_desc", "Add DrugBank, PubChem, or ChEMBL in Project Settings to explore drug discoveries.")}
+            {t("dataSource.no_drug_sources_desc", "Add DrugBank, PubChem, or ChEMBL in Project Settings to explore drug discoveries.")}
           </p>
           <button
             onClick={() => navigate(`/projects/${activeProject?.id}/settings`)}
@@ -1059,7 +1143,7 @@ export default function DrugDiscovery() {
                 <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-80" />
                 <p>{error}</p>
                 <button 
-                  onClick={loadCachedData}
+                  onClick={loadData}
                   className="mt-4 px-4 py-2 bg-kiri-surface-hover rounded border border-kiri-border hover:bg-kiri-border transition-colors text-sm"
                 >
                   {t("common.retry")}

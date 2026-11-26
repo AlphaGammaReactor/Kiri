@@ -8,13 +8,14 @@ All endpoints use the standard response envelope with Provenance.
 Mounted at /api/v1/atlas/
 """
 
+import asyncio
 import csv
 import io
 import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,8 +38,10 @@ from app.models.atlas import (
     CoexpressionRequest,
     MitoCorrelationRequest,
     MitoScoreRequest,
+    PanCancerRequest,
+    TCGA_PAN_CANCER_PROJECTS,
 )
-from app.models.project import Project, ProjectDataSource, ProjectProtein
+from app.models.project import Project
 from app.services.gdc import fetch_expression, fetch_clinical
 from app.services.geo import fetch_geo_dataset, list_supported_datasets
 from app.services.normalization import normalize, differential_expression
@@ -311,15 +314,29 @@ async def run_differential_expression(body: DifferentialRequest):
     """
     Run differential expression analysis between two groups.
 
-    Uses Wilcoxon rank-sum test with Benjamini-Hochberg FDR correction
-    (per Research Brief §6 statistical standards).
+    Uses Wilcoxon rank-sum test for normalized data (TPM/FPKM) or
+    PyDESeq2 for raw integer counts, with Benjamini-Hochberg FDR
+    correction (per Research Brief §6 statistical standards).
     """
-    result = differential_expression(
-        matrix=body.matrix,
-        groups=body.groups,
-        group_a=body.group_a,
-        group_b=body.group_b,
-    )
+    from app.core.errors import KiriComputationError as _KCE
+
+    try:
+        result = differential_expression(
+            matrix=body.matrix,
+            groups=body.groups,
+            group_a=body.group_a,
+            group_b=body.group_b,
+        )
+    except (_KCE, KiriValidationError) as e:
+        logger.warning(f"DE analysis error: {e}")
+        return error_response(str(e), source="differential-expression", warnings=[str(e)])
+    except Exception as e:
+        logger.error(f"Unexpected DE error: {e}", exc_info=True)
+        return error_response(
+            f"Differential expression failed: {str(e)}",
+            source="differential-expression",
+            warnings=[str(e)],
+        )
 
     return success_response(
         data=result,
@@ -451,10 +468,10 @@ async def run_immune_deconvolution_analysis(body: ImmuneDeconvolutionRequest):
     expression_matrix = body.expression_matrix
     
     if not expression_matrix and body.project_ids:
-        from app.services.cibersort import LM22_MARKERS
+        from app.services.cibersort import load_signature_matrix
         from app.services.gdc import fetch_expression
-        
-        cibersort_genes = list(LM22_MARKERS.keys())
+
+        cibersort_genes = list(load_signature_matrix().index)
         expr_result = await fetch_expression(
             project_ids=body.project_ids,
             genes=cibersort_genes,
@@ -572,7 +589,9 @@ async def run_pan_survival_analysis(body: PanSurvivalRequest):
 
     expression_data = body.expression_data
     clinical_records = body.clinical_records
-    
+    gdc_metrics: list[str] | None = None
+    unavailable_metrics: list[str] = []
+
     if (not expression_data or not clinical_records) and body.project_ids:
         from app.services.gdc import fetch_expression, fetch_clinical
         
@@ -609,13 +628,15 @@ async def run_pan_survival_analysis(body: PanSurvivalRequest):
                     "vital_status": "Dead" if vital == "dead" else "Alive",
                     "days_to_death": dtd,
                     "days_to_last_follow_up": dtl,
-                    # Fallback values for DFS/PFS/DSS if not present
-                    "disease_free_status": "Recurred/Progressed" if vital == "dead" else "DiseaseFree",
-                    "days_to_recurrence": dtd if dtd is not None else dtl,
-                    "progression_status": "Progressed" if vital == "dead" else "ProgressionFree",
-                    "days_to_progression": dtd if dtd is not None else dtl,
-                    "cause_of_death": "cancer" if vital == "dead" else "alive"
                 })
+
+            # Kiri only has overall survival from GDC. An earlier version filled in
+            # disease-free, progression-free and disease-specific survival by copying
+            # the overall-survival data (every death counted as a recurrence, a
+            # progression and a cancer death). Those endpoints are not computed now.
+            requested = body.metrics or ["OS", "DFS", "PFS", "DSS"]
+            unavailable_metrics = [m for m in requested if m != "OS"]
+            gdc_metrics = ["OS"]
             
     if not expression_data or not clinical_records:
         raise KiriValidationError(
@@ -627,9 +648,15 @@ async def run_pan_survival_analysis(body: PanSurvivalRequest):
         genes=body.genes,
         expression_data=expression_data,
         clinical_records=clinical_records,
-        metrics=body.metrics,
+        metrics=gdc_metrics or body.metrics,
         covariates=body.covariates,
     )
+    result["unavailable_metrics"] = unavailable_metrics
+    if unavailable_metrics:
+        result["note"] = (
+            f"{', '.join(unavailable_metrics)} not computed: Kiri has only overall survival "
+            "for TCGA cohorts. Upload clinical data with those endpoints to analyse them."
+        )
 
     return success_response(
         data=result,
@@ -752,4 +779,132 @@ async def run_mito_score_analysis(body: MitoScoreRequest, db: AsyncSession = Dep
         source="TCGA-COAD/READ (GDC)",
         method="ssGSEA + maxstat cutpoint",
         sample_count=result.get("sample_count", 0),
+    )
+
+
+# ══════════════════════════════
+#  Pan-Cancer Expression Boxplot
+# ══════════════════════════════
+
+
+@atlas_router.post("/pan-cancer-expression")
+async def get_pan_cancer_expression(body: PanCancerRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Fetch expression data for gene(s) across all major TCGA cancer types.
+
+    For each cancer type, returns Normal vs Tumor expression values
+    with Wilcoxon rank-sum p-value and log2 fold change.
+    Used for GEPIA-style pan-cancer boxplot visualization.
+    """
+    await _enrich_from_project(body, db)
+
+    if not body.genes:
+        raise KiriValidationError("No genes specified.", source="atlas")
+
+    cancer_projects = body.cancer_projects or TCGA_PAN_CANCER_PROJECTS
+
+    from scipy import stats as scipy_stats
+    import numpy as np
+
+    async def _fetch_one_project(project_id: str):
+        """Fetch expression for a single TCGA project and compute stats."""
+        try:
+            result = await fetch_expression(
+                genes=body.genes,
+                project_ids=[project_id],
+            )
+            if not result or not result.get("samples"):
+                return None
+
+            samples = result["samples"]
+            values = result["values"]
+
+            # Split samples into normal vs tumor
+            normal_idx = [i for i, s in enumerate(samples) if s.get("sample_type") == "normal"]
+            tumor_idx = [i for i, s in enumerate(samples) if s.get("sample_type") == "tumor"]
+
+            if not tumor_idx:
+                return None  # No tumor samples → skip
+
+            # Build per-gene stats
+            gene_stats = []
+            for gene in body.genes:
+                gene_vals = values.get(gene.upper(), values.get(gene, []))
+                if not gene_vals:
+                    continue
+
+                normal_vals = [gene_vals[i] for i in normal_idx] if normal_idx else []
+                tumor_vals = [gene_vals[i] for i in tumor_idx]
+
+                # Wilcoxon rank-sum test (lightweight, fast)
+                p_value = 1.0
+                if len(normal_vals) >= 3 and len(tumor_vals) >= 3:
+                    try:
+                        _, p_value = scipy_stats.ranksums(
+                            np.array(tumor_vals), np.array(normal_vals)
+                        )
+                        p_value = float(p_value)
+                    except Exception:
+                        p_value = 1.0
+
+                # Log2 fold change
+                mean_t = float(np.mean(tumor_vals)) if tumor_vals else 0.0
+                mean_n = float(np.mean(normal_vals)) if normal_vals else 0.0
+                log2fc = 0.0
+                if mean_n > 0 and mean_t > 0:
+                    log2fc = float(np.log2(mean_t / mean_n))
+
+                gene_stats.append({
+                    "gene": gene.upper(),
+                    "normal_values": normal_vals,
+                    "tumor_values": tumor_vals,
+                    "p_value": round(p_value, 8),
+                    "log2fc": round(log2fc, 4),
+                    "n_normal": len(normal_vals),
+                    "n_tumor": len(tumor_vals),
+                    "mean_normal": round(mean_n, 4),
+                    "mean_tumor": round(mean_t, 4),
+                })
+
+            if not gene_stats:
+                return None
+
+            # Short label: TCGA-BRCA → BRCA
+            short = project_id.replace("TCGA-", "")
+
+            return {
+                "project": project_id,
+                "label": short,
+                "total_samples": len(samples),
+                "genes": gene_stats,
+            }
+        except Exception as e:
+            logger.warning(f"Pan-cancer: failed to fetch {project_id}: {e}")
+            return None
+
+    # Fetch all projects concurrently (batched to avoid overload)
+    BATCH_SIZE = 8
+    all_results = []
+    for i in range(0, len(cancer_projects), BATCH_SIZE):
+        batch = cancer_projects[i : i + BATCH_SIZE]
+        batch_results = await asyncio.gather(
+            *[_fetch_one_project(pid) for pid in batch],
+            return_exceptions=True,
+        )
+        for r in batch_results:
+            if r is not None and not isinstance(r, Exception):
+                all_results.append(r)
+
+    # Sort by label
+    all_results.sort(key=lambda x: x["label"])
+
+    return success_response(
+        data={
+            "cancer_types": all_results,
+            "genes": [g.upper() for g in body.genes],
+            "total_cancer_types": len(all_results),
+        },
+        source="TCGA Pan-Cancer (GDC)",
+        method="Wilcoxon rank-sum test",
+        sample_count=sum(r["total_samples"] for r in all_results),
     )

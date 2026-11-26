@@ -1,12 +1,17 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAppDispatch, useAppSelector, setSelectedGenes, rehydrateAppFromProject } from "./store";
+import { rehydrateInteractomics } from "./store/interactomicsSlice";
 import { motion } from "framer-motion";
 import { Suspense, lazy, useEffect } from "react";
 
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastContainer } from "./components/Toast";
-import { LanguageFloatingButton } from "./components/LanguageFloatingButton";
+import { SettingsFloatingButton } from "./components/SettingsFloatingButton";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { TestBuildBanner } from "./components/TestBuildBanner";
+import { refreshToken } from "./store/authSlice";
+import { usePageTitle } from "./hooks/usePageTitle";
 import { fetchProject } from "./store/projectSlice";
 import { loadPublicationState, rehydratePublication } from "./store/publicationSlice";
 import { getProjectRehydration } from "./store/persistence";
@@ -28,6 +33,8 @@ const PDMVault = lazy(() => import("./pages/PDMVault"));
 const CrossValidation = lazy(() => import("./pages/CrossValidation"));
 const ProjectHistory = lazy(() => import("./pages/ProjectHistory"));
 const MitoAnalysisPage = lazy(() => import("./pages/MitoAnalysisPage"));
+const InteractomicsPage = lazy(() => import("./pages/InteractomicsPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
 
 /* ── Page placeholder components ── */
 const PageShell = ({
@@ -52,6 +59,7 @@ const navItems = [
   { path: "atlas", key: "atlas", icon: "🧬" },
   { path: "mito", key: "mito", icon: "⚡" },
   { path: "interaction", key: "interaction", icon: "🔗" },
+  { path: "interactomics", key: "interactomics", icon: "🕸️" },
   { path: "docking", key: "docking", icon: "🧩" },
   { path: "clinical", key: "clinical", icon: "📊" },
   { path: "pdm", key: "pdm", icon: "🧪" },
@@ -91,6 +99,11 @@ function ProjectLayout() {
     // Rehydrate publication state from localStorage (fast pre-load)
     if (persisted.publication) {
       dispatch(rehydratePublication(persisted.publication));
+    }
+
+    // Rehydrate interactomics state from localStorage
+    if (persisted.interactomics) {
+      dispatch(rehydrateInteractomics(persisted.interactomics as Record<string, unknown>));
     }
 
     // Also load from backend (authoritative source, may override localStorage)
@@ -199,6 +212,7 @@ function ProjectLayout() {
             <Route path="atlas" element={<ErrorBoundary moduleName="Atlas"><AtlasPage /></ErrorBoundary>} />
             <Route path="mito" element={<ErrorBoundary moduleName="Mito Lab"><MitoAnalysisPage /></ErrorBoundary>} />
             <Route path="interaction" element={<ErrorBoundary moduleName="Interaction Lab"><InteractionLab /></ErrorBoundary>} />
+            <Route path="interactomics" element={<ErrorBoundary moduleName="Interactomics"><InteractomicsPage /></ErrorBoundary>} />
             <Route path="docking" element={<ErrorBoundary moduleName="Protein Docking"><ProteinDocking /></ErrorBoundary>} />
             <Route path="clinical" element={<ErrorBoundary moduleName="Clinical Suite"><ClinicalSuite /></ErrorBoundary>} />
             <Route path="discovery" element={<ErrorBoundary moduleName="AI Discovery"><DiscoveryPage /></ErrorBoundary>} />
@@ -216,27 +230,59 @@ function ProjectLayout() {
   );
 }
 
+/* ── Auth Initializer — attempts refresh on mount ── */
+function AuthInitializer({ children }: { children: React.ReactNode }) {
+  const dispatch = useAppDispatch();
+  const initialized = useAppSelector((s: RootState) => s.auth.initialized);
+
+  useEffect(() => {
+    if (!initialized) {
+      dispatch(refreshToken());
+    }
+  }, [dispatch, initialized]);
+
+  return <>{children}</>;
+}
+
+/* ── Dynamic page title (must live inside BrowserRouter) ── */
+function PageTitleUpdater() {
+  usePageTitle();
+  return null;
+}
+
 /* ── App Root ── */
 function App() {
+  const theme = useAppSelector((s: RootState) => s.app.theme);
+
+  // Sync theme to document root
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
   return (
     <ErrorBoundary moduleName="App">
       <BrowserRouter>
-        <ToastContainer />
-        <LanguageFloatingButton />
-        <Suspense fallback={<div className="min-h-screen bg-kiri-bg flex items-center justify-center"><div className="w-8 h-8 rounded-full border-2 border-kiri-accent border-r-transparent animate-spin" /></div>}>
-          <Routes>
-            {/* Project management routes */}
-            <Route path="/projects" element={<ProjectDashboard />} />
-            <Route path="/projects/new" element={<NewProjectWizard />} />
+        <PageTitleUpdater />
+        <TestBuildBanner />
+        <AuthInitializer>
+          <ToastContainer />
+          <SettingsFloatingButton />
+          <Suspense fallback={<div className="min-h-screen bg-kiri-bg flex items-center justify-center"><div className="w-8 h-8 rounded-full border-2 border-kiri-accent border-r-transparent animate-spin" /></div>}>
+            <Routes>
+              {/* Public route */}
+              <Route path="/login" element={<LoginPage />} />
 
-            {/* Project-scoped module routes */}
-            <Route path="/projects/:projectId/*" element={<ProjectLayout />} />
+              {/* Protected routes */}
+              <Route path="/projects" element={<ProtectedRoute><ProjectDashboard /></ProtectedRoute>} />
+              <Route path="/projects/new" element={<ProtectedRoute><NewProjectWizard /></ProtectedRoute>} />
+              <Route path="/projects/:projectId/*" element={<ProtectedRoute><ProjectLayout /></ProtectedRoute>} />
 
-            {/* Root redirect */}
-            <Route path="/" element={<Navigate to="/projects" replace />} />
-            <Route path="*" element={<Navigate to="/projects" replace />} />
-          </Routes>
-        </Suspense>
+              {/* Root redirect */}
+              <Route path="/" element={<Navigate to="/projects" replace />} />
+              <Route path="*" element={<Navigate to="/projects" replace />} />
+            </Routes>
+          </Suspense>
+        </AuthInitializer>
       </BrowserRouter>
     </ErrorBoundary>
   );

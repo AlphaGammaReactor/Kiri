@@ -31,7 +31,7 @@ test.describe('Kiri E2E - Project Management', () => {
 
     // -- Step 1: Basics
     await expect(page.getByText(/Project Name/i)).toBeVisible();
-    await page.getByPlaceholder(/PARL-MAVS CRC Study/i).fill(testProjectName);
+    await page.getByPlaceholder(/BRCA1 Breast Cancer Study/i).fill(testProjectName);
     await page.getByPlaceholder(/Brief description/i).fill('Automated E2E testing project');
     const cancerTypeSelect = page.locator('select').first();
     await cancerTypeSelect.selectOption('COAD');
@@ -54,13 +54,7 @@ test.describe('Kiri E2E - Project Management', () => {
 
     await page.getByRole('button', { name: /Next/i }).click();
 
-    // -- Step 3: Data Sources
-    await expect(page.getByText(/Select Data Sources/i)).toBeVisible();
-    
-    // Just click Next (sources are optional and we don't have to upload for the test)
-    await page.getByRole('button', { name: /Next/i }).click();
-
-    // -- Step 4: Review and Save
+    // -- Step 3: Review and Save (data sources are auto-loaded by backend)
     await expect(page.getByRole('button', { name: /Open Project/i })).toBeVisible();
     await expect(page.getByText(testProjectName).first()).toBeVisible();
     await expect(page.getByText('TP53', { exact: true }).first()).toBeVisible();

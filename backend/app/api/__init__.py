@@ -5,11 +5,11 @@ All module routers are registered here and mounted in main.py.
 Includes Trust Layer validation endpoints and task status endpoints.
 """
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.responses import success_response, error_response
-from app.core.tasks import create_task, get_task, run_task
+from app.core.tasks import get_task
 from app.services.validation import (
     validate_gene_symbol,
     validate_gene_list,
@@ -28,8 +28,13 @@ from app.api.cross_validation import cross_validation_router
 from app.api.docking import router as docking_router
 from app.api.dnb import dnb_router
 from app.api.uploads import upload_router
+from app.api.auth import router as auth_router
+from app.api.interactomics import interactomics_router
 
 router = APIRouter()
+
+# ── Auth Router (unauthenticated) ──
+router.include_router(auth_router)
 
 # ── Module Routers ──
 router.include_router(interaction_router)
@@ -49,6 +54,7 @@ router.include_router(
 )
 router.include_router(dnb_router)
 router.include_router(upload_router)
+router.include_router(interactomics_router)
 
 
 # ══════════════════════════════

@@ -2,11 +2,10 @@
 Kiri Clinical — Pydantic Models
 
 Request/response models for the Clinical & Prognostic Suite module.
-Strict schemas for Survival Analysis, Cox Regression, RSF, and Synergy.
+Strict schemas for Survival Analysis, Cox Regression, and Synergy.
 """
 
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -69,14 +68,6 @@ class CoxRequest(BaseModel):
     msi_filter: list[str] | None = Field(default=None)
 
 
-class RSFRequest(BaseModel):
-    """Request for Random Survival Forest analysis."""
-    genes: list[str] = Field(..., min_length=1)
-    project_ids: list[str] = Field(default=["TCGA-COAD", "TCGA-READ"])
-    n_estimators: int = Field(default=100, ge=10, le=500)
-    max_depth: int | None = Field(default=5)
-
-
 class SynergyRequest(BaseModel):
     """Request for PARL×MAVS synergy score analysis."""
     gene_a: str = Field(default="PARL")
@@ -115,10 +106,27 @@ class CutpointSearchPoint(BaseModel):
 class SurvivalResult(BaseModel):
     """Full Kaplan-Meier result."""
     curves: list[SurvivalCurveResult]
-    p_value: float = Field(description="Log-rank test p-value")
+    p_value: float = Field(
+        description=(
+            "Log-rank p-value. For the optimal (maxstat) cutpoint this is the "
+            "p-value adjusted for having searched many cutpoints."
+        )
+    )
+    p_value_unadjusted: float | None = Field(
+        default=None,
+        description="Nominal log-rank p-value at the chosen cutpoint, before adjustment (maxstat only)",
+    )
+    p_value_method: str = Field(default="log-rank", description="How p_value was obtained")
+    hr_note: str | None = Field(
+        default=None,
+        description="Caveat about the hazard ratio (it is optimistic after a cutpoint search)",
+    )
     cutpoint_value: float
     cutpoint_method: str
     at_risk_table: AtRiskTable
+    hr: float | None = Field(default=None, description="Hazard Ratio (High vs Low)")
+    hr_ci_lower: float | None = Field(default=None, description="HR 95% CI lower bound")
+    hr_ci_upper: float | None = Field(default=None, description="HR 95% CI upper bound")
     cutpoint_search_data: list[CutpointSearchPoint] | None = Field(
         default=None,
         description="MaxStat search landscape — cutpoint vs p-value pairs"
@@ -141,20 +149,6 @@ class CoxResult(BaseModel):
     concordance_index: float
     n_samples: int
     n_events: int
-
-
-class FeatureImportance(BaseModel):
-    """Permutation importance for RSF."""
-    feature: str
-    importance: float
-
-
-class RSFResult(BaseModel):
-    """Full RSF result."""
-    feature_importances: list[FeatureImportance]
-    concordance_index: float
-    n_samples: int
-    n_estimators: int
 
 
 class SynergyResult(BaseModel):

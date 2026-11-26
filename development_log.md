@@ -5,6 +5,71 @@
 
 ---
 
+## 2026-03-20 — ✨ Transparent Exports + Settings Gear + Light/Dark Mode
+
+- **Context:** Three interrelated publication and UX features implemented.
+- **Feature 1 — Transparent Export Backgrounds:** All `+Figure` export buttons across the platform now capture images with transparent backgrounds instead of baked white (`#ffffff`). This allows the Publication Engine to compose figures freely on any background. Fixed 8 files: `KiriChart.tsx` (ECharts), `publicationExport.ts`, `PPINetwork.tsx` (Cytoscape), `ProteinViewer.tsx` (WebGL/Three.js), `DNBPanel.tsx` (html-to-image), `KaplanMeierPlot.tsx`, `ExpressionHeatmap.tsx`. All ECharts components going through `KiriChart` or `getPublicationDataURL` inherit automatically.
+- **Feature 2 — Settings Gear Button:** New `SettingsFloatingButton.tsx` replaces `LanguageFloatingButton.tsx`. Renders a ⚙️ gear icon in the bottom-right that expands on hover/click to reveal: (1) Language toggle (EN ↔ 中), (2) Theme toggle (☀️/🌙). Uses `framer-motion` for smooth animation.
+- **Feature 3 — Light/Dark Mode:** Full runtime theme switching. CSS restructured from hardcoded `@theme` tokens to runtime CSS custom properties (`--kiri-*`) referenced by Tailwind `@theme`. Dark theme on `:root` (default), light overrides via `[data-theme="light"]`. Redux `setTheme` reducer + localStorage persistence. `App.tsx` syncs `data-theme` attribute to `document.documentElement`.
+- **Files Changed (11):** `App.tsx`, `KiriChart.tsx`, `DNBPanel.tsx`, `ExpressionHeatmap.tsx`, `KaplanMeierPlot.tsx`, `PPINetwork.tsx`, `ProteinViewer.tsx`, `publicationExport.ts`, `store/index.ts`, `styles/index.css`, **NEW:** `SettingsFloatingButton.tsx`
+- **Verification:** `tsc --noEmit` → 0 errors. Browser test: both themes work correctly, gear button renders/expands, all pages respect theme.
+- **Deployed:** Railway build triggered from commit `77234fb` on `deploy/railway-production`.
+- **PRD Reference:** §2 Module 5 (Publication Engine — export quality), §4 (Non-Functional — UX accessibility).
+
+---
+
+## 2026-03-18 — 🛡️ Atlas Pane State Persistence: Lift Analysis Results into AtlasPage
+
+- **Context:** DNB, Temporal Cluster, and Pan-Cancer analysis results were stored in child component `useState`. Switching Atlas tabs unmounted the component and destroyed results, forcing users to re-run expensive analyses.
+- **Decision:** Lifted all analysis state (`dnbResult`, `temporalData`, `panCancerData`, plus loading/error for each) into `AtlasPage.tsx`. Child components now receive results via props (controlled components). This mirrors the pattern used elsewhere in Kiri for state that must survive unmount.
+- **Files changed:**
+  - `AtlasPage.tsx` — added ~100 lines of state + callbacks for DNB/Temporal/PanCancer, plusreset-on-data-change effects
+  - `DNBPanel.tsx` — removed internal `useState` for result/loading/error, accepts props
+  - `TemporalClusterPanel.tsx` — same treatment
+  - `PanCancerBoxplot.tsx` — same treatment, plus `selectedGene` now synced when project genes change
+- **Bug fixes:** 5 issues resolved (3 state-loss on tab switch, 1 stale gene selection, 1 improved error retry UX)
+- **Verification:** `tsc --noEmit` passes with 0 errors.
+
+---
+
+## 2026-03-17 — 🔧 Railway DB Operations: Connection Methods & User Cleanup
+
+- **Context:** Needed to delete user `alexei.golob@gmail.com` from both local and production PostgreSQL databases. Discovered and documented which Railway connection methods work from local.
+- **Methods Tested:**
+  1. ❌ `railway run --service Postgres-soBQ -- psql` — injects internal hostname (`postgres-sobq.railway.internal`) which is unreachable from local.
+  2. ❌ Direct TCP proxy (`psql -h switchyard.proxy.rlwy.net -p 47381`) — connection reset, even with `sslmode=require`.
+  3. ✅ `railway connect Postgres-soBQ` — opens a direct tunneled psql session. Works reliably for both interactive and piped SQL.
+- **Decision:** `railway connect <service>` is the canonical method for production DB access from local. Documented in `README.md`.
+- **SQL Pattern (cascade-safe user delete):**
+  ```sql
+  DELETE FROM projects WHERE owner_id = (SELECT id FROM users WHERE email = '...');
+  DELETE FROM project_collaborators WHERE user_id = (SELECT id FROM users WHERE email = '...');
+  DELETE FROM users WHERE email = '...';
+  ```
+- **Result:** Local DB — user + projects deleted. Production DB — user did not exist (already clean).
+- **Also:** Added dynamic `document.title` via `usePageTitle` hook — browser tab now shows "Module Name · Kiri" based on active route, using existing i18n nav keys.
+- **PRD Reference:** §4 (Non-Functional — operations, infrastructure).
+
+---
+
+## 2026-03-17 — 🚀 Railway Production Deployment Prep
+
+- **Context:** Prepared Kiri for Railway cloud deployment. All pending changes (auth, atlas heatmap, rebranding, chart exports, clinical suite, mito lab, drug discovery) committed and synced.
+- **Branch Topology:** `main` → `ag-docker-dev` (28 files, 1949 insertions) → `deploy/railway-production` (+ production configs).
+- **Production Changes:**
+  - `backend/Dockerfile` — removed `--reload`, added 2 workers, dynamic `$PORT` via Railway env
+  - `frontend/Dockerfile` — multi-stage build: Vite → nginx (SPA serving)
+  - `frontend/nginx.conf` — SPA catch-all, `/api` reverse proxy via `$BACKEND_URL`, gzip, 1y asset caching
+  - `backend/app/core/config.py` — `CORS_ORIGINS` now accepts comma-separated env var string (field_validator)
+  - `frontend/vite.config.ts` — proxy target env-aware via `VITE_API_URL`
+  - `railway.toml` — healthcheck `/api/health`, restart-on-failure policy
+- **Architecture:** 2 Railway services (Backend + Frontend) + PostgreSQL plugin. Redis optional (in-memory fallback).
+- **Security:** Sensitive values (JWT_SECRET_KEY, INVITE_CODE, API keys) set as Railway env vars, never committed.
+- **Bilingual State:** Unchanged — 602/602 parity.
+- **PRD Reference:** §4 (Non-Functional — deployment, infrastructure).
+
+---
+
 ## 2026-03-16 — 🔧 External API Resilience: Retry Logic for UniProt + STRING-DB
 
 - **Context:** 35 `KiriExternalAPIError` crash reports in a 6-hour window (03:00–09:23 UTC). Both UniProt and STRING-DB were transiently unreachable. The services had **no retry logic**, violating PRD §4 ("exponential backoff, max 3 attempts").
@@ -121,7 +186,7 @@ Docker Compose uses an anonymous volume (`/app/node_modules`) to preserve the co
 - **Context:** Full codebase audit against PRD, TODO.md, and source-of-truth docs. Verified all 7 PRD modules are implemented.
 - **i18n Fix:** en.json was 28 keys behind zh.json (missing `modules.interaction.*` 27 keys + `export.subtitle` 1 key). All keys added — **179/179 parity achieved**.
 - **Docker Check:** Backend services (api, postgres, redis) confirmed running. Frontend Docker port-conflicts with local dev server (expected — `npm run dev` is the primary workflow).
-- **Platform Generality:** Updated README.md, TODO.md, and dev log to clarify: Kiri supports any cancer type, any protein targets, any data sources. PARL-MAVS CRC is the initial test case, not the only use case. Code already supports this (11 cancer types in `recommendations.py`, generic gene search, user-defined projects).
+- **Platform Generality:** Updated README.md, TODO.md, and dev log to clarify: Kiri supports any cancer type, any protein targets, any data sources. Code already supports this (11 cancer types in `recommendations.py`, generic gene search, user-defined projects).
 - **PRD Gap Analysis:** Identified unimplemented acceptance criteria: Single-Cell + CPTAC views (Atlas), AI feedback loop (Discovery), bilingual export (Publication Engine), accessibility (keyboard nav, screen reader labels).
 - **Bilingual State:** `en.json` — 179 keys, `zh.json` — 179 keys.
 - **PRD Reference:** §1 (Vision), §3 (Bilingual), §4 (Non-Functional Requirements).
@@ -129,7 +194,7 @@ Docker Compose uses an anonymous volume (`/app/node_modules`) to preserve the co
 ---
 
 ## 2026-03-14 — IDE Agent Configured
-- **Context:** Kiri PARL-MAVS Research Platform — IDE environment initialized with Controller Mode agent.
+- **Context:** Kiri Research Platform — IDE environment initialized with Controller Mode agent.
 - **Decision:** Established 5 slash-command workflows (`/start`, `/todo`, `/check`, `/fix`, `/log`) and breadcrumb logging strategy.
 - **Alternatives Considered:** Single monolithic workflow file — rejected for maintainability.
 - **Dependencies:** None yet (awaiting PRD and system_tech docs for project scaffolding).

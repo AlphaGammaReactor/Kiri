@@ -3,7 +3,6 @@ Tests for Publication Engine Service
 
 Verifies PDF generation, layout handling, and edge cases.
 """
-import pytest
 from app.services.publication import Panel, LayoutOptions, FigureLayoutEngine
 
 

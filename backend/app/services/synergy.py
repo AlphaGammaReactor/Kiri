@@ -6,7 +6,6 @@ Computes PARL x MAVS interaction terms and 4-way Kaplan-Meier curves.
 
 import logging
 import numpy as np
-import pandas as pd
 from lifelines import CoxPHFitter
 
 from app.services.gdc import fetch_clinical, fetch_expression

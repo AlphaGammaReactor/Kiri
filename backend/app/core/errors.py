@@ -33,7 +33,8 @@ async def _persist_crash_report(
         # Safely extract request payload
         payload = None
         try:
-            if request.method in ("POST", "PUT", "PATCH"):
+            # Never store sign-in requests: they contain passwords.
+            if request.method in ("POST", "PUT", "PATCH") and "/auth/" not in request.url.path:
                 body = await request.body()
                 if body:
                     import json
@@ -112,6 +113,19 @@ def register_error_handlers(app: FastAPI) -> None:
             ),
         )
 
+    @app.exception_handler(KiriDataUnavailableError)
+    async def data_unavailable_handler(request: Request, exc: KiriDataUnavailableError):
+        # Not a crash: Kiri has no real data for this request and refuses to invent any.
+        logger.info(f"[{get_request_id()[:8]}] Data unavailable ({exc.source}): {exc.message}")
+        return JSONResponse(
+            status_code=501,
+            content=error_response(
+                errors=[exc.message],
+                source=exc.source,
+                warnings=["data_unavailable"],
+            ),
+        )
+
     @app.exception_handler(Exception)
     async def unhandled_error_handler(request: Request, exc: Exception):
         logger.critical(
@@ -158,4 +172,19 @@ class KiriComputationError(Exception):
         self.source = source
         self.message = message
         self.warnings = warnings or []
+        super().__init__(message)
+
+
+class KiriDataUnavailableError(Exception):
+    """
+    Raised when Kiri has no real data source for a request.
+
+    Kiri never substitutes generated, random or hard-coded example values for
+    real data. When a real source is missing or not yet integrated, the request
+    fails with this error (HTTP 501) so the UI can say so plainly.
+    """
+
+    def __init__(self, source: str, message: str):
+        self.source = source
+        self.message = message
         super().__init__(message)

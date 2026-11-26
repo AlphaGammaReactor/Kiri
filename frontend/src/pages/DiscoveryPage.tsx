@@ -5,7 +5,7 @@ import { useAppSelector } from "../store";
 import type { RootState } from "../store";
 import { useCallback } from "react";
 import { usePageState } from "../hooks/usePageState";
-import { Card, AiBadge, InfoTooltip } from "../components/ui";
+import { Card, AiBadge, InfoTooltip, Stat } from "../components/ui";
 import { CitationCard } from "../components/discovery/CitationCard";
 import { ConfidenceScoreBar } from "../components/discovery/ConfidenceScoreBar";
 import { getLiteratureInsights, getErrorMessage } from "../services/api";
@@ -77,16 +77,21 @@ export default function DiscoveryPage() {
   const dismissedCount = Object.values(claimFeedback).filter((v) => v === "dismissed").length;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-6">
-      <header className="mb-8">
-        <h1 className="text-2xl font-bold text-kiri-text mb-2 flex items-center gap-2">
-          {t("discovery.title")}
-          <div className="ml-2">
+    <div className="p-8 max-w-[1400px] mx-auto space-y-6">
+      <header className="flex items-start justify-between mb-2">
+        <div>
+          <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
+            {t("discovery.title")}
             <AiBadge />
-          </div>
-          <InfoTooltip tooltipKey="tooltips.discovery" />
-        </h1>
-        <p className="text-kiri-text-muted">{t("discovery.subtitle")}</p>
+            <InfoTooltip tooltipKey="tooltips.discovery" />
+          </h1>
+          <p className="text-sm text-kiri-text-muted mt-1">{t("discovery.subtitle")}</p>
+        </div>
+        <div className="flex items-center gap-4">
+          {activeProject?.proteins && activeProject.proteins.length > 0 && (
+            <Stat label="Target Genes" value={activeProject.proteins.map((p: { gene_symbol: string }) => p.gene_symbol).join(", ")} />
+          )}
+        </div>
       </header>
 
       {/* Query Input */}

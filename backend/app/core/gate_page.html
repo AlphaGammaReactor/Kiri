@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Kiri preview</title>
+<style>
+  :root { --canvas:#f4f0e6; --surface:#fffdf7; --sunken:#ece6d8; --text:#1e1c18; --text2:#57514a; --muted:#6b6457; --line:#ddd5c3; --strong:#b9ae96; --accent:#2e6a4c; --accent-text:#245a3f; --warn:#94570f; --warn-bg:rgba(168,100,26,.07); --warn-line:rgba(168,100,26,.3); --mascot:#f6f1e7; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { background: var(--canvas); color: var(--text); font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; height: 64px; padding: 0 24px; border-bottom: 1px solid var(--line); }
+  header b { font: 500 22px "Iowan Old Style", "Palatino Linotype", Georgia, "Songti SC", serif; }
+  header img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--mascot); }
+  .tag { margin-left: auto; font: 500 12px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .04em; color: var(--warn); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 4px; padding: 3px 9px; }
+  .stage { display: flex; justify-content: center; padding: 56px 16px; }
+  main { width: 100%; max-width: 460px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 36px 32px; box-shadow: 0 18px 50px rgba(30,28,24,.08); text-align: center; }
+  main > img { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; background: var(--mascot); margin: 0 auto 16px; display: block; border: 1px solid var(--line); }
+  .eyebrow { font: 500 12px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .08em; color: var(--accent-text); }
+  h1 { font: 500 30px/1.2 "Iowan Old Style", "Palatino Linotype", Georgia, "Songti SC", serif; margin: 8px 0 10px; }
+  p { margin: 0 0 6px; color: var(--text2); }
+  .zh { color: var(--muted); font-size: 15px; }
+  form { text-align: left; margin-top: 24px; }
+  label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  input { width: 100%; font: inherit; height: 48px; padding: 0 14px; border: 1px solid var(--strong); border-radius: 8px; background: #fff; color: var(--text); }
+  input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button { width: 100%; height: 48px; margin-top: 14px; font: inherit; font-weight: 600; border: 0; border-radius: 8px; background: var(--accent); color: #fffdf7; cursor: pointer; }
+  button:hover { background: var(--accent-text); }
+  .msg { display: none; text-align: left; border: 1px solid var(--warn-line); background: var(--warn-bg); border-radius: 8px; padding: 10px 12px; margin-top: 20px; font-size: 15px; }
+  body[data-state="wrong"] .msg.wrong, body[data-state="locked"] .msg.locked { display: block; }
+  body[data-state="wrong"] input { border-color: var(--warn); }
+  body[data-state="locked"] form { display: none; }
+  .help { margin-top: 18px; font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body data-state="{{STATE}}">
+<header><img src="/gate/kiri.jpg" alt=""><b>Kiri</b><span class="tag">Preview · 预览</span></header>
+<div class="stage">
+<main>
+  <img src="/gate/kiri.jpg" alt="Kiri, the mascot, waving">
+  <div class="eyebrow">INVITED TESTERS ONLY · 仅限受邀测试者</div>
+  <h1>Kiri preview</h1>
+  <p>Enter your password to see the Kiri website and download the Mac beta.</p>
+  <p class="zh">输入密码，查看 Kiri 网站并下载 Mac 测试版。</p>
+
+  <div class="msg wrong" role="alert">That password isn’t right. Check it and try again.<br><span class="zh">密码不正确，请检查后重试。</span></div>
+  <div class="msg locked" role="alert">Too many wrong passwords. Try again in {{MINUTES}} minutes.<br><span class="zh">密码错误次数过多，请在 {{MINUTES}} 分钟后重试。</span></div>
+
+  <form method="post" action="/gate/login" autocomplete="off">
+    <label for="password">Password · 密码</label>
+    <input id="password" name="password" type="password" required autofocus autocomplete="current-password">
+    <button type="submit">Enter · 进入</button>
+  </form>
+  <div class="help">No password? Ask the person who invited you.<br>没有密码？请联系邀请你的人。</div>
+</main>
+</div>
+</body>
+</html>

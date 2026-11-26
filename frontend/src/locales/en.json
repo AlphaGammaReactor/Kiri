@@ -3,6 +3,23 @@
     "title": "Kiri",
     "subtitle": "Research Platform"
   },
+  "auth": {
+    "login_title": "Welcome Back",
+    "register_title": "Create Account",
+    "email": "Email",
+    "email_placeholder": "you@example.com",
+    "password": "Password",
+    "password_placeholder": "At least 6 characters",
+    "display_name": "Display Name",
+    "display_name_placeholder": "Your name",
+    "login_button": "Sign In",
+    "register_button": "Create Account",
+    "no_account": "Don't have an account? Sign up →",
+    "have_account": "Already have an account? Sign in →",
+    "invite_code": "Invite Code",
+    "invite_code_placeholder": "Enter your access code",
+    "logout": "Sign Out"
+  },
   "nav": {
     "atlas": "Multi-Omics Atlas",
     "mito": "Mito Lab",
@@ -15,7 +32,31 @@
     "crossval": "Cross-Validation",
     "docking": "Protein Docking",
     "settings": "Settings",
-    "history": "Project History"
+    "history": "Project History",
+    "interactomics": "Interactomics"
+  },
+  "interactomics": {
+    "title": "Interactomics & Regulatory Network",
+    "subtitle": "Multi-omics integration: PPI networks, co-expression, proteomics, substrates, and regulatory mechanisms",
+    "tab_network": "Network",
+    "tab_coexpression": "Co-Expression",
+    "tab_proteomics": "Proteomics",
+    "tab_de": "Differential Expression",
+    "tab_substrates": "Substrates",
+    "tab_regulatory": "Regulatory Network",
+    "high_confidence": "High confidence only (>0.7)",
+    "mito_only": "Highlight mitochondrial proteins",
+    "coexpr_heatmap": "Co-Expression Correlation Heatmap (|r| ≥ 0.6)",
+    "proteomics_title": "CoIP-MS / Proteomics Analysis",
+    "proteomics_upload": "Upload a proteomics abundance matrix (CSV) or search PRIDE for published CoIP-MS datasets.",
+    "de_title": "Public Dataset Differential Expression",
+    "de_upload": "Upload expression data or search GEO for knockdown/overexpression datasets related to your target genes.",
+    "substrates": "Substrate Predictions",
+    "no_substrates": "No substrate candidates found. Try broadening the motif pattern.",
+    "regulatory_title": "Integrated Regulatory Network",
+    "no_project_genes": "Add protein targets to your project to analyze their interaction network.",
+    "no_coexpr": "Add protein targets to your project to run co-expression analysis.",
+    "no_regulatory": "Add protein targets to build a regulatory network."
   },
   "mito": {
     "title": "Mitochondrial Function Lab",
@@ -127,7 +168,9 @@
       "toast_failed_title": "Submission Failed",
       "toast_task_failed_title": "Docking Failed",
       "toast_task_failed_desc": "The background task failed",
-      "view_details": "View details"
+      "view_details": "View details",
+      "not_available_title": "Protein docking is not available yet",
+      "not_available_body": "Kiri does not have a docking engine yet, so nothing can be run here. Earlier builds showed a simulated result on this screen; that has been removed. To see a predicted structure for one protein, use the structure viewer in the Interaction Lab."
     }
   },
   "common": {
@@ -153,7 +196,8 @@
     "copy": "Copy",
     "under_construction": "Module under construction.",
     "saved": "Saved",
-    "ns": "ns"
+    "ns": "ns",
+    "not_available_short": "Not connected"
   },
   "errors": {
     "crash_title": "Something went wrong",
@@ -182,7 +226,7 @@
     "back_to_projects": "Back to Projects",
     "all_projects": "All Projects",
     "project_name": "Project Name",
-    "name_placeholder": "e.g., PARL-MAVS CRC Study",
+    "name_placeholder": "e.g., BRCA1 Breast Cancer Study",
     "description": "Description",
     "desc_placeholder": "Brief description of your research goals…",
     "cancer_type": "Cancer Type",
@@ -264,7 +308,28 @@
     "customSource": "Custom Data",
     "noCustomFile": "No custom file attached. Upload a CSV/TSV file in Project Settings → Files & Uploads.",
     "fileAttached": "File attached",
-    "manageInSettings": "Manage uploads in Project Settings"
+    "manageInSettings": "Manage uploads in Project Settings",
+    "groupByType": "Group by sample type",
+    "showDendrogram": "Show dendrograms",
+    "dendrogramWidth": "Dendrogram width",
+    "colorRange": "Color Scale Range",
+    "colorRangeMin": "Min",
+    "colorRangeMax": "Max",
+    "deTable": "Differential Expression Results",
+    "downloadCsv": "Download CSV",
+    "boxplots": "Expression Distribution (Top Significant Genes)",
+    "significance": "Sig.",
+    "pathwayTag": "Pathways",
+    "gene": "Gene",
+    "avgExpr": "Avg Expr",
+    "panCancerTab": "Pan-Cancer",
+    "panCancerTitle": "Pan-Cancer Expression",
+    "panCancerSubtitle": "Expression across TCGA cancer types (Normal vs Tumor)",
+    "panCancerLoading": "Fetching expression data across cancer types...",
+    "panCancerLoadingHint": "This may take a moment as we query multiple TCGA cohorts",
+    "panCancerEmpty": "No pan-cancer expression data available. Ensure genes are selected.",
+    "selectGene": "Select Gene",
+    "cancerTypes": "cancer types"
   },
   "enrichment": {
     "title": "Gene Set Enrichment Analysis",
@@ -379,7 +444,12 @@
       "median_survival": "Median Survival (days)",
       "time_days": "Time (days)",
       "survival_prob": "Survival Probability",
-      "at_risk": "Number at risk"
+      "at_risk": "Number at Risk",
+      "hr_label": "HR",
+      "ci_label": "95% CI",
+      "dataset_label": "Dataset",
+      "p_value_adjusted": "Log-rank p-value, adjusted for the cutpoint search",
+      "p_value_nominal": "before adjustment"
     },
     "cox": {
       "title": "Multivariate Cox Proportional Hazards",
@@ -674,5 +744,10 @@
     "empty_hint": "Create a snapshot to save the current state of your project.",
     "proteins": "proteins",
     "sources": "sources"
+  },
+  "test_build": {
+    "title": "Test build",
+    "body": "For testing with sample and public data only. Do not enter private data.",
+    "sign_out": "Sign out of the test build"
   }
 }

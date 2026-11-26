@@ -10,7 +10,7 @@
  * - Gene summary cards
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSelector, useAppDispatch, setHeatmapOptions } from "../store";
 import { ExpressionHeatmap, type HeatmapOptions } from "../components/ExpressionHeatmap";
@@ -18,16 +18,29 @@ import { AtlasFilters } from "../components/AtlasFilters";
 import { EnrichmentPanel } from "../components/EnrichmentPanel";
 import { DNBPanel } from "../components/DNBPanel";
 import { TemporalClusterPanel } from "../components/TemporalClusterPanel";
-import { Card, StatusBadge, Stat, InfoTooltip } from "../components/ui";
+import { DEResultsTable } from "../components/DEResultsTable";
+import { GeneBoxplots } from "../components/GeneBoxplots";
+import { PanCancerBoxplot } from "../components/PanCancerBoxplot";
+import { Card, Stat, InfoTooltip } from "../components/ui";
 import { useProjectDataSources } from "../hooks/useProjectDataSources";
 import { usePageState } from "../hooks/usePageState";
 import {
   fetchExpression,
   fetchGeoDataset,
   fetchProjectFileDetail,
+  fetchDifferentialExpression,
+  fetchDNBAnalysis,
+  fetchTemporalClusters,
+  fetchPanCancerExpression,
+  getErrorMessage,
   type Provenance,
+  type DEResult,
+  type DEResponse,
+  type DNBResult,
 } from "../services/api";
 import { motion } from "framer-motion";
+import { pValueToAsterisks } from "../utils/heatmapUtils";
+import type { ECharts } from "echarts";
 
 interface Sample {
   sample_id: string;
@@ -46,7 +59,7 @@ interface ExpressionResult {
   sample_count: number;
 }
 
-type AtlasTab = "expression" | "enrichment" | "dnb" | "temporal";
+type AtlasTab = "expression" | "enrichment" | "dnb" | "temporal" | "pan-cancer";
 
 export default function AtlasPage() {
   const { t } = useTranslation();
@@ -92,9 +105,122 @@ export default function AtlasPage() {
   const [error, setError] = useState<string>("");
   const [warnings, setWarnings] = useState<string[]>([]);
 
+  // ── Differential Expression State ──
+  const [deResults, setDeResults] = useState<DEResult[]>([]);
+  const [deResponse, setDeResponse] = useState<DEResponse | null>(null);
+  const [deLoading, setDeLoading] = useState(false);
+  const [deError, setDeError] = useState<string>("");
+
   // ── Exported gene list from brush selection ──
   const [exportedGenes, setExportedGenes] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+
+  // ── Chart ref for combined SVG export ──
+  const heatmapChartRef = useRef<ECharts | null>(null);
+
+  // ── Lifted Analysis State (survives tab switches) ──
+  // DNB
+  const [dnbResult, setDnbResult] = useState<DNBResult | null>(null);
+  const [dnbLoading, setDnbLoading] = useState(false);
+  const [dnbError, setDnbError] = useState("");
+
+  // Temporal Clustering
+  interface TemporalClusterData {
+    stages: string[];
+    clusters: Array<{
+      id: number; label: string; centroid: number[]; centroid_norm: number[];
+      centroid_smooth: number[]; genes: string[]; gene_count: number;
+      memberships: Record<string, number>; pattern: string;
+    }>;
+    gene_assignments?: Record<string, { cluster: number; membership: number }>;
+    n_genes: number;
+  }
+  const [temporalData, setTemporalData] = useState<TemporalClusterData | null>(null);
+  const [temporalLoading, setTemporalLoading] = useState(false);
+  const [temporalError, setTemporalError] = useState("");
+
+  // Pan-Cancer
+  interface PanCancerResponse {
+    cancer_types: Array<{ project: string; label: string; total_samples: number; genes: Array<{ gene: string; normal_values: number[]; tumor_values: number[]; p_value: number; log2fc: number; n_normal: number; n_tumor: number; mean_normal: number; mean_tumor: number; }>; }>;
+    genes: string[];
+    total_cancer_types: number;
+  }
+  const [panCancerData, setPanCancerData] = useState<PanCancerResponse | null>(null);
+  const [panCancerLoading, setPanCancerLoading] = useState(false);
+  const [panCancerError, setPanCancerError] = useState("");
+  const [panCancerGene, setPanCancerGene] = useState(selectedGenes[0] || "");
+
+  // ── Reset analysis results when expression data changes ──
+  const dataFingerprint = data ? `${data.source}|${data.sample_count}|${Object.keys(data.values).length}` : "";
+  useEffect(() => {
+    setDnbResult(null); setDnbError("");
+    setTemporalData(null); setTemporalError("");
+  }, [dataFingerprint]);
+
+  // Reset pan-cancer when genes change
+  const genesKey = selectedGenes.join(",");
+  useEffect(() => {
+    setPanCancerData(null); setPanCancerError("");
+    setPanCancerGene(selectedGenes[0] || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genesKey]);
+
+  // ── DNB Analysis Runner ──
+  const runDnbAnalysis = useCallback(async () => {
+    if (!data?.values || !data?.samples?.length) return;
+    const labels = data.samples.map(s => normalizeStage(s.stage) || s.sample_type || "unknown");
+    setDnbLoading(true); setDnbError("");
+    try {
+      const res = await fetchDNBAnalysis(data.values, labels);
+      if (res.status === "success" && res.data) {
+        setDnbResult(res.data);
+      } else {
+        setDnbError(res.errors?.[0] || "Analysis failed");
+      }
+    } catch (e) {
+      setDnbError(String(e));
+    }
+    setDnbLoading(false);
+  }, [data]);
+
+  // ── Temporal Clustering Runner ──
+  const runTemporalAnalysis = useCallback(async () => {
+    if (!data?.values || !data?.samples?.length) return;
+    const labels = data.samples.map(s => normalizeStage(s.stage) || s.sample_type || "unknown");
+    setTemporalLoading(true); setTemporalError("");
+    try {
+      const res = await fetchTemporalClusters(data.values, labels, 6, 2.0);
+      if (res.status === "success" && res.data) {
+        setTemporalData(res.data as TemporalClusterData);
+      } else {
+        setTemporalError(res.errors?.[0] || "Analysis failed");
+      }
+    } catch (e) {
+      setTemporalError(getErrorMessage(e));
+    }
+    setTemporalLoading(false);
+  }, [data]);
+
+  // ── Pan-Cancer Runner ──
+  const runPanCancerAnalysis = useCallback(async () => {
+    if (!selectedGenes.length) return;
+    setPanCancerLoading(true); setPanCancerError("");
+    try {
+      const resp = await fetchPanCancerExpression(selectedGenes, clinicalProjectIds, activeProject?.id);
+      if (resp.status === "success" && resp.data) {
+        const pcData = resp.data as PanCancerResponse;
+        setPanCancerData(pcData);
+        if (pcData.genes.length > 0 && !pcData.genes.includes(panCancerGene.toUpperCase())) {
+          setPanCancerGene(pcData.genes[0]);
+        }
+      } else {
+        setPanCancerError(resp.errors?.join("; ") || "Failed to fetch pan-cancer data");
+      }
+    } catch (err) {
+      setPanCancerError(err instanceof Error ? err.message : "Pan-cancer fetch failed");
+    }
+    setPanCancerLoading(false);
+  }, [selectedGenes, clinicalProjectIds, activeProject?.id, panCancerGene]);
 
   // Initialize data source from project sources
   useEffect(() => {
@@ -188,6 +314,58 @@ export default function AtlasPage() {
     }
   }, [activeTab, data, loading, selectedGenes.length, loadData]);
 
+  // ── Auto-run differential expression after expression data loads ──
+  useEffect(() => {
+    if (!data || data.samples.length < 6) {
+      setDeResults([]);
+      setDeResponse(null);
+      return;
+    }
+    // Only run for datasets with both tumor and normal samples
+    const groups = data.samples.map(s => s.sample_type || "unknown");
+    const hasNormal = groups.some(g => g === "normal");
+    const hasTumor = groups.some(g => g === "tumor");
+    if (!hasNormal || !hasTumor) {
+      setDeResults([]);
+      setDeResponse(null);
+      return;
+    }
+
+    let cancelled = false;
+    const runDE = async () => {
+      setDeLoading(true);
+      setDeError("");
+      try {
+        const resp = await fetchDifferentialExpression(data.values, groups, "tumor", "normal");
+        if (!cancelled) {
+          if (resp.status === "success" && resp.data) {
+            setDeResults(resp.data.results);
+            setDeResponse(resp.data);
+            setDeError("");
+          } else {
+            // Backend returned an error response
+            const errMsg = resp.errors?.join("; ") || "Differential expression analysis returned no results";
+            console.warn("DE analysis error response:", errMsg);
+            setDeResults([]);
+            setDeResponse(null);
+            setDeError(errMsg);
+          }
+        }
+      } catch (err) {
+        console.warn("DE analysis failed:", err);
+        if (!cancelled) {
+          setDeResults([]);
+          setDeResponse(null);
+          setDeError(err instanceof Error ? err.message : "Differential expression analysis failed");
+        }
+      } finally {
+        if (!cancelled) setDeLoading(false);
+      }
+    };
+    runDE();
+    return () => { cancelled = true; };
+  }, [data]);
+
   // ── Gene List Export from brush ──
   const handleGeneListExport = useCallback((genes: string[]) => {
     setExportedGenes(genes);
@@ -199,6 +377,134 @@ export default function AtlasPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // ── Combined SVG Export (Heatmap + DE Table) ──
+  const handleExportCombinedSvg = useCallback(() => {
+    const chart = heatmapChartRef.current;
+    if (!chart || !deResponse || deResults.length === 0) return;
+
+    // 1. Get heatmap SVG from ECharts
+    const heatmapSvgUrl = chart.getDataURL({ type: "svg", backgroundColor: "#ffffff" });
+    // Extract raw SVG from data URL
+    const svgPrefix = "data:image/svg+xml;charset=UTF-8,";
+    const rawHeatmapSvg = decodeURIComponent(heatmapSvgUrl.replace(svgPrefix, ""));
+
+    // Parse heatmap SVG to get dimensions
+    const parser = new DOMParser();
+    const heatmapDoc = parser.parseFromString(rawHeatmapSvg, "image/svg+xml");
+    const heatmapSvgEl = heatmapDoc.querySelector("svg");
+    if (!heatmapSvgEl) return;
+
+    const heatmapWidth = parseFloat(heatmapSvgEl.getAttribute("width") || "900");
+    const heatmapHeight = parseFloat(heatmapSvgEl.getAttribute("height") || "450");
+
+    // 2. Build DE table as native SVG
+    const sigCount = deResults.filter(r => r.adjusted_p_value < 0.05).length;
+    const geneLabel = deResults.length === 1 ? "gene" : "genes";
+    const sigLabel = "significant";
+    const tableTitle = `Differential Expression Results (${deResults.length} ${geneLabel}, ${sigCount} ${sigLabel})`;
+    const methodInfo = `${deResponse.method}  |  ${deResponse.correction}  |  ${deResponse.group_a} (n=${deResponse.n_a}) vs ${deResponse.group_b} (n=${deResponse.n_b})`;
+
+    const colHeaders = ["Gene", "log\u2082FC", "Avg Expr", "P-Value", "FDR (BH)", "Significance"];
+    const colWidths = [120, 100, 100, 120, 120, 100];
+    const tableWidth = colWidths.reduce((a, b) => a + b, 0) + 40; // +40 for padding
+    const rowHeight = 22;
+    const headerHeight = 28;
+    const titleBlockHeight = 50;
+    const tableHeight = titleBlockHeight + headerHeight + deResults.length * rowHeight + 20;
+
+    // Center table horizontally
+    const tableOffsetX = Math.max(20, (heatmapWidth - tableWidth) / 2);
+
+    let tableSvg = "";
+
+    // Title
+    tableSvg += `<text x="${tableOffsetX}" y="20" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#1e293b">${tableTitle}</text>`;
+    // Method info
+    tableSvg += `<text x="${tableOffsetX}" y="38" font-family="Arial, Helvetica, sans-serif" font-size="9" fill="#94a3b8">${methodInfo}</text>`;
+
+    // Header row background
+    const headerY = titleBlockHeight;
+    tableSvg += `<rect x="${tableOffsetX}" y="${headerY}" width="${tableWidth}" height="${headerHeight}" fill="#f8fafc" />`;
+    // Header bottom border
+    tableSvg += `<line x1="${tableOffsetX}" y1="${headerY + headerHeight}" x2="${tableOffsetX + tableWidth}" y2="${headerY + headerHeight}" stroke="#cbd5e1" stroke-width="1.5" />`;
+
+    // Column headers
+    let xCursor = tableOffsetX + 10;
+    colHeaders.forEach((h, i) => {
+      tableSvg += `<text x="${xCursor}" y="${headerY + 18}" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#64748b" text-transform="uppercase">${h}</text>`;
+      xCursor += colWidths[i];
+    });
+
+    // Data rows
+    deResults.forEach((r, rowIdx) => {
+      const rowY = headerY + headerHeight + rowIdx * rowHeight;
+      const textY = rowY + 16;
+
+      // Row bottom border
+      tableSvg += `<line x1="${tableOffsetX}" y1="${rowY + rowHeight}" x2="${tableOffsetX + tableWidth}" y2="${rowY + rowHeight}" stroke="#f1f5f9" stroke-width="0.5" />`;
+
+      let cx = tableOffsetX + 10;
+
+      // Gene (italic)
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="600" font-style="italic" fill="#1e293b">${r.gene}</text>`;
+      cx += colWidths[0];
+
+      // log2FC (colored)
+      const fcColor = r.log2_fold_change > 0 ? "#dc2626" : "#16a34a";
+      const fcSign = r.log2_fold_change > 0 ? "+" : "";
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="monospace" font-size="11" fill="${fcColor}">${fcSign}${r.log2_fold_change.toFixed(3)}</text>`;
+      cx += colWidths[1];
+
+      // Avg Expr
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="monospace" font-size="11" fill="#64748b">${r.avg_expression.toFixed(2)}</text>`;
+      cx += colWidths[2];
+
+      // P-Value
+      const pStr = r.p_value < 0.001 ? r.p_value.toExponential(2) : r.p_value.toFixed(4);
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="monospace" font-size="11" fill="#64748b">${pStr}</text>`;
+      cx += colWidths[3];
+
+      // FDR
+      const sig = r.adjusted_p_value < 0.05;
+      const fdrColor = sig ? "#0284c7" : "#64748b";
+      const fdrWeight = sig ? "700" : "400";
+      const fdrStr = r.adjusted_p_value < 0.001 ? r.adjusted_p_value.toExponential(2) : r.adjusted_p_value.toFixed(4);
+      tableSvg += `<text x="${cx}" y="${textY}" font-family="monospace" font-size="11" fill="${fdrColor}" font-weight="${fdrWeight}">${fdrStr}</text>`;
+      cx += colWidths[4];
+
+      // Significance stars
+      const stars = pValueToAsterisks(r.adjusted_p_value);
+      if (stars) {
+        tableSvg += `<text x="${cx}" y="${textY}" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#ea580c">${stars}</text>`;
+      }
+    });
+
+    // 3. Compose final SVG
+    const gap = 32;
+    const totalWidth = Math.max(heatmapWidth, tableWidth + 40);
+    const totalHeight = heatmapHeight + gap + tableHeight;
+
+    const combinedSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}">
+  <rect width="${totalWidth}" height="${totalHeight}" fill="#ffffff" />
+  <g transform="translate(0, 0)">
+    ${rawHeatmapSvg.replace(/<\?xml[^?]*\?>/, "").replace(/<svg[^>]*>/, "").replace(/<\/svg>/, "")}
+  </g>
+  <g transform="translate(0, ${heatmapHeight + gap})">
+    ${tableSvg}
+  </g>
+</svg>`;
+
+    // 4. Download
+    const blob = new Blob([combinedSvg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = `kiri_heatmap_de_combined_${data?.source?.replace(/\s+/g, "_") || "export"}.svg`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [heatmapChartRef, deResponse, deResults, data?.source]);
+
   // ── Computed Values ──
   const filteredData = data ? applyFilters(data, stages, msiFilter) : null;
   const tumorCount = filteredData?.samples.filter((s) => s.sample_type === "tumor").length ?? 0;
@@ -209,12 +515,13 @@ export default function AtlasPage() {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="p-6"
+      className="p-8 max-w-[1400px] mx-auto"
     >
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
+            <span>🧬</span>
             {t("nav.atlas")}
             <InfoTooltip tooltipKey="tooltips.atlas" />
           </h1>
@@ -222,66 +529,57 @@ export default function AtlasPage() {
             {t("atlas.subtitle", "Compare target gene expression across databases and resolutions")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {activeTab === "expression" && (
-            <>
-              <StatusBadge
-                label={dataSource.toUpperCase()}
-                variant={dataSource === "tcga" ? "success" : "info"}
-              />
-              {filteredData && (
-                <Stat
-                  label={t("trust.samples", "n =")}
-                  value={filteredData.samples.length}
-                />
-              )}
-            </>
+
+        {/* Stats bar */}
+        <div className="flex items-center gap-4">
+          {selectedGenes.length > 0 && (
+            <Stat label={t("mito.genes", "Target Genes")} value={selectedGenes.join(", ")} />
           )}
+          {filteredData && (
+            <Stat label={t("mito.samples", "Samples")} value={String(filteredData.samples.length)} />
+          )}
+          {/* Data Source Selector */}
+          <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
+            <select
+              value={dataSource}
+              onChange={(e) => setDataSource(e.target.value)}
+              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-pointer appearance-none"
+            >
+              {expressionSources
+                .filter((src) => ["tcga", "geo", "cptac", "scrna", "custom"].includes(src.type))
+                .map((src) => (
+                  <option key={src.type} value={src.type} className="bg-kiri-surface text-kiri-text">
+                    {src.icon} {src.label}{src.detail ? ` — ${src.detail}` : ""}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {/* ── Tab Bar ── */}
-      <div className="flex items-center gap-1 border-b border-kiri-border mb-6">
-        <button
-          onClick={() => setActiveTab("expression")}
-          className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
-            activeTab === "expression"
-              ? "border-kiri-accent text-kiri-accent"
-              : "border-transparent text-kiri-text-muted hover:text-kiri-text"
-          }`}
-        >
-          🧬 {t("enrichment.tab_expression")}
-        </button>
-        <button
-          onClick={() => setActiveTab("enrichment")}
-          className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
-            activeTab === "enrichment"
-              ? "border-kiri-accent text-kiri-accent"
-              : "border-transparent text-kiri-text-muted hover:text-kiri-text"
-          }`}
-        >
-          🎯 {t("enrichment.tab_enrichment")}
-        </button>
-        <button
-          onClick={() => setActiveTab("dnb")}
-          className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
-            activeTab === "dnb"
-              ? "border-kiri-accent text-kiri-accent"
-              : "border-transparent text-kiri-text-muted hover:text-kiri-text"
-          }`}
-        >
-          📊 {t("dnb.tab_dnb")}
-        </button>
-        <button
-          onClick={() => setActiveTab("temporal")}
-          className={`text-sm px-4 py-2.5 border-b-2 transition-colors font-medium ${
-            activeTab === "temporal"
-              ? "border-kiri-accent text-kiri-accent"
-              : "border-transparent text-kiri-text-muted hover:text-kiri-text"
-          }`}
-        >
-          📈 {t("temporal.title", "Temporal Clusters")}
-        </button>
+      <div className="flex gap-1 bg-kiri-surface rounded-xl p-1 mb-6 border border-kiri-border">
+        {([
+          { key: "expression" as AtlasTab, icon: "🧬", labelKey: "enrichment.tab_expression" },
+          { key: "enrichment" as AtlasTab, icon: "🎯", labelKey: "enrichment.tab_enrichment" },
+          { key: "dnb" as AtlasTab, icon: "📊", labelKey: "dnb.tab_dnb" },
+          { key: "temporal" as AtlasTab, icon: "📈", labelKey: "temporal.title", fallback: "Temporal Clusters" },
+          ...(dataSource === "tcga" ? [{ key: "pan-cancer" as AtlasTab, icon: "🌐", labelKey: "atlas.panCancerTab", fallback: "Pan-Cancer" }] : []),
+        ]).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === tab.key
+                ? "bg-kiri-accent/15 text-kiri-accent border border-kiri-accent/30"
+                : "text-kiri-text-muted hover:text-kiri-text hover:bg-kiri-surface-hover border border-transparent"
+            }`}
+          >
+            <span>{tab.icon}</span>
+            <span>{t(tab.labelKey, tab.fallback || tab.key)}</span>
+          </button>
+        ))}
       </div>
 
       {/* ── Tab Content ── */}
@@ -295,12 +593,32 @@ export default function AtlasPage() {
           expressionMatrix={data?.values ?? null}
           stageLabels={data?.samples?.map(s => normalizeStage(s.stage) || s.sample_type || "unknown") ?? null}
           loading={loading}
+          result={dnbResult}
+          analysisLoading={dnbLoading}
+          analysisError={dnbError}
+          onRunAnalysis={runDnbAnalysis}
         />
       ) : activeTab === "temporal" ? (
         <TemporalClusterPanel
           expressionMatrix={data?.values ?? null}
           stageLabels={data?.samples?.map(s => normalizeStage(s.stage) || s.sample_type || "unknown") ?? null}
           loading={loading}
+          data={temporalData}
+          analysisLoading={temporalLoading}
+          analysisError={temporalError}
+          onRunAnalysis={runTemporalAnalysis}
+        />
+      ) : activeTab === "pan-cancer" ? (
+        <PanCancerBoxplot
+          genes={selectedGenes}
+          projectIds={clinicalProjectIds}
+          projectId={activeProject?.id}
+          data={panCancerData}
+          loading={panCancerLoading}
+          error={panCancerError}
+          selectedGene={panCancerGene}
+          onSelectGene={setPanCancerGene}
+          onLoadData={runPanCancerAnalysis}
         />
       ) : (
       /* ── Expression Tab: Sidebar + Content ── */
@@ -314,9 +632,6 @@ export default function AtlasPage() {
             onMsiChange={setMsiFilter}
             normalization={normalization}
             onNormalizationChange={setNormalization}
-            dataSource={dataSource}
-            onDataSourceChange={setDataSource}
-            availableSources={expressionSources}
             sampleCount={filteredData?.samples.length}
             tumorCount={tumorCount}
             normalCount={normalCount}
@@ -407,7 +722,9 @@ export default function AtlasPage() {
               loading={loading}
               error={error}
               options={heatmapOptions}
+              deResults={deResults}
               onGeneListExport={handleGeneListExport}
+              externalChartRef={heatmapChartRef}
             />
           ) : (
             <Card>
@@ -418,6 +735,55 @@ export default function AtlasPage() {
                 </p>
               </div>
             </Card>
+          )}
+
+          {/* Differential Expression Results Table */}
+          {deResponse && deResults.length > 0 && !deLoading && (
+            <>
+              {/* Combined SVG Export button */}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+                <button
+                  onClick={() => handleExportCombinedSvg()}
+                  className="text-[10px] text-kiri-accent hover:text-white px-3 py-1.5 rounded border border-kiri-accent/30 hover:bg-kiri-accent/20 transition-colors flex items-center gap-1"
+                >
+                  📄 Export Combined SVG (Heatmap + Table)
+                </button>
+              </div>
+              <DEResultsTable
+                results={deResults}
+                groupA={deResponse.group_a}
+                groupB={deResponse.group_b}
+                nA={deResponse.n_a}
+                nB={deResponse.n_b}
+                method={deResponse.method}
+                correction={deResponse.correction}
+              />
+            </>
+          )}
+          {deLoading && (
+            <Card>
+              <div className="text-center py-6 text-kiri-text-muted text-sm">
+                ⏳ Running differential expression analysis…
+              </div>
+            </Card>
+          )}
+          {deError && !deLoading && (
+            <Card className="border-kiri-error/30 bg-kiri-error/5">
+              <div className="text-center py-4 text-kiri-error text-sm">
+                ⚠️ {deError}
+              </div>
+            </Card>
+          )}
+
+          {/* Supplementary Boxplots for Top Significant Genes */}
+          {filteredData && deResults.length > 0 && !deLoading && (
+            <GeneBoxplots
+              values={filteredData.values}
+              samples={filteredData.samples}
+              deResults={deResults}
+              topN={5}
+              provenance={provenance}
+            />
           )}
 
           {/* Exported Gene List (from brush selection) */}
@@ -459,51 +825,85 @@ export default function AtlasPage() {
 
           {/* Gene Summary Cards */}
           {filteredData && filteredData.genes.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredData.genes.map((gene) => {
-                const geneValues = filteredData.values[gene] || [];
-                const tumorValues = geneValues.filter(
-                  (_, i) => filteredData.samples[i]?.sample_type === "tumor"
-                );
-                const normalValues = geneValues.filter(
-                  (_, i) => filteredData.samples[i]?.sample_type === "normal"
-                );
-                const tumorMean = tumorValues.length
-                  ? tumorValues.reduce((a, b) => a + b, 0) / tumorValues.length
-                  : 0;
-                const normalMean = normalValues.length
-                  ? normalValues.reduce((a, b) => a + b, 0) / normalValues.length
-                  : 0;
-                const fc = normalMean > 0 ? tumorMean / normalMean : 0;
+            <>
+              {/* Statistical method annotation */}
+              {deResponse && deResults.length > 0 && (
+                <div className="text-[10px] text-kiri-text-dim px-1 -mb-1">
+                  {t("atlas.statisticalMethod", "Statistical method")}: <span className="text-kiri-text-muted">{deResponse.method}</span>
+                  {" | "}
+                  {t("atlas.correction", "Correction")}: <span className="text-kiri-text-muted">{deResponse.correction}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredData.genes.map((gene) => {
+                  const geneValues = filteredData.values[gene] || [];
+                  const tumorValues = geneValues.filter(
+                    (_, i) => filteredData.samples[i]?.sample_type === "tumor"
+                  );
+                  const normalValues = geneValues.filter(
+                    (_, i) => filteredData.samples[i]?.sample_type === "normal"
+                  );
+                  const tumorMean = tumorValues.length
+                    ? tumorValues.reduce((a, b) => a + b, 0) / tumorValues.length
+                    : 0;
+                  const normalMean = normalValues.length
+                    ? normalValues.reduce((a, b) => a + b, 0) / normalValues.length
+                    : 0;
+                  const fc = normalMean > 0 ? tumorMean / normalMean : 0;
 
-                return (
-                  <Card key={gene} title={gene}>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-kiri-text-muted">
-                          {t("atlas.tumorMean", "Tumor Mean")}
-                        </span>
-                        <span className="font-mono text-kiri-error">{tumorMean.toFixed(2)}</span>
+                  // Look up DE results for this gene
+                  const deResult = deResults.find(r => r.gene === gene);
+                  const pVal = deResult?.p_value;
+                  const fdr = deResult?.adjusted_p_value;
+                  const stars = fdr != null ? pValueToAsterisks(fdr) : "";
+
+                  return (
+                    <Card key={gene} title={gene}>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-kiri-text-muted">
+                            {t("atlas.tumorMean", "Tumor Mean")}
+                          </span>
+                          <span className="font-mono text-kiri-error">{tumorMean.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-kiri-text-muted">
+                            {t("atlas.normalMean", "Normal Mean")}
+                          </span>
+                          <span className="font-mono text-kiri-success">{normalMean.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs border-t border-kiri-border pt-1.5">
+                          <span className="text-kiri-text-muted">
+                            {t("atlas.foldChange", "Fold Change")}
+                          </span>
+                          <span className={`font-mono font-bold ${fc > 1.5 ? "text-kiri-error" : fc < 0.67 ? "text-kiri-success" : "text-kiri-text"}`}>
+                            {fc.toFixed(2)}×
+                          </span>
+                        </div>
+                        {/* P-value & FDR */}
+                        {pVal != null && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-kiri-text-muted">p-value</span>
+                            <span className="font-mono text-kiri-text-muted">
+                              {pVal < 0.001 ? pVal.toExponential(2) : pVal.toFixed(4)}
+                            </span>
+                          </div>
+                        )}
+                        {fdr != null && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-kiri-text-muted">FDR</span>
+                            <span className={`font-mono ${fdr < 0.05 ? "text-kiri-accent font-bold" : "text-kiri-text-muted"}`}>
+                              {fdr < 0.001 ? fdr.toExponential(2) : fdr.toFixed(4)}
+                              {stars && <span className="ml-1 text-amber-400">{stars}</span>}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-kiri-text-muted">
-                          {t("atlas.normalMean", "Normal Mean")}
-                        </span>
-                        <span className="font-mono text-kiri-success">{normalMean.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs border-t border-kiri-border pt-1.5">
-                        <span className="text-kiri-text-muted">
-                          {t("atlas.foldChange", "Fold Change")}
-                        </span>
-                        <span className={`font-mono font-bold ${fc > 1.5 ? "text-kiri-error" : fc < 0.67 ? "text-kiri-success" : "text-kiri-text"}`}>
-                          {fc.toFixed(2)}×
-                        </span>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>

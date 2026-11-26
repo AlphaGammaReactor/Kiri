@@ -3,6 +3,23 @@
     "title": "桐",
     "subtitle": "研究平台"
   },
+  "auth": {
+    "login_title": "欢迎回来",
+    "register_title": "创建账号",
+    "email": "邮箱",
+    "email_placeholder": "you@example.com",
+    "password": "密码",
+    "password_placeholder": "至少6个字符",
+    "display_name": "显示名称",
+    "display_name_placeholder": "您的名字",
+    "login_button": "登录",
+    "register_button": "注册",
+    "no_account": "没有账号？立即注册 →",
+    "have_account": "已有账号？立即登录 →",
+    "invite_code": "邀请码",
+    "invite_code_placeholder": "请输入您的邀请码",
+    "logout": "退出登录"
+  },
   "nav": {
     "atlas": "多组学图谱",
     "mito": "线粒体实验室",
@@ -15,7 +32,31 @@
     "crossval": "交叉验证",
     "docking": "蛋白质对接",
     "settings": "设置",
-    "history": "项目历史"
+    "history": "项目历史",
+    "interactomics": "互作组学"
+  },
+  "interactomics": {
+    "title": "互作组学与调控网络",
+    "subtitle": "多组学整合：PPI网络、共表达、蛋白组学、底物预测与调控机制",
+    "tab_network": "网络",
+    "tab_coexpression": "共表达",
+    "tab_proteomics": "蛋白组学",
+    "tab_de": "差异表达",
+    "tab_substrates": "底物预测",
+    "tab_regulatory": "调控网络",
+    "high_confidence": "仅高置信度 (>0.7)",
+    "mito_only": "突出线粒体蛋白",
+    "coexpr_heatmap": "共表达相关性热图 (|r| ≥ 0.6)",
+    "proteomics_title": "CoIP-MS / 蛋白组学分析",
+    "proteomics_upload": "上传蛋白组学丰度矩阵 (CSV) 或搜索 PRIDE 已发表的 CoIP-MS 数据集。",
+    "de_title": "公共数据集差异表达",
+    "de_upload": "上传表达数据或在 GEO 中搜索与目标基因相关的敲低/过表达数据集。",
+    "substrates": "底物预测结果",
+    "no_substrates": "未找到底物候选者。尝试放宽模体模式。",
+    "regulatory_title": "整合调控网络",
+    "no_project_genes": "将蛋白靶标添加到项目中以分析其互作网络。",
+    "no_coexpr": "将蛋白靶标添加到项目中以运行共表达分析。",
+    "no_regulatory": "将蛋白靶标添加到项目中以构建调控网络。"
   },
   "mito": {
     "title": "线粒体功能实验室",
@@ -127,7 +168,9 @@
       "toast_failed_title": "提交失败",
       "toast_task_failed_title": "对接失败",
       "toast_task_failed_desc": "后台任务失败",
-      "view_details": "查看详情"
+      "view_details": "查看详情",
+      "not_available_title": "蛋白对接功能尚未提供",
+      "not_available_body": "Kiri 目前还没有对接计算引擎，因此此处无法运行任何计算。早期版本在此页面显示的是模拟结果，现已移除。如需查看单个蛋白的预测结构，请使用互作实验室中的结构查看器。"
     }
   },
   "common": {
@@ -153,7 +196,8 @@
     "copy": "复制",
     "under_construction": "模块开发中。",
     "saved": "已保存",
-    "ns": "无显著性"
+    "ns": "无显著性",
+    "not_available_short": "未接入"
   },
   "errors": {
     "crash_title": "出现了问题",
@@ -264,7 +308,30 @@
     "customSource": "自定义数据",
     "noCustomFile": "未附加自定义文件。请在“项目设置 → 文件上传”中上传 CSV/TSV 文件。",
     "fileAttached": "文件已附加",
-    "manageInSettings": "在项目设置中管理上传文件"
+    "manageInSettings": "在项目设置中管理上传文件",
+    "groupByType": "按样本类型分组",
+    "showDendrogram": "显示树形图",
+    "dendrogramWidth": "树形图宽度",
+    "colorRange": "色阶范围",
+    "colorRangeMin": "最小值",
+    "colorRangeMax": "最大值",
+    "deTable": "差异表达结果",
+    "downloadCsv": "下载 CSV",
+    "boxplots": "表达分布（最显著基因）",
+    "significance": "显著性",
+    "pathwayTag": "通路",
+    "gene": "基因",
+    "avgExpr": "平均表达",
+    "panCancerTab": "泛癌分析",
+    "panCancerTitle": "泛癌表达分析",
+    "panCancerSubtitle": "跨 TCGA 癌型的基因表达（正常 vs 肿瘤）",
+    "panCancerLoading": "正在获取各癌型表达数据……",
+    "panCancerLoadingHint": "需要查询多个 TCGA 队列，可能需要一些时间",
+    "panCancerEmpty": "暂无泛癌表达数据。请确保已选择基因。",
+    "panCancerDesc": "对比您的靶标基因在33种TCGA癌型中的表达差异，并进行统计显著性检验。",
+    "runPanCancer": "运行泛癌分析",
+    "selectGene": "选择基因",
+    "cancerTypes": "种癌型"
   },
   "enrichment": {
     "title": "基因集富集分析",
@@ -379,7 +446,12 @@
       "median_survival": "中位生存期 (天)",
       "time_days": "时间 (天)",
       "survival_prob": "生存概率",
-      "at_risk": "风险人数"
+      "at_risk": "Number at Risk",
+      "hr_label": "HR",
+      "ci_label": "95% CI",
+      "dataset_label": "数据集",
+      "p_value_adjusted": "Log-rank p值（已针对最佳截断值搜索校正）",
+      "p_value_nominal": "校正前"
     },
     "cox": {
       "title": "多变量 Cox 比例风险模型",
@@ -457,7 +529,7 @@
     "color_palette": "配色方案",
     "bilingual_labels": "双语标签",
     "cart": "购物车",
-    "cart_empty": "购物车为空。请在图表上使用\u201c添加到图表\u201d按钮来构建导出内容。",
+    "cart_empty": "购物车为空。请在图表上使用“添加到图表”按钮来构建导出内容。",
     "preview_title": "出版预览",
     "preview_footer": "由 Kiri 研究平台生成",
     "empty_canvas": "选择多个分析模块以构建出版图表。",
@@ -674,5 +746,10 @@
     "empty_hint": "创建快照以保存项目的当前状态。",
     "proteins": "个蛋白质",
     "sources": "个数据源"
+  },
+  "test_build": {
+    "title": "测试版",
+    "body": "仅用于示例数据和公开数据的测试，请勿输入私人数据。",
+    "sign_out": "退出测试版"
   }
 }

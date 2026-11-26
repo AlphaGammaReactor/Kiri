@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSelector } from "../store";
 import type { RootState } from "../store";
@@ -7,7 +7,7 @@ import { usePageState } from "../hooks/usePageState";
 import {
   fetchSurvivalAnalysis,
   fetchCoxRegression,
-  fetchSynergyScore
+  fetchSynergyScore,
 } from "../services/api";
 
 import { KaplanMeierPlot } from "../components/KaplanMeierPlot";
@@ -20,7 +20,7 @@ import { CibersortStackedBar } from "../components/CibersortStackedBar";
 import { CibersortBoxplot } from "../components/CibersortBoxplot";
 import { PanSurvivalForest } from "../components/PanSurvivalForest";
 import { fetchImmuneDeconvolution, fetchPanSurvival } from "../services/api";
-import { ProvenanceFooter, InfoTooltip } from "../components/ui";
+import { ProvenanceFooter, InfoTooltip, Stat } from "../components/ui";
 import { useProjectDataSources } from "../hooks/useProjectDataSources";
 
 type Tab = "survival" | "cox" | "synergy" | "immune" | "pan_survival";
@@ -30,7 +30,31 @@ export default function ClinicalSuite() {
   const activeGenes = useAppSelector((s: RootState) => s.app.selectedGenes);
   
   // Use dynamic project IDs from project data sources
-  const { clinicalProjectIds: projectIds } = useProjectDataSources();
+  const { clinicalProjectIds, expressionSources } = useProjectDataSources();
+
+  const [dataSource, setDataSource] = useState("tcga");
+
+  // ── Effective project IDs based on selected data source ──
+  const effectiveProjectIds = useMemo(() => {
+    if (dataSource === "tcga") return clinicalProjectIds;
+    // For non-TCGA sources the backend still needs project_ids;
+    // return default TCGA since GEO/CPTAC fetches route through
+    // their own endpoints. The survival API handles it.
+    return clinicalProjectIds;
+  }, [dataSource, clinicalProjectIds]);
+
+  // Human-readable dataset label for titles/exports
+  const dataSourceLabel = useMemo(() => {
+    const src = expressionSources.find((s) => s.type === dataSource);
+    if (!src) return clinicalProjectIds.join(", ");
+    if (dataSource === "tcga") {
+      return src.detail || clinicalProjectIds.join(", ");
+    }
+    if (dataSource === "geo") {
+      return src.config?.accession as string || src.detail || "GEO";
+    }
+    return src.label + (src.detail ? ` (${src.detail})` : "");
+  }, [dataSource, expressionSources, clinicalProjectIds]);
 
   // ── Persisted UI State ──
   const [uiState, setUiState] = usePageState<{
@@ -100,6 +124,18 @@ export default function ClinicalSuite() {
     }
   }, [activeGenes, survivalGene, synergyGeneA, synergyGeneB]);
 
+  // Clear cached analysis data when data source changes so re-fetch occurs
+  useEffect(() => {
+    setSurvivalData(null);
+    setCoxData(null);
+    setSynergyData(null);
+    setImmuneData(null);
+    setPanSurvivalData(null);
+    setProvenance(null);
+    setLastImmuneProjectIds("");
+    setLastPanSurvivalParams("");
+  }, [dataSource]);
+
   const doLoad = useCallback(async () => {
     if (activeGenes.length === 0) return;
     setLoading(true);
@@ -107,27 +143,30 @@ export default function ClinicalSuite() {
     try {
       if (activeTab === "survival") {
         if (!survivalGene) return;
-        const res = await fetchSurvivalAnalysis([survivalGene], projectIds, cutpointMethod, customCutpoint);
+        const res = await fetchSurvivalAnalysis([survivalGene], effectiveProjectIds, cutpointMethod, customCutpoint);
         if (res.status === "error") throw new Error(res.errors[0]);
         setSurvivalData(res.data);
         setProvenance(res.provenance);
       } else if (activeTab === "cox") {
-        const res = await fetchCoxRegression(activeGenes, ["stage"], projectIds);
+        const res = await fetchCoxRegression(activeGenes, ["stage"], effectiveProjectIds);
         if (res.status === "error") throw new Error(res.errors[0]);
         setCoxData(res.data);
         setProvenance(res.provenance);
       } else if (activeTab === "synergy") {
         if (!synergyGeneA || !synergyGeneB || synergyGeneA === synergyGeneB) return;
-        const res = await fetchSynergyScore(synergyGeneA, synergyGeneB, projectIds, cutpointMethod === "custom" ? "median" : cutpointMethod);
+        const res = await fetchSynergyScore(synergyGeneA, synergyGeneB, effectiveProjectIds, cutpointMethod === "custom" ? "median" : cutpointMethod);
         if (res.status === "error") throw new Error(res.errors[0]);
         setSynergyData(res.data);
         setProvenance(res.provenance);
       } else if (activeTab === "immune") {
-        const currentParams = JSON.stringify(projectIds);
+        const currentParams = JSON.stringify(effectiveProjectIds);
         if (!immuneData || lastImmuneProjectIds !== currentParams) {
-          const res = await fetchImmuneDeconvolution(null, projectIds, "cibersort", undefined, 100);
+          const res = await fetchImmuneDeconvolution(null, effectiveProjectIds, "cibersort", undefined, 100);
           if (res.status === "success" && res.data) {
-            setImmuneData(res.data);
+            // Samples that could not be deconvolved come back without fractions.
+            // They are left out of the charts instead of being drawn as zeros.
+            const samples = (res.data.samples || []).filter((s) => s.fractions != null);
+            setImmuneData({ ...res.data, samples });
             setProvenance(res.provenance);
             setLastImmuneProjectIds(currentParams);
           } else {
@@ -135,9 +174,9 @@ export default function ClinicalSuite() {
           }
         }
       } else if (activeTab === "pan_survival") {
-        const currentParams = JSON.stringify({ activeGenes, projectIds });
+        const currentParams = JSON.stringify({ activeGenes, effectiveProjectIds });
         if (!panSurvivalData || lastPanSurvivalParams !== currentParams) {
-          const res = await fetchPanSurvival(activeGenes, null, null, projectIds);
+          const res = await fetchPanSurvival(activeGenes, null, null, effectiveProjectIds);
           if (res.status === "success" && res.data) {
             setPanSurvivalData(res.data);
             setProvenance(res.provenance);
@@ -168,9 +207,10 @@ export default function ClinicalSuite() {
     synergyGeneA,
     synergyGeneB,
     activeTab,
-    projectIds,
+    effectiveProjectIds,
     cutpointMethod,
     customCutpoint,
+    dataSource,
   ]);
   // Removed data objects from the dependency array to prevent infinite fetch loops
 
@@ -200,54 +240,63 @@ export default function ClinicalSuite() {
   );
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {/* ── Page Header & Tabs ── */}
-      <div className="bg-kiri-surface border-b border-kiri-border sticky top-0 z-20">
-        <div className="px-8 pt-8 pb-4">
-          <h1 className="text-2xl font-bold text-kiri-text mb-2 tracking-tight flex items-center gap-2">
+    <div className="p-8 max-w-[1400px] mx-auto">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
             {t("nav.clinical")}
             <InfoTooltip tooltipKey="tooltips.clinical" />
           </h1>
-          <p className="text-kiri-text-muted text-sm max-w-2xl flex items-center gap-2">
+          <p className="text-sm text-kiri-text-muted mt-1">
             {t("clinical.subtitle")}
-            {projectIds.length > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-mono rounded-full bg-kiri-accent/10 text-kiri-accent border border-kiri-accent/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-kiri-accent/60" />
-                {projectIds.join(" + ")}
-              </span>
-            )}
           </p>
         </div>
-
-        <div className="px-8 flex items-center gap-6">
-          {(["survival", "cox", "synergy", "immune", "pan_survival"] as Tab[]).map((tabId) => (
-            <button
-              key={tabId}
-              onClick={() => setActiveTab(tabId)}
-              className={`relative py-3 px-1 text-sm font-medium transition-colors ${
-                activeTab === tabId
-                  ? "text-kiri-accent"
-                  : "text-kiri-text-muted hover:text-kiri-text hover:bg-kiri-surface-hover"
-              }`}
+        <div className="flex items-center gap-4">
+          {activeGenes.length > 0 && (
+            <Stat label="Target Genes" value={activeGenes.join(", ")} />
+          )}
+          {/* Data Source Selector */}
+          <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
+            <select
+              value={dataSource}
+              onChange={(e) => setDataSource(e.target.value)}
+              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-pointer appearance-none"
             >
-              {t(`clinical.tabs.${tabId}`)}
-              {activeTab === tabId && (
-                <motion.div
-                  layoutId="clinicalTabIndicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-kiri-accent"
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
-            </button>
-          ))}
+              {expressionSources
+                .filter((src) => ["tcga", "geo", "cptac", "scrna", "custom"].includes(src.type))
+                .map((src) => (
+                  <option key={src.type} value={src.type} className="bg-kiri-surface text-kiri-text">
+                    {src.icon} {src.label}{src.detail ? ` — ${src.detail}` : ""}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
+      </div>
+
+      {/* Tab Bar */}
+      <div className="flex gap-1 bg-kiri-surface rounded-xl p-1 mb-6 border border-kiri-border">
+        {(["survival", "cox", "synergy", "immune", "pan_survival"] as Tab[]).map((tabId) => (
+          <button
+            key={tabId}
+            onClick={() => setActiveTab(tabId)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === tabId
+                ? "bg-kiri-accent/15 text-kiri-accent border border-kiri-accent/30"
+                : "text-kiri-text-muted hover:text-kiri-text hover:bg-kiri-surface-hover border border-transparent"
+            }`}
+          >
+            {t(`clinical.tabs.${tabId}`)}
+          </button>
+        ))}
       </div>
       {/* Tab labels i18n fallbacks for new tabs */}
       {/* immune → "Immune Infiltration", pan_survival → "Pan-Survival" */}
 
       {/* ── Main Content ── */}
-      <div className="p-8 flex-1 flex flex-col gap-6">
+      <div className="space-y-6">
         {activeGenes.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-kiri-surface/50 border border-kiri-border border-dashed rounded-lg">
             <span className="text-4xl mb-4 opacity-50">🧬</span>
@@ -345,15 +394,24 @@ export default function ClinicalSuite() {
                             N = {survivalData.curves.reduce((sum: number, c: any) => sum + c.n_samples, 0)}
                           </span>
                         </h2>
-                        <div className="text-sm text-kiri-text-muted mt-2">
-                          {t("clinical.stratified_by", { method: survivalData.cutpoint_method, value: survivalData.cutpoint_value.toFixed(2) })}
+                        <div className="text-sm text-kiri-text-muted mt-2 flex items-center gap-4 flex-wrap">
+                          <span>
+                            {t("clinical.stratified_by", { method: survivalData.cutpoint_method, value: survivalData.cutpoint_value.toFixed(2) })}
+                          </span>
+                          <span className="text-xs text-kiri-text-dim px-2 py-0.5 rounded bg-kiri-bg border border-kiri-border">
+                            {dataSourceLabel}
+                          </span>
                         </div>
                       </div>
                       <KaplanMeierPlot
                         curves={survivalData.curves}
                         p_value={survivalData.p_value}
+                        p_value_unadjusted={survivalData.p_value_unadjusted}
                         at_risk_table={survivalData.at_risk_table}
-                        dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                        hr={survivalData.hr}
+                        hr_ci_lower={survivalData.hr_ci_lower}
+                        hr_ci_upper={survivalData.hr_ci_upper}
+                        dataSource={dataSourceLabel}
                         citation={provenance?.method || "Kaplan-Meier, Lifelines"}
                       />
                       {survivalData.cutpoint_search_data && survivalData.cutpoint_search_data.length > 0 && (
@@ -361,9 +419,9 @@ export default function ClinicalSuite() {
                           <CutpointOptCurve
                             data={survivalData.cutpoint_search_data}
                             optimalCutpoint={survivalData.cutpoint_value}
-                            optimalPValue={survivalData.p_value}
+                            optimalPValue={survivalData.p_value_unadjusted ?? survivalData.p_value}
                             gene={survivalGene}
-                            dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                            dataSource={dataSourceLabel}
                             citation={provenance?.method || "MaxStat cutpoint optimization"}
                           />
                         </div>
@@ -388,7 +446,7 @@ export default function ClinicalSuite() {
                       <CoxForestPlot 
                         hazardRatios={coxData.hazard_ratios}
                         concordanceIndex={coxData.concordance_index}
-                        dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                        dataSource={dataSourceLabel}
                         citation={provenance?.method || "Cox Proportional Hazards, Lifelines"}
                       />
                     </div>
@@ -404,7 +462,7 @@ export default function ClinicalSuite() {
                       synergyType={synergyData.synergy_type}
                       curves={synergyData.curves}
                       atRiskTable={synergyData.at_risk_table}
-                      dataSource={provenance?.source || `${projectIds.join("+")} (n=${synergyData.n_samples || 0})`}
+                      dataSource={dataSourceLabel}
                       citation={provenance?.method || "Gene-Gene Synergy, Lifelines"}
                     />
                   )}
@@ -429,8 +487,8 @@ export default function ClinicalSuite() {
                           samples={immuneData.samples}
                           cellTypes={immuneData.cell_types}
                           cellColors={immuneData.cell_colors || []}
-                          method={immuneData.method || "CIBERSORT"}
-                          dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                          method={immuneData.method || "nu-SVR deconvolution"}
+                          dataSource={dataSourceLabel}
                           citation={provenance?.method || "CIBERSORTx, Newman et al. (2015)"}
                         />
                       </div>
@@ -440,7 +498,7 @@ export default function ClinicalSuite() {
                           cellTypes={immuneData.cell_types}
                           cellColors={immuneData.cell_colors || []}
                           summary={immuneData.summary || {}}
-                          dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                          dataSource={dataSourceLabel}
                           citation={provenance?.method || "CIBERSORTx, Newman et al. (2015)"}
                         />
                       </div>
@@ -463,7 +521,7 @@ export default function ClinicalSuite() {
                         results={panSurvivalData.results || []}
                         summary={panSurvivalData.summary || {}}
                         metricLabels={{ OS: "Overall Survival", DFS: "Disease-Free", PFS: "Progression-Free", DSS: "Disease-Specific" }}
-                        dataSource={provenance?.source || projectIds.join(", ") + " (GDC)"}
+                        dataSource={dataSourceLabel}
                         citation={provenance?.method || "Cox Proportional Hazards, Lifelines"}
                       />
                     </div>

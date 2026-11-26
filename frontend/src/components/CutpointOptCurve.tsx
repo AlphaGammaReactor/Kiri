@@ -87,6 +87,7 @@ export function CutpointOptCurve({
       },
       xAxis: {
         type: "value" as const,
+        scale: true,
         name: t("clinical.cutpoint.expression_value", "Expression Value"),
         nameLocation: "center" as const,
         nameGap: 30,
@@ -247,7 +248,7 @@ export function CutpointOptCurve({
   }
 
   return (
-    <div className="bg-kiri-surface border border-kiri-border rounded-lg p-4">
+    <div>
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-semibold text-kiri-text flex items-center gap-2">
           <span className="text-base">📈</span>
@@ -270,7 +271,7 @@ export function CutpointOptCurve({
           </button>
         </div>
       </div>
-      <div ref={chartRef} className="w-full h-48" />
+      <div ref={chartRef} className="w-full h-72" />
       <p className="text-[10px] text-kiri-text-dim mt-2">
         {t(
           "clinical.cutpoint.optimization_desc",

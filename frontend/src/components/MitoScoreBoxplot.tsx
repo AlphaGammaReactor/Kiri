@@ -183,7 +183,8 @@ export function MitoScoreBoxplot({
           itemStyle: { color: "#94a3b8", opacity: 0.4 },
         },
         // P-value annotations
-        ...markLineData as EChartsOption["series"][],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(markLineData as any[]),
       ],
     };
   }, [comparisons, genes, t]);

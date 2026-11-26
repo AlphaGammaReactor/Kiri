@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useAppSelector } from "../store";
 import { usePageState } from "../hooks/usePageState";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card, StatusBadge, InfoTooltip } from "../components/ui";
+import { Card, StatusBadge, InfoTooltip, Stat } from "../components/ui";
 import {
   fetchConcordance,
   fetchOverlay,
@@ -32,10 +32,12 @@ const CONCORDANCE_COLORS: Record<string, { bg: string; text: string; label: stri
 export default function CrossValidation() {
   const { t } = useTranslation();
   const activeProject = useAppSelector((s) => s.project.activeProject);
+  const activeGenes = useAppSelector((s) => s.app.selectedGenes);
   const projectId = activeProject?.id;
 
   const [concordance, setConcordance] = useState<ConcordanceResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dataSource, setDataSource] = useState("tcga");
   
   // ── Persisted UI State ──
   const [uiState, setUiState] = usePageState<{ selectedGene: string | null }>("crossval", { selectedGene: null });
@@ -70,6 +72,15 @@ export default function CrossValidation() {
   useEffect(() => {
     void loadConcordance();
   }, [loadConcordance]);
+
+  // Clear all cached data when data source changes
+  useEffect(() => {
+    setConcordance(null);
+    setValGridData(null);
+    setValGridError(null);
+    setOverlay(null);
+    setSelectedGene(null);
+  }, [dataSource, setSelectedGene]);
 
   // Fetch Validation Grid when sufficient data is available
   useEffect(() => {
@@ -119,17 +130,42 @@ export default function CrossValidation() {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="p-6"
+      className="p-8 max-w-[1400px] mx-auto"
     >
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
-          {t("crossval.title")}
-          <InfoTooltip tooltipKey="tooltips.crossval" />
-        </h1>
-        <p className="text-sm text-kiri-text-muted mt-1">
-          {t("crossval.subtitle")}
-        </p>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-kiri-text tracking-tight flex items-center gap-2">
+            {t("crossval.title")}
+            <InfoTooltip tooltipKey="tooltips.crossval" />
+          </h1>
+          <p className="text-sm text-kiri-text-muted mt-1">
+            {t("crossval.subtitle")}
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          {activeGenes.length > 0 && (
+            <Stat label="Target Genes" value={activeGenes.join(", ")} />
+          )}
+          <Stat label="Cohorts" value={`${projectIds.length}`} />
+          {/* Data Source Selector */}
+          <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
+            <select
+              value={dataSource}
+              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-pointer appearance-none"
+              onChange={(e) => setDataSource(e.target.value)}
+            >
+              {expressionSources
+                .filter((src) => ["tcga", "geo", "cptac", "scrna", "custom"].includes(src.type))
+                .map((src) => (
+                  <option key={src.type} value={src.type} className="bg-kiri-surface text-kiri-text">
+                    {src.icon} {src.label}{src.detail ? ` — ${src.detail}` : ""}
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}

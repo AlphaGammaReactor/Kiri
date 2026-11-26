@@ -19,5 +19,13 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Existing debt: 17 places in the code break these three rules. They are
+      // reported as warnings so CI can gate on everything else today. Fix the
+      // warnings, then delete these overrides.
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'react-refresh/only-export-components': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+    },
   },
 ])

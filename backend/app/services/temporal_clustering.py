@@ -16,7 +16,6 @@ import logging
 from typing import Any
 
 import numpy as np
-import pandas as pd
 from scipy.interpolate import CubicSpline
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans

@@ -10,7 +10,9 @@
 
 import axios, { AxiosError } from "axios";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000/api";
+// Same origin by default: the backend serves the frontend, and in development
+// the Vite server proxies /api to it. Set VITE_API_BASE only for a split setup.
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
 export interface Provenance {
   source: string;
@@ -40,6 +42,70 @@ const client = axios.create({
 /** Export raw client for direct use in Redux thunks */
 export const apiClient = client;
 
+// ── Auth Token Interceptor ──
+// Lazily injected store reference to avoid circular imports.
+// App.tsx calls setAuthStore(store) once on mount.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _store: any = null;
+
+/**
+ * Inject the Redux store so the API client can read auth tokens.
+ * Call this once from App.tsx or main.tsx after store creation.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function setAuthStore(store: any): void {
+  _store = store;
+}
+
+client.interceptors.request.use((config) => {
+  if (_store) {
+    const token = _store.getState()?.auth?.token;
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
+/**
+ * True for answers that will not change if asked again: a refusal, a bad
+ * request, or "Kiri has no real data for this" (501). Only network failures
+ * and temporary server errors are retried.
+ */
+function isFinalAnswer(err: unknown): boolean {
+  if (!axios.isAxiosError(err) || !err.response) return false;
+  const status = err.response.status;
+  return status < 500 || status === 501;
+}
+
+/** HTTP 501: Kiri has no real data source for this request and did not invent any. */
+export function isNotAvailable(err: unknown): boolean {
+  return axios.isAxiosError(err) && err.response?.status === 501;
+}
+
+// Put the server's own explanation in err.message, so screens that show
+// err.message tell the person what actually happened.
+client.interceptors.response.use(
+  (resp) => resp,
+  (err) => {
+    if (axios.isAxiosError(err) && err.response) {
+      const data = err.response.data as { errors?: string[]; detail?: unknown } | undefined;
+      const fromEnvelope = data?.errors?.find((e) => typeof e === "string" && e.length > 0);
+      const fromDetail = typeof data?.detail === "string" ? data.detail : undefined;
+      const message = fromEnvelope || fromDetail;
+      if (message) err.message = message;
+
+      // The test-build password expired: reloading shows the password page.
+      if (err.response.status === 401 && fromEnvelope?.includes("test-build password")) {
+        window.location.reload();
+      }
+    }
+    return Promise.reject(err);
+  }
+);
+
 // Retry wrapper for transient failures
 async function withRetry<T>(
   fn: () => Promise<T>,
@@ -52,6 +118,7 @@ async function withRetry<T>(
       return await fn();
     } catch (err) {
       lastError = err as Error;
+      if (isFinalAnswer(err)) break;
       if (attempt < maxRetries) {
         await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
       }
@@ -424,6 +491,49 @@ export async function uploadCustomDataset(file: File) {
 
 
 // ══════════════════════════════
+//  Differential Expression
+// ══════════════════════════════
+
+export interface DEResult {
+  gene: string;
+  log2_fold_change: number;
+  p_value: number;
+  adjusted_p_value: number;
+  mean_a: number;
+  mean_b: number;
+  avg_expression: number;
+}
+
+export interface DEResponse {
+  results: DEResult[];
+  method: string;
+  correction: string;
+  group_a: string;
+  group_b: string;
+  n_a: number;
+  n_b: number;
+}
+
+/**
+ * Run differential expression analysis between two sample groups.
+ * Uses PyDESeq2 on the backend with Benjamini-Hochberg FDR correction.
+ */
+export async function fetchDifferentialExpression(
+  matrix: Record<string, number[]>,
+  groups: string[],
+  groupA = "tumor",
+  groupB = "normal"
+) {
+  return apiPost<DEResponse>("/v1/atlas/differential", {
+    matrix,
+    groups,
+    group_a: groupA,
+    group_b: groupB,
+  });
+}
+
+
+// ══════════════════════════════
 //  Temporal Clustering & Immune Deconvolution
 // ══════════════════════════════
 
@@ -468,13 +578,17 @@ export async function fetchImmuneDeconvolution(
     cell_types: string[];
     samples: Array<{
       sample_id: string;
-      proportions: Record<string, number>;
-      p_value: number | null;
-      correlation: number | null;
-      rmse: number | null;
+      /** null when the sample could not be deconvolved */
+      fractions: Record<string, number> | null;
+      failed?: boolean;
+      p_value?: number;
+      correlation?: number;
     }>;
     summary: Record<string, { mean: number; median: number; std: number }>;
-    palette: Record<string, string>;
+    cell_colors: string[];
+    failed_samples: string[];
+    genes_used: number;
+    genes_total: number;
   }>("/v1/atlas/immune-deconvolution", {
     expression_matrix: expressionMatrix,
     project_ids: projectIds,
@@ -509,6 +623,10 @@ export async function fetchValidationGrid(
     grid: Record<string, Record<string, {
       log2fc: number;
       p_value: number;
+    /** Nominal p-value at the chosen cutpoint, before adjusting for the search (optimal cutpoint only) */
+    p_value_unadjusted?: number | null;
+    p_value_method?: string;
+    hr_note?: string | null;
       adj_p_value: number;
       significant: boolean;
       test_used: string;
@@ -774,6 +892,348 @@ export async function fetchMitoScore(
     project_id: projectId,
   });
 }
+
+// ══════════════════════════════
+//  Pan-Cancer Expression
+// ══════════════════════════════
+
+/**
+ * Fetch pan-cancer expression data for gene(s) across all major TCGA cancer types.
+ * Returns Normal vs Tumor values per cancer type with Wilcoxon p-values.
+ */
+export async function fetchPanCancerExpression(
+  genes: string[],
+  projectIds?: string[],
+  projectId?: string,
+) {
+  // Pan-cancer queries 33 TCGA projects via GDC — needs extended timeout
+  const resp = await withRetry(() =>
+    client.post<ApiResponse<{
+      cancer_types: Array<{
+        project: string;
+        label: string;
+        total_samples: number;
+        genes: Array<{
+          gene: string;
+          normal_values: number[];
+          tumor_values: number[];
+          p_value: number;
+          log2fc: number;
+          n_normal: number;
+          n_tumor: number;
+          mean_normal: number;
+          mean_tumor: number;
+        }>;
+      }>;
+      genes: string[];
+      total_cancer_types: number;
+    }>>("/v1/atlas/pan-cancer-expression", {
+      genes,
+      cancer_projects: projectIds,
+      project_id: projectId,
+    }, { timeout: 120000 })
+  );
+  return resp.data;
+}
+
+// ══════════════════════════════
+//  Interactomics Module (Phase 9)
+// ══════════════════════════════
+
+/**
+ * Fetch enhanced PPI network (STRING + BioGRID + IntAct, mito annotations).
+ */
+export async function fetchEnhancedPPI(
+  genes: string[],
+  confidence = 0.4,
+  highConfidenceOnly = false,
+  includeBiogrid = true,
+  includeIntact = true,
+  annotateMito = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    nodes: Array<{
+      id: string; label: string; is_query: boolean;
+      sources: string[]; is_mitochondrial?: boolean;
+    }>;
+    edges: Array<{
+      source: string; target: string; string_score: number;
+      evidence: string[]; pubmed_ids: string[];
+      sources: string[]; evidence_category: string;
+    }>;
+    meta: {
+      total_nodes: number; total_edges: number;
+      sources_used: string[]; query_genes: string[];
+      high_confidence_count: number; mitochondrial_node_count: number;
+    };
+  }>("/v1/interactomics/network", {
+    genes,
+    confidence,
+    high_confidence_only: highConfidenceOnly,
+    include_biogrid: includeBiogrid,
+    include_intact: includeIntact,
+    annotate_mito: annotateMito,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Fetch co-expression heatmap matrix.
+ */
+export async function fetchCoexpressionHeatmap(
+  genes: string[],
+  projectIds: string[] = ["TCGA-COAD", "TCGA-READ"],
+  rCutoff = 0.6,
+  topN = 50,
+  projectId?: string,
+) {
+  return apiPost<{
+    genes: string[];
+    matrix: Record<string, Record<string, number>>;
+    r_cutoff: number;
+    sample_count: number;
+  }>("/v1/interactomics/coexpression-heatmap", {
+    genes,
+    project_ids: projectIds,
+    r_cutoff: rCutoff,
+    top_n: topN,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Run CoIP-MS / proteomics analysis.
+ */
+export async function fetchProteomicsAnalysis(
+  abundanceMatrix: Record<string, number[]> | null,
+  groups: string[] | null,
+  genes: string[] = [],
+  groupA = "bait",
+  groupB = "control",
+  fdrCutoff = 0.05,
+  lfcCutoff = 1.0,
+  projectId?: string,
+) {
+  return apiPost<{
+    mode?: string;
+    results?: Array<{
+      protein: string; log2_fold_change: number; p_value: number;
+      adjusted_p_value: number; neg_log10_p: number; significant: boolean;
+      mean_bait: number; mean_control: number;
+    }>;
+    significant_count?: number;
+    total_proteins?: number;
+    method?: string;
+    heatmap_matrix?: Record<string, number[]>;
+    heatmap_samples?: string[];
+    available_datasets?: { datasets: Array<Record<string, unknown>> };
+    dataset_accession?: string;
+    dataset_title?: string;
+    message?: string;
+  }>("/v1/interactomics/proteomics", {
+    abundance_matrix: abundanceMatrix,
+    groups,
+    genes,
+    group_a: groupA,
+    group_b: groupB,
+    fdr_cutoff: fdrCutoff,
+    lfc_cutoff: lfcCutoff,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Load and analyze a specific PRIDE dataset.
+ */
+export async function loadPrideDataset(
+  accession: string,
+  genes: string[] = [],
+  fdrCutoff = 0.05,
+  lfcCutoff = 1.0,
+  projectId?: string,
+) {
+  return apiPost<{
+    results?: Array<{
+      protein: string; log2_fold_change: number; p_value: number;
+      adjusted_p_value: number; neg_log10_p: number; significant: boolean;
+      mean_bait: number; mean_control: number;
+    }>;
+    significant_count?: number;
+    total_proteins?: number;
+    method?: string;
+    dataset_accession?: string;
+    dataset_title?: string;
+    heatmap_matrix?: Record<string, number[]>;
+    heatmap_samples?: string[];
+    fdr_cutoff?: number;
+    lfc_cutoff?: number;
+  }>("/v1/interactomics/proteomics", {
+    genes,
+    pride_accession: accession,
+    fdr_cutoff: fdrCutoff,
+    lfc_cutoff: lfcCutoff,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Run public dataset differential expression.
+ */
+export async function fetchPublicDE(
+  expressionMatrix: Record<string, number[]> | null,
+  groups: string[] | null,
+  genes: string[] = [],
+  groupA = "perturbation",
+  groupB = "control",
+  lfcCutoff = 1.0,
+  fdrCutoff = 0.05,
+  annotateSubstrates = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    mode?: string;
+    results?: Array<{
+      gene: string; log2_fold_change: number; p_value: number;
+      adjusted_p_value: number; neg_log10_fdr: number; significant: boolean;
+      mean_perturbation: number; mean_control: number;
+      is_known_substrate: boolean;
+      substrate_info?: { protease: string; function: string; pmid: string };
+    }>;
+    deg_count?: number;
+    up_regulated?: number;
+    down_regulated?: number;
+    substrate_degs?: Array<Record<string, unknown>>;
+    method?: string;
+    heatmap_matrix?: Record<string, number[]>;
+    available_datasets?: { datasets: Array<Record<string, unknown>> };
+    message?: string;
+  }>("/v1/interactomics/differential-public", {
+    expression_matrix: expressionMatrix,
+    groups,
+    genes,
+    group_a: groupA,
+    group_b: groupB,
+    lfc_cutoff: lfcCutoff,
+    fdr_cutoff: fdrCutoff,
+    annotate_substrates: annotateSubstrates,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Load and analyze a specific GEO dataset.
+ */
+export async function loadGeoDataset(
+  accession: string,
+  genes: string[] = [],
+  lfcCutoff = 1.0,
+  fdrCutoff = 0.05,
+  annotateSubstrates = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    results?: Array<{
+      gene: string; log2_fold_change: number; p_value: number;
+      adjusted_p_value: number; neg_log10_fdr: number; significant: boolean;
+      mean_perturbation: number; mean_control: number;
+      is_known_substrate: boolean;
+      substrate_info?: { protease: string; function: string; pmid: string };
+    }>;
+    deg_count?: number;
+    up_regulated?: number;
+    down_regulated?: number;
+    substrate_degs?: Array<Record<string, unknown>>;
+    method?: string;
+    dataset_accession?: string;
+    dataset_title?: string;
+    perturbation_type?: string;
+    target_gene?: string;
+    lfc_cutoff?: number;
+    fdr_cutoff?: number;
+  }>("/v1/interactomics/differential-public", {
+    genes,
+    geo_accessions: [accession],
+    lfc_cutoff: lfcCutoff,
+    fdr_cutoff: fdrCutoff,
+    annotate_substrates: annotateSubstrates,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Run substrate cleavage prediction scan.
+ */
+export async function fetchSubstrateScan(
+  genes: string[] = [],
+  motifPattern?: string,
+  scanAllMitocarta = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    candidates: Array<{
+      gene: string; uniprot_id: string; protein_name: string;
+      sequence_length: number;
+      tm_regions: Array<{ start: number; end: number }>;
+      tm_hit_count: number; total_hit_count: number; score: number;
+      coexpression_r: number | null; is_known_substrate: boolean;
+      tm_hits?: Array<{
+        position: number; motif_match: string; flanking_sequence: string;
+      }>;
+    }>;
+    total_scanned: number;
+    total_with_hits: number;
+    tm_hit_candidates: number;
+    motif_pattern: string;
+    method: string;
+  }>("/v1/interactomics/substrate-scan", {
+    genes,
+    motif_pattern: motifPattern,
+    scan_all_mitocarta: scanAllMitocarta,
+    project_id: projectId,
+  });
+}
+
+/**
+ * Build integrated regulatory network.
+ */
+export async function fetchRegulatoryNetwork(
+  genes: string[],
+  projectIds: string[] = ["TCGA-COAD", "TCGA-READ"],
+  includePpi = true,
+  includeCoexpression = true,
+  includeDe = true,
+  includeSubstrates = true,
+  projectId?: string,
+) {
+  return apiPost<{
+    nodes: Array<{
+      id: string; label: string; node_type: string; color?: string;
+      functional_categories?: string[]; evidence_sources?: string[];
+    }>;
+    edges: Array<{
+      source: string; target: string; edge_type: string;
+      weight: number; color?: string; details?: string;
+    }>;
+    meta: {
+      total_nodes: number; total_edges: number;
+      target_genes: string[];
+      edge_colors: Record<string, string>;
+    };
+    functions: Record<string, {
+      label: string; color: string; genes_in_network: string[];
+    }>;
+  }>("/v1/interactomics/regulatory-network", {
+    genes,
+    project_ids: projectIds,
+    include_ppi: includePpi,
+    include_coexpression: includeCoexpression,
+    include_de: includeDe,
+    include_substrates: includeSubstrates,
+    project_id: projectId,
+  });
+}
+
 /**
  * Extract a user-facing error message from an API error.
  */
@@ -824,6 +1284,10 @@ export async function fetchSurvivalAnalysis(
       time_points: number[];
       groups: Record<string, number[]>;
     };
+    hr: number | null;
+    hr_ci_lower: number | null;
+    hr_ci_upper: number | null;
+    cutpoint_search_data: Array<{ cutpoint: number; p_value: number }> | null;
   }>("/v1/clinical/survival", {
     genes,
     project_ids: projectIds,
@@ -853,26 +1317,6 @@ export async function fetchCoxRegression(
     genes,
     covariates,
     project_ids: projectIds,
-  });
-}
-
-export async function fetchRSF(
-  genes: string[],
-  projectIds: string[] = ["TCGA-COAD", "TCGA-READ"],
-  nEstimators: number = 100
-) {
-  return apiPost<{
-    feature_importances: Array<{
-      feature: string;
-      importance: number;
-    }>;
-    concordance_index: number;
-    n_samples: number;
-    n_estimators: number;
-  }>("/v1/clinical/rsf", {
-    genes,
-    project_ids: projectIds,
-    n_estimators: nEstimators,
   });
 }
 
@@ -957,7 +1401,7 @@ export async function fetchDrugInteractions(genes: string[]) {
         drug_id: string;
         pharmacology: string;
         indication: string;
-        evidence_level: "High" | "Medium" | "Low";
+        evidence_level: string;
         source: string;
       }>
     >;
@@ -970,10 +1414,10 @@ export async function fetchTargetRanking(genes: string[]) {
       gene: string;
       score: number;
       drug_count: number;
-      high_evidence_drugs: number;
-      ctd_associations: number;
+      high_evidence_drugs: number | null;
+      ctd_associations: number | null;
       chembl_bioactivities: number;
-      total_references: number;
+      total_references: number | null;
       druggability_tier: string;
     }>;
   }>("/v1/drugs/ranking", { genes: genes.join(",") });

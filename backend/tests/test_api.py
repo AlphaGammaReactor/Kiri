@@ -10,6 +10,8 @@ Tests the actual running backend (Docker). Covers:
 
 import uuid
 import pytest
+
+pytestmark = pytest.mark.live
 import httpx
 
 

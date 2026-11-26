@@ -4,14 +4,15 @@
  * Wraps ECharts instances with:
  * - Provenance footer (data source, method, sample count)
  * - Export controls (SVG/PNG)
+ * - Publication Engine "+ Figure" with optional recolor
  * - Loading/error states
  * - Responsive sizing
  */
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
+import type { EChartsOption, ECharts } from "echarts";
 import { Card, ProvenanceFooter, ChartSkeleton, StatusBadge } from "./ui";
 import type { Provenance } from "../services/api";
 import { useAppDispatch } from "../store";
@@ -34,6 +35,16 @@ interface KiriChartProps {
   dataSource?: string;
   /** Citation / method label for the publication panel */
   citation?: string;
+  /**
+   * Publication-optimized ECharts option for export.
+   * When provided, the "+ Figure" and SVG/PNG export buttons will temporarily
+   * swap to this option (white bg, dark text) before capturing, then restore
+   * the display option. This lets the in-app chart stay dark-themed while
+   * the exported figure uses journal-standard white backgrounds.
+   */
+  publicationOption?: EChartsOption;
+  /** Optional external ref to expose the ECharts instance to parent */
+  externalChartRef?: React.MutableRefObject<ECharts | null>;
 }
 
 export function KiriChart({
@@ -48,10 +59,19 @@ export function KiriChart({
   sourceModule = "atlas",
   dataSource,
   citation,
+  publicationOption,
+  externalChartRef,
 }: KiriChartProps) {
   const chartRef = useRef<ReactECharts>(null);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
+
+  // Sync external ref with chart instance
+  useEffect(() => {
+    if (externalChartRef) {
+      externalChartRef.current = chartRef.current?.getEchartsInstance() || null;
+    }
+  });
 
   // Apply Nature Cell Biology defaults
   const enhancedOption: EChartsOption = {
@@ -70,8 +90,9 @@ export function KiriChart({
       bottom: 8,
       ...(option.grid && typeof option.grid === "object" && !Array.isArray(option.grid) ? option.grid : {}),
     },
-    // Colorblind-safe palette (Okabe-Ito + extensions)
-    color: [
+    // Use component-specified colors if provided, otherwise fallback to
+    // colorblind-safe Okabe-Ito palette
+    color: (option.color as string[] | undefined) ?? [
       "#E69F00", // orange
       "#56B4E9", // sky blue
       "#009E73", // bluish green
@@ -83,34 +104,52 @@ export function KiriChart({
     ],
   };
 
-  const handleExport = useCallback(
-    (format: "svg" | "png") => {
+  /**
+   * Capture the chart as PNG/SVG.
+   * If publicationOption is provided, temporarily recolor for export.
+   */
+  const captureChart = useCallback(
+    (format: "svg" | "png", pixelRatio = 3): string | null => {
       const instance = chartRef.current?.getEchartsInstance();
-      if (!instance) return;
+      if (!instance) return null;
+
+      if (publicationOption) {
+        // Temporarily apply publication colors
+        instance.setOption(publicationOption, true);
+      }
 
       const url = instance.getDataURL({
         type: format === "svg" ? "svg" : "png",
-        pixelRatio: format === "png" ? 3 : 1, // 300 DPI for PNG
-        backgroundColor: "#ffffff",
+        pixelRatio,
+        backgroundColor: publicationOption ? "#ffffff" : "transparent",
       });
+
+      if (publicationOption) {
+        // Restore display option
+        instance.setOption(enhancedOption, true);
+      }
+
+      return url;
+    },
+    [publicationOption, enhancedOption]
+  );
+
+  const handleExport = useCallback(
+    (format: "svg" | "png") => {
+      const url = captureChart(format, format === "png" ? 3 : 1);
+      if (!url) return;
 
       const link = document.createElement("a");
       link.download = `kiri-${title?.toLowerCase().replace(/\s+/g, "-") || "chart"}.${format}`;
       link.href = url;
       link.click();
     },
-    [title]
+    [title, captureChart]
   );
 
   const handleAddToFigure = useCallback(() => {
-    const instance = chartRef.current?.getEchartsInstance();
-    if (!instance) return;
-
-    const dataUrl = instance.getDataURL({
-      type: "png",
-      pixelRatio: 3,
-      backgroundColor: "#ffffff",
-    });
+    const dataUrl = captureChart("png", 3);
+    if (!dataUrl) return;
 
     const panelTitle = title || "Analysis Plot";
     const moduleLabels: Record<string, string> = { atlas: "Atlas", interaction: "Interaction Lab", clinical: "Clinical Suite", discovery: "AI Discovery" };
@@ -133,7 +172,7 @@ export function KiriChart({
       message: resolvedDataSource,
       duration: 3000,
     }));
-  }, [title, provenance, sourceModule, dataSource, citation, dispatch, t]);
+  }, [title, provenance, sourceModule, dataSource, citation, captureChart, dispatch, t]);
 
   if (loading) {
     return <ChartSkeleton className={className} />;
@@ -180,7 +219,7 @@ export function KiriChart({
         ref={chartRef}
         option={enhancedOption}
         style={{ height, width: "100%" }}
-        opts={{ renderer: "svg" }}
+        opts={{ renderer: "canvas" }}
         notMerge
       />
 

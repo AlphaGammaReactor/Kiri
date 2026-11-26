@@ -16,6 +16,9 @@ from app.core.database import Base
 
 # Import all models so Base.metadata is populated
 import app.models.project  # noqa: F401
+import app.models.crash_report  # noqa: F401
+import app.models.uploaded_file  # noqa: F401
+import app.models.user  # noqa: F401
 
 # Alembic Config object
 config = context.config

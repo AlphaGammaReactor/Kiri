@@ -10,18 +10,15 @@ gene validation before any query.
 GDC API Docs: https://docs.gdc.cancer.gov/API/Users_Guide/
 """
 
-import asyncio
 import csv
 import io
 import logging
 from typing import Any
 
 import httpx
-import numpy as np
 
 from app.core.cache import cache
 from app.core.errors import KiriExternalAPIError
-from app.models.atlas import SampleMeta
 
 logger = logging.getLogger("kiri.atlas.gdc")
 
@@ -131,7 +128,7 @@ async def _build_expression_matrix_v2(
 ) -> dict[str, Any]:
     """
     Build expression matrix using the GDC /gene_expression/values endpoint.
-    Falls back to synthetic biologically-plausible data if the endpoint fails.
+    Raises KiriExternalAPIError if GDC returns no usable expression values.
     """
     # Build case metadata lookup
     case_meta: dict[str, dict] = {}
@@ -172,12 +169,14 @@ async def _build_expression_matrix_v2(
                 # expr_matrix: {ensembl_id: {case_id: value}}
                 # Build aligned samples + values
                 # Find cases that have expression data for ALL requested genes
-                valid_cases = set(case_ids)
-                for ens_id in gene_ids:
-                    if ens_id in expr_matrix:
-                        valid_cases &= set(expr_matrix[ens_id].keys())
+                # Genes GDC returned nothing for are left out entirely. They used to be
+                # filled with 0.0 for every sample, which looked like real zero expression.
+                returned_ids = [g for g in gene_ids if g in expr_matrix]
+                valid_cases = set(case_ids) if returned_ids else set()
+                for ens_id in returned_ids:
+                    valid_cases &= set(expr_matrix[ens_id].keys())
 
-                for cid in list(valid_cases):
+                for cid in sorted(valid_cases):
                     meta = case_meta.get(cid, {})
                     final_samples.append({
                         "sample_id": meta.get("submitter_id", cid),
@@ -186,36 +185,24 @@ async def _build_expression_matrix_v2(
                         "msi_status": "",
                         "project": meta.get("project", ""),
                     })
-                    for ens_id in gene_ids:
+                    for ens_id in returned_ids:
                         symbol = ensembl_to_symbol.get(ens_id, ens_id)
-                        val = expr_matrix.get(ens_id, {}).get(cid, 0.0)
-                        values[symbol].append(round(max(0.0, val), 4))
+                        values[symbol].append(round(max(0.0, expr_matrix[ens_id][cid]), 4))
 
                 logger.info(f"GDC gene_expression/values returned {len(final_samples)} samples for {genes}")
         except Exception as e:
-            logger.warning(f"GDC gene_expression/values failed: {e}, falling back to synthetic data")
+            logger.warning(f"GDC gene_expression/values failed: {e}")
+            raise KiriExternalAPIError(
+                "GDC",
+                f"Could not download expression values from GDC ({e}). No values were generated.",
+            )
 
-    # Fallback: Generate biologically plausible synthetic data if GDC endpoint failed
     if not final_samples:
-        logger.info(f"Using synthetic expression data for {genes} (GDC endpoint unavailable)")
-        # Build synthetic data from clinical cases
-        rng = np.random.default_rng(42)
-        for cid in case_ids:
-            meta = case_meta.get(cid, {})
-            if not meta:
-                continue
-            final_samples.append({
-                "sample_id": meta.get("submitter_id", cid),
-                "sample_type": meta.get("sample_type", "tumor"),
-                "stage": meta.get("stage", ""),
-                "msi_status": "",
-                "project": meta.get("project", ""),
-            })
-            for gene in genes:
-                base = _get_base_expression(gene)
-                # Log-normal distribution centered on known median TPM
-                val = rng.lognormal(mean=np.log(base + 1), sigma=0.8)
-                values[gene.upper()].append(round(max(0.0, val), 4))
+        raise KiriExternalAPIError(
+            "GDC",
+            f"GDC returned no expression values for {', '.join(genes)} in this cohort. "
+            "No values were generated.",
+        )
 
     # Clean up any genes that have no values (unresolved or missing from GDC)
     values = {k: v for k, v in values.items() if len(v) == len(final_samples) and len(v) > 0}
@@ -403,19 +390,6 @@ def _classify_sample_type(gdc_sample_type: str) -> str:
     if gdc_sample_type in normal_types:
         return "normal"
     return "tumor"
-
-
-def _get_base_expression(gene: str) -> float:
-    """Get biologically plausible base TPM expression for known genes."""
-    # Values approximated from TCGA-COAD median expression in GTEx/TCGA
-    known = {
-        "PARL": 12.5,
-        "MAVS": 8.3,
-        "DDX58": 5.7,
-        "IRF3": 15.2,
-        "IFNB1": 0.8,
-    }
-    return known.get(gene.upper(), 10.0)
 
 
 def _json_str(obj: Any) -> str:

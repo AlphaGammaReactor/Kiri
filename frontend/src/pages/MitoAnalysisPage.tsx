@@ -66,15 +66,22 @@ function MitoAnalysisPage() {
   const { t } = useTranslation();
   const selectedGenes = useAppSelector((s: RootState) => s.app.selectedGenes);
   const activeProject = useAppSelector((s: RootState) => s.project.activeProject);
-  const { clinicalProjectIds: projectIds } = useProjectDataSources();
+  const { clinicalProjectIds: projectIds, expressionSources } = useProjectDataSources();
+
+  const [dataSource, setDataSource] = useState("tcga");
+
+  // Clear cached data when data source changes so re-fetch occurs
+  const [coexprData, setCoexprData] = useState<CoexpressionData | null>(null);
+  const [mitoScoreData, setMitoScoreData] = useState<MitoScoreData | null>(null);
+
+  useEffect(() => {
+    setCoexprData(null);
+    setMitoScoreData(null);
+  }, [dataSource]);
 
   const [activeTab, setActiveTab] = useState<MitoTab>("coexpression");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Data states
-  const [coexprData, setCoexprData] = useState<CoexpressionData | null>(null);
-  const [mitoScoreData, setMitoScoreData] = useState<MitoScoreData | null>(null);
 
   // Use project proteins directly — no hardcoded fallbacks
   const genes = selectedGenes;
@@ -172,7 +179,23 @@ function MitoAnalysisPage() {
           {coexprData && (
             <Stat label={t("mito.samples", "Samples")} value={String(coexprData.sampleCount)} />
           )}
-          <Stat label={t("mito.dataset", "Dataset")} value={projectIds.join("/")} />
+          {/* Data Source Selector */}
+          <div className="bg-kiri-bg/50 border border-kiri-border rounded px-3 py-2 min-w-[140px]">
+            <p className="text-[10px] text-kiri-text-dim uppercase tracking-wider">Dataset</p>
+            <select
+              value={dataSource}
+              onChange={(e) => setDataSource(e.target.value)}
+              className="w-full text-sm font-mono mt-0.5 bg-transparent text-kiri-text border-none outline-none cursor-pointer appearance-none"
+            >
+              {expressionSources
+                .filter((src) => ["tcga", "geo", "cptac", "scrna", "custom"].includes(src.type))
+                .map((src) => (
+                  <option key={src.type} value={src.type} className="bg-kiri-surface text-kiri-text">
+                    {src.icon} {src.label}{src.detail ? ` — ${src.detail}` : ""}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -275,10 +298,10 @@ function MitoAnalysisPage() {
                     return gsea ? (
                       <CoexpressionGSEAPlot
                         key={gene}
-                        terms={gsea.all_terms}
-                        highlightedTerms={gsea.highlighted_terms}
+                        terms={gsea.all_terms ?? []}
+                        highlightedTerms={gsea.highlighted_terms ?? []}
                         targetGene={geneUpper}
-                        totalSignificant={gsea.total_significant}
+                        totalSignificant={gsea.total_significant ?? 0}
                       />
                     ) : null;
                   })}

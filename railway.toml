@@ -1,0 +1,16 @@
+# Kiri test build on Railway: one service, built from the Dockerfile at the repo root.
+#
+# Set in the Railway dashboard (never in this file):
+#   KIRI_ACCESS_PASSWORD   the shared password testers type (12+ characters)
+# Attach a volume at /data so the SQLite database and signing key survive redeploys.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+numReplicas = 1

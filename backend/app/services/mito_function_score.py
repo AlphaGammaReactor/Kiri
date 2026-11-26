@@ -17,7 +17,9 @@ import pandas as pd
 from scipy import stats
 
 from app.core.cache import cache
-from app.services.gdc import fetch_expression, fetch_clinical
+from app.core.errors import KiriComputationError
+from app.services.cutpoint import ADJUSTMENT_LABEL, adjusted_min_pvalue
+from app.services.gdc import fetch_expression
 
 logger = logging.getLogger("kiri.mito.function_score")
 
@@ -86,6 +88,9 @@ async def compute_ssgsea_mito_score(
     # Use all genes in the matrix for ssGSEA background
     df = pd.DataFrame(expression_matrix, index=sample_ids)
 
+    # The result always says which score was computed. Mean z-score is a different,
+    # simpler score than ssGSEA and must not be presented as ssGSEA.
+    score_method = "ssGSEA (gseapy)"
     try:
         import gseapy as gp
 
@@ -99,33 +104,45 @@ async def compute_ssgsea_mito_score(
 
         if ss.res2d is not None and not ss.res2d.empty:
             # Extract scores — ssgsea returns Term × ES/NES per sample
-            scores_df = ss.res2d
             # The result format depends on gseapy version
             # Try to extract per-sample scores
             if hasattr(ss, 'resultsOnSamples') and ss.resultsOnSamples is not None:
                 sample_scores = ss.resultsOnSamples.loc["MitoCarta_Core"].to_dict()
             else:
-                # Fallback: compute a simple rank-based enrichment score manually
+                score_method = MEAN_Z_METHOD
                 sample_scores = _compute_simple_ssgsea(df, available_genes)
         else:
+            score_method = MEAN_Z_METHOD
             sample_scores = _compute_simple_ssgsea(df, available_genes)
 
     except Exception as e:
-        logger.warning(f"gseapy ssgsea failed: {e}, using fallback scoring")
+        logger.warning(f"gseapy ssgsea failed: {e}, using mean z-score instead")
+        score_method = MEAN_Z_METHOD
         sample_scores = _compute_simple_ssgsea(df, available_genes)
 
-    scores_list = [float(sample_scores.get(sid, 0)) for sid in sample_ids]
+    missing = [sid for sid in sample_ids if sid not in sample_scores]
+    if missing:
+        # A sample without a score used to be given 0, which is a real-looking value.
+        raise KiriComputationError(
+            "mito-score",
+            f"No mitochondrial score could be computed for {len(missing)} of {len(sample_ids)} samples.",
+        )
+    scores_list = [float(sample_scores[sid]) for sid in sample_ids]
 
     return {
         "sample_ids": sample_ids,
         "scores": scores_list,
         "n_samples": len(scores_list),
+        "score_method": score_method,
         "n_genes_used": len(available_genes),
         "n_genes_total": len(gene_set),
         "genes_used": available_genes,
         "mean_score": round(float(np.mean(scores_list)), 4),
         "std_score": round(float(np.std(scores_list)), 4),
     }
+
+
+MEAN_Z_METHOD = "mean z-score of the gene set (ssGSEA was unavailable)"
 
 
 def _compute_simple_ssgsea(
@@ -175,8 +192,9 @@ async def compare_mito_scores_by_expression(
     score_arr = np.array(mito_scores, dtype=float)
 
     # Determine cutpoint
+    searched = False
     if cutpoint_method == "maxstat":
-        cutpoint = _find_maxstat_cutpoint(score_arr, expr_arr)
+        cutpoint, searched = _find_maxstat_cutpoint(score_arr, expr_arr)
     else:
         cutpoint = float(np.median(expr_arr))
 
@@ -192,6 +210,15 @@ async def compare_mito_scores_by_expression(
 
     # Wilcoxon rank-sum test
     stat, p_value = stats.mannwhitneyu(high_scores, low_scores, alternative="two-sided")
+    p_value = float(p_value)
+
+    # After an optimal-cutpoint search the nominal p-value is too small: adjust it.
+    p_value_unadjusted = None
+    test_method = "Mann-Whitney U (Wilcoxon rank-sum)"
+    if searched:
+        p_value_unadjusted = p_value
+        p_value = adjusted_min_pvalue(p_value_unadjusted, lower_quantile=0.25)
+        test_method = f"{test_method}, {ADJUSTMENT_LABEL}"
 
     # Build boxplot data
     def boxplot_stats(arr: np.ndarray) -> dict:
@@ -211,9 +238,10 @@ async def compare_mito_scores_by_expression(
         "gene": gene_name,
         "cutpoint": round(float(cutpoint), 4),
         "cutpoint_method": cutpoint_method,
-        "p_value": float(p_value),
+        "p_value": p_value,
+        "p_value_unadjusted": p_value_unadjusted,
         "test_statistic": float(stat),
-        "test_method": "Mann-Whitney U (Wilcoxon rank-sum)",
+        "test_method": test_method,
         "high_group": boxplot_stats(high_scores),
         "low_group": boxplot_stats(low_scores),
         "significant": p_value < 0.05,
@@ -223,17 +251,24 @@ async def compare_mito_scores_by_expression(
 def _find_maxstat_cutpoint(
     scores: np.ndarray,
     expression: np.ndarray,
-) -> float:
+) -> tuple[float, bool]:
     """
-    Find expression cutpoint maximizing difference in mito scores
-    between high/low groups (maxstat approach on interquartile range).
+    Find the expression cutpoint that best separates mito scores between the
+    high and low groups (smallest Mann-Whitney p-value over the interquartile range).
+
+    Returns (cutpoint, searched). searched is False when no candidate could be
+    tested and the median was used instead, in which case no adjustment is needed.
+
+    An earlier version picked the largest U statistic. U grows with group size
+    rather than with the strength of the difference, so that was not the best split.
     """
     q25 = np.percentile(expression, 25)
     q75 = np.percentile(expression, 75)
 
     candidates = np.linspace(q25, q75, 20)
-    best_stat = -1.0
+    best_p = np.inf
     best_cut = float(np.median(expression))
+    searched = False
 
     for cut in candidates:
         high = scores[expression > cut]
@@ -242,14 +277,15 @@ def _find_maxstat_cutpoint(
             continue
 
         try:
-            stat, _ = stats.mannwhitneyu(high, low, alternative="two-sided")
-            if stat > best_stat:
-                best_stat = stat
-                best_cut = float(cut)
+            _, p = stats.mannwhitneyu(high, low, alternative="two-sided")
         except Exception:
             continue
+        searched = True
+        if p < best_p:
+            best_p = float(p)
+            best_cut = float(cut)
 
-    return best_cut
+    return best_cut, searched
 
 
 async def run_mito_score_pipeline(

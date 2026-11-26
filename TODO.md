@@ -1,7 +1,7 @@
 # Kiri — Global TODO
 
 > Auto-managed by the IDE Agent. Run `/todo` to refresh.
-> Last updated: 2026-03-16 18:45 HKT (full platform audit + /start re-init)
+> Last updated: 2026-03-20 02:09 HKT (transparent exports, settings gear, light/dark mode)
 
 ---
 
@@ -22,6 +22,7 @@
 - [x] Provenance metadata service
 - [x] Input validation middleware (Pydantic strict mode)
 - [x] Tailwind dark-lab theme + component tokens
+- [x] Light/dark mode theme support (CSS custom properties + data-theme scoping)
 - [x] Shared component library (`Card`, `Badge`, `ProvenanceFooter`, etc.)
 - [x] Gene search component with HGNC auto-validation
 - [x] API client service (axios + error handling + provenance extraction)
@@ -141,6 +142,15 @@
 > [!NOTE]
 > Bilingual export option and colorblind-safe palette selector UI are stubbed but not fully wired.
 > Publication state now persists across page reloads (auto-save with 2s debounce).
+> All +Figure exports now use transparent backgrounds (2026-03-20).
+
+---
+
+## Publication & UX Enhancements ✅
+- [x] Transparent backgrounds for all +Figure exports (KiriChart, PPI, ProteinViewer, DNB, KM, Heatmap)
+- [x] Settings gear button (replaces language button, expandable menu)
+- [x] Light/dark mode theme switching (CSS custom properties + Redux + localStorage)
+- [x] Runtime theme system via `--kiri-*` CSS vars with `[data-theme]` scoping
 
 ---
 
@@ -232,13 +242,21 @@
 - [x] `/sync` workflow (reconcile dev log with codebase, fixed locale paths)
 - [x] Enhanced `/fix` workflow (crash report integration)
 
-### Future: Auth & Collaboration
-- [ ] User registration / login (JWT or OAuth)
+### Deployment & Infrastructure
+- [x] Production Dockerfiles (backend: 2 workers, frontend: multi-stage nginx)
+- [x] Railway config (`railway.toml`, `nginx.conf`, env-aware CORS)
+- [x] Branch topology: `main` → `ag-docker-dev` → `deploy/railway-production`
+- [x] GitHub sync — all branches pushed
+- [/] Railway project setup (PostgreSQL plugin, env vars, domain generation)
+- [ ] CI/CD: GitHub Actions pipeline
+
+### Auth & Collaboration
+- [x] JWT auth backend (`auth.py`, `user.py`)
+- [x] Login page frontend (`LoginPage.tsx`, `ProtectedRoute.tsx`, `authSlice.ts`)
+- [ ] User registration / login fully wired
 - [ ] Project ownership (fill `owner_id`)
 - [ ] Invite collaborators by email
 - [ ] Role-based access (owner / editor / viewer)
-
----
 
 ### Blockers
 - ~~Celery still stubbed~~ ✅ Fixed: Celery + Redis with graceful fallback
@@ -246,7 +264,7 @@
 
 ### Infrastructure Notes
 - Docker backend (api, postgres, redis) running. Frontend served locally (`npm run dev`) — Docker frontend port-conflicts; local dev server is the primary workflow.
-- PARL-MAVS is the initial test case, but the platform is fully generic: **any cancer type, any protein targets, any data sources** (see `recommendations.py` for 11 cancer types).
+- The platform is fully generic: **any cancer type, any protein targets, any data sources** (see `recommendations.py` for 11 cancer types).
 
 ### Bilingual Coverage
 - `en.json`: 602 keys ✅

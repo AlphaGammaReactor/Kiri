@@ -9,7 +9,7 @@ export default defineConfig({
     host: true,   // Listen on all interfaces (needed in Docker)
     proxy: {
       '/api': {
-        target: 'http://api:8000',  // Docker service name
+        target: process.env.VITE_API_URL || 'http://localhost:8000',
         changeOrigin: true,
       },
     },

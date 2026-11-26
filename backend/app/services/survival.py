@@ -5,11 +5,10 @@ Kaplan-Meier survival curves with optimal cutpoint generation via Lifelines.
 """
 
 import logging
-from typing import Any
 
 import numpy as np
 import pandas as pd
-from lifelines import KaplanMeierFitter
+from lifelines import KaplanMeierFitter, CoxPHFitter
 from lifelines.statistics import logrank_test
 
 from app.services.gdc import fetch_clinical, fetch_expression
@@ -20,8 +19,12 @@ from app.models.clinical import (
     CutpointMethod,
 )
 from app.core.errors import KiriComputationError
+from app.services.cutpoint import ADJUSTMENT_LABEL, adjusted_min_pvalue
 
 logger = logging.getLogger("kiri.clinical.survival")
+
+# The optimal-cutpoint search covers this quantile to 1 minus this quantile.
+CUTPOINT_SEARCH_QUANTILE = 0.25
 
 
 async def run_kaplan_meier(
@@ -75,7 +78,35 @@ async def run_kaplan_meier(
         high_df["time"], low_df["time"],
         event_observed_A=high_df["event"], event_observed_B=low_df["event"]
     )
-    p_value = results.p_value
+    p_value = float(results.p_value)
+
+    # 6a. After an optimal-cutpoint search the nominal p-value is too small.
+    # Report the search-adjusted value and keep the nominal one alongside it.
+    p_value_unadjusted = None
+    p_value_method = "log-rank"
+    hr_note = None
+    if cutpoint_method == CutpointMethod.MAXSTAT and cutpoint_search_data is not None:
+        p_value_unadjusted = p_value
+        p_value = adjusted_min_pvalue(p_value_unadjusted, lower_quantile=CUTPOINT_SEARCH_QUANTILE)
+        p_value_method = f"log-rank, {ADJUSTMENT_LABEL}"
+        hr_note = (
+            "The hazard ratio and its interval are computed at the cutpoint chosen to "
+            "separate the groups best, so they overstate the effect."
+        )
+
+    # 6b. Compute Hazard Ratio + 95% CI via Cox PH
+    hr, hr_ci_lower, hr_ci_upper = None, None, None
+    try:
+        cox_df = df[["time", "event", "group"]].copy()
+        cox_df["group_binary"] = (cox_df["group"] == "High").astype(int)
+        cph = CoxPHFitter()
+        cph.fit(cox_df[["time", "event", "group_binary"]], duration_col="time", event_col="event")
+        hr = float(cph.hazard_ratios_["group_binary"])
+        ci = cph.confidence_intervals_
+        hr_ci_lower = float(np.exp(ci.iloc[0, 0]))
+        hr_ci_upper = float(np.exp(ci.iloc[0, 1]))
+    except Exception as e:
+        logger.warning(f"Cox PH HR computation failed: {e}")
 
     # 7. Build At-Risk table (5 points)
     max_t = int(df["time"].max())
@@ -106,9 +137,15 @@ async def run_kaplan_meier(
     return SurvivalResult(
         curves=[extract_curve(kmf_high), extract_curve(kmf_low)],
         p_value=p_value,
+        p_value_unadjusted=p_value_unadjusted,
+        p_value_method=p_value_method,
+        hr_note=hr_note,
         cutpoint_value=float(cutpoint),
         cutpoint_method=cutpoint_method.value,
         at_risk_table=at_risk_table,
+        hr=hr,
+        hr_ci_lower=hr_ci_lower,
+        hr_ci_upper=hr_ci_upper,
         cutpoint_search_data=cutpoint_search_data,
     )
 
@@ -168,12 +205,15 @@ def _build_survival_df(clinical_data: dict, expr_data: dict, gene: str) -> pd.Da
 
 def _find_optimal_cutpoint(df: pd.DataFrame) -> tuple[float, list[dict]]:
     """
-    Find cutpoint that minimizes log-rank p-value (maxstat method restricted to interquartile range).
+    Find the cutpoint with the smallest log-rank p-value, searching the interquartile range.
     Returns (optimal_cutpoint, search_data) where search_data is a list of {cutpoint, p_value} dicts.
+
+    The p-values in search_data are nominal. The caller must adjust the smallest one for
+    the search (see app.services.cutpoint) before reporting it.
     """
     expr = df["expression"].values
-    q25 = np.percentile(expr, 25)
-    q75 = np.percentile(expr, 75)
+    q25 = np.percentile(expr, 100 * CUTPOINT_SEARCH_QUANTILE)
+    q75 = np.percentile(expr, 100 * (1 - CUTPOINT_SEARCH_QUANTILE))
     
     candidates = np.linspace(q25, q75, 20)
     best_p = 1.0

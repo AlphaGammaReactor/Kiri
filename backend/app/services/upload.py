@@ -19,7 +19,18 @@ from fastapi import UploadFile
 logger = logging.getLogger("kiri.upload")
 
 # ── Configuration ──
-UPLOAD_DIR = os.environ.get("KIRI_UPLOAD_DIR", "./uploads")
+from app.core.config import settings
+
+UPLOAD_DIR = os.environ.get("KIRI_UPLOAD_DIR") or str(Path(settings.KIRI_DATA_DIR) / "uploads")
+
+
+def _inside_upload_dir(rel_path: str) -> Path:
+    """Resolve a stored path and refuse anything that escapes the uploads folder."""
+    root = Path(UPLOAD_DIR).resolve()
+    full = (root / rel_path).resolve()
+    if not full.is_relative_to(root) or full == root:
+        raise ValueError("Invalid file path")
+    return full
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 ALLOWED_EXPRESSION_EXT = {".csv", ".tsv", ".txt"}
 ALLOWED_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp"}
@@ -96,6 +107,10 @@ async def save_uploaded_file(
 
     # Generate safe filename and project directory
     safe_name = _sanitize_filename(original_name)
+    try:
+        project_id = str(uuid.UUID(str(project_id)))  # also blocks "../" in the folder name
+    except ValueError:
+        raise ValueError("Invalid project id")
     project_dir = Path(UPLOAD_DIR) / project_id
     project_dir.mkdir(parents=True, exist_ok=True)
 
@@ -187,12 +202,12 @@ def _parse_expression_file(content: bytes, ext: str) -> dict[str, Any]:
 
 def get_file_path(rel_path: str) -> Path:
     """Resolve a relative file path to an absolute Path object."""
-    return Path(UPLOAD_DIR) / rel_path
+    return _inside_upload_dir(rel_path)
 
 
 def delete_file(rel_path: str) -> bool:
     """Delete a file from disk. Returns True if deleted, False if not found."""
-    full_path = Path(UPLOAD_DIR) / rel_path
+    full_path = _inside_upload_dir(rel_path)
     if full_path.exists():
         full_path.unlink()
         # Clean up empty project directory

@@ -1,29 +1,33 @@
 """
-Kiri PARL-MAVS Research Platform — FastAPI Application
+Kiri Research Platform — FastAPI Application
 
 The main entry point for the backend server.
 Configures CORS, mounts routers, registers error handlers,
 and initializes the caching layer.
 """
 
-import logging
 from datetime import datetime, timezone, timedelta
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.cache import cache
 from app.core.errors import register_error_handlers
 from app.core.database import init_db, close_db
-from app.core.middleware import CorrelationIdMiddleware
+from app.core.middleware import CorrelationIdMiddleware, SecurityHeadersMiddleware
+from app.core.gate import AccessGateMiddleware
+from app.core.static import mount_frontend
+from app import __version__
 from app.api import router as api_router
 
 # Ensure ORM models are imported so Base.metadata knows about them
 import app.models.project  # noqa: F401
 import app.models.crash_report  # noqa: F401
 import app.models.uploaded_file  # noqa: F401
+import app.models.user  # noqa: F401
 
 # ── Structured Logging ──
 from app.core.logging import setup_logging, get_logger
@@ -38,39 +42,73 @@ async def lifespan(app: FastAPI):
     """Initialize services on startup, clean up on shutdown."""
     # Startup
     logger.info("🌿 Kiri starting up...")
-    await cache.initialize(settings.REDIS_URL)
-    logger.info(f"   Cache: {'Redis' if cache.is_redis else 'In-Memory (dev mode)'}")
-    await init_db()
-    logger.info("   Database: connected")
-    logger.info(f"   CORS: {settings.CORS_ORIGINS}")
+
+    # Cache — graceful (in-memory fallback built in)
+    try:
+        await cache.initialize(settings.REDIS_URL or None)
+        logger.info(f"   Cache: {'Redis' if cache.is_redis else 'in-process'}")
+    except Exception as e:
+        logger.warning(f"   Cache: Failed to connect ({e}), using in-memory fallback")
+
+    # Database — graceful (app runs degraded without DB)
+    try:
+        await init_db()
+        logger.info("   Database: connected")
+    except Exception as e:
+        logger.warning(f"   Database: Failed to connect ({e}). App will run in degraded mode.")
+
+    logger.info(f"   Mode: {'server (password gate on, uploads off)' if settings.KIRI_SERVER_MODE else 'local'}")
+    logger.info(f"   Data folder: {settings.KIRI_DATA_DIR}")
     logger.info("🌿 Kiri ready.")
     yield
     # Shutdown
     logger.info("🌿 Kiri shutting down.")
-    await close_db()
+    try:
+        await close_db()
+    except Exception:
+        pass
 
 
 app = FastAPI(
     title="Kiri API",
-    description="PARL-MAVS Research Platform — Backend API",
-    version="0.1.0",
-    docs_url="/api/docs",
-    openapi_url="/api/openapi.json",
+    description="Kiri backend API",
+    version=__version__,
+    # The interactive API docs are a development aid; the hosted build does not expose them.
+    docs_url=None if settings.KIRI_SERVER_MODE else "/api/docs",
+    redoc_url=None,
+    openapi_url=None if settings.KIRI_SERVER_MODE else "/api/openapi.json",
     lifespan=lifespan,
 )
 
-# ── Middleware ──
+# ── Middleware ── (added last = runs first)
 app.add_middleware(CorrelationIdMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if settings.CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    )
+app.add_middleware(SecurityHeadersMiddleware)
+if settings.KIRI_SERVER_MODE:
+    # Outermost: nothing below is reachable without the test-build password.
+    app.add_middleware(AccessGateMiddleware)
 
 # ── Error Handlers ──
 register_error_handlers(app)
+
+
+# ── Build information for the frontend ──
+@app.get("/api/v1/meta")
+async def meta() -> dict:
+    """What kind of build this is, so the UI can show the test banner and hide uploads."""
+    return {
+        "version": __version__,
+        "server_mode": settings.KIRI_SERVER_MODE,
+        "uploads_enabled": settings.uploads_enabled,
+        "invite_code_required": bool(settings.INVITE_CODE),
+    }
 
 
 # ── Health Check (Extended) ──
@@ -82,10 +120,23 @@ async def health(deep: bool = False) -> dict:
 
     Pass ?deep=true to also check external API reachability (slower).
     """
+    if settings.KIRI_SERVER_MODE:
+        # This endpoint is reachable without the password (the host polls it),
+        # so it says only whether the app and its database are up.
+        try:
+            from sqlalchemy import text
+            from app.core.database import async_session_factory
+
+            async with async_session_factory() as session:
+                await session.execute(text("SELECT 1"))
+            return {"status": "ok"}
+        except Exception:
+            return JSONResponse(status_code=503, content={"status": "unavailable"})
+
     health_status = {
         "status": "ok",
         "service": "kiri-backend",
-        "version": "0.1.0",
+        "version": __version__,
         "cache": "redis" if cache.is_redis else "in-memory",
         "database": "unknown",
         "crash_stats": None,
@@ -185,7 +236,9 @@ async def cache_stats() -> dict:
 # ── Crash Report API ──
 @app.get("/api/crash-reports")
 async def list_crash_reports(limit: int = 20, severity: str | None = None):
-    """List recent crash reports for the IDE agent's /audit and /fix workflows."""
+    """List recent crash reports (local development only)."""
+    if settings.KIRI_SERVER_MODE:
+        raise HTTPException(status_code=404)
     from sqlalchemy import select
     from app.core.database import async_session_factory
     from app.models.crash_report import CrashReport
@@ -220,3 +273,7 @@ async def list_crash_reports(limit: int = 20, severity: str | None = None):
 
 # ── Mount API Router ──
 app.include_router(api_router, prefix="/api/v1")
+
+# ── Frontend (when a built copy is present) ──
+# Registered last so it never shadows an API route.
+mount_frontend(app)

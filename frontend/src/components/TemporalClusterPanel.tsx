@@ -21,7 +21,6 @@ import { CanvasRenderer } from "echarts/renderers";
 import { useTranslation } from "react-i18next";
 import { useChartLocale } from "../hooks/useChartLocale";
 import { Card } from "./ui";
-import { fetchTemporalClusters, getErrorMessage } from "../services/api";
 import { useAppDispatch } from "../store";
 import { addPanel } from "../store/publicationSlice";
 import { addToast } from "../store/errorSlice";
@@ -52,6 +51,11 @@ interface TemporalClusterPanelProps {
   expressionMatrix: Record<string, number[]> | null;
   stageLabels: string[] | null;
   loading?: boolean;
+  /** Lifted state from parent — survives tab switches */
+  data: TemporalClusterData | null;
+  analysisLoading: boolean;
+  analysisError: string;
+  onRunAnalysis: () => void;
 }
 
 const CLUSTER_COLORS = [
@@ -69,35 +73,13 @@ const PATTERN_ICONS: Record<string, string> = {
   flat: "➡️",
 };
 
-export function TemporalClusterPanel({ expressionMatrix, stageLabels, loading: parentLoading }: TemporalClusterPanelProps) {
+export function TemporalClusterPanel({ expressionMatrix, stageLabels, loading: parentLoading, data, analysisLoading: loading, analysisError: error, onRunAnalysis }: TemporalClusterPanelProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
   const { t } = useTranslation();
   const { chartKey } = useChartLocale();
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
   const dispatch = useAppDispatch();
-
-  const [data, setData] = useState<TemporalClusterData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const runAnalysis = useCallback(async () => {
-    if (!expressionMatrix || !stageLabels?.length) return;
-    setLoading(true);
-    setError("");
-    try {
-      // Find optimal number of clusters or just use default 6
-      const res = await fetchTemporalClusters(expressionMatrix, stageLabels, 6, 2.0);
-      if (res.status === "success" && res.data) {
-        setData(res.data);
-      } else {
-        setError(res.errors?.[0] || "Analysis failed");
-      }
-    } catch (e) {
-      setError(getErrorMessage(e));
-    }
-    setLoading(false);
-  }, [expressionMatrix, stageLabels]);
 
   const option = useMemo(() => {
     if (!data || !data.clusters.length) return null;
@@ -241,7 +223,7 @@ export function TemporalClusterPanel({ expressionMatrix, stageLabels, loading: p
             {error}
           </p>
           <button
-            onClick={() => { setError(""); void runAnalysis(); }}
+              onClick={onRunAnalysis}
             className="text-xs text-kiri-accent hover:underline mt-2"
           >
             🔄 {t("common.retry", "Retry")}
@@ -257,7 +239,7 @@ export function TemporalClusterPanel({ expressionMatrix, stageLabels, loading: p
         <div className="text-center py-8">
           <p className="text-sm text-kiri-text-muted mb-4">{t("temporal.description", "Group genes by their expression patterns over disease stages.")}</p>
           <button
-            onClick={() => void runAnalysis()}
+              onClick={() => void onRunAnalysis()}
             className="px-6 py-2.5 rounded-lg bg-kiri-accent text-kiri-bg font-semibold text-sm hover:brightness-110 transition"
           >
             📈 {t("temporal.run_analysis", "Run Temporal Clustering")}

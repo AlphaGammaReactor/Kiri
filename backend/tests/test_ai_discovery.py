@@ -7,9 +7,10 @@ Can also be run standalone via `python tests/test_ai_discovery.py`.
 
 import asyncio
 import os
-import sys
 
 import pytest
+
+pytestmark = pytest.mark.live
 from dotenv import load_dotenv
 
 # Load .env variables

@@ -1,7 +1,8 @@
 """
 Kiri Atlas — GEO Dataset Loader
 
-Fetches expression data from NCBI GEO for independent validation cohorts.
+Verifies GEO accessions for independent validation cohorts. Expression download
+is not implemented yet, and no values are generated in its place.
 Primary targets: GSE39582 (585 CRC samples), GSE33113 (90 Stage II CRC).
 
 Uses the NCBI GEO API (GEOquery-style) with the Kiri caching layer (24h TTL).
@@ -11,11 +12,8 @@ import logging
 from typing import Any
 
 import httpx
-import numpy as np
 
-from app.core.cache import cache
-from app.core.errors import KiriExternalAPIError, KiriValidationError
-from app.models.atlas import SampleMeta
+from app.core.errors import KiriDataUnavailableError, KiriExternalAPIError, KiriValidationError
 
 logger = logging.getLogger("kiri.atlas.geo")
 
@@ -68,26 +66,20 @@ async def fetch_geo_dataset(
             source="geo-validation",
         )
 
-    cache_params = {"accession": accession, "genes": sorted(genes)}
-    cached, hit = await cache.get("geo", cache_params)
-    if hit:
-        logger.info(f"GEO cache hit for {accession}")
-        return cached
-
     # Verify dataset exists via NCBI esearch
     try:
         dataset_info = await _verify_geo_accession(accession)
     except httpx.HTTPError as e:
         raise KiriExternalAPIError("GEO/NCBI", f"Failed to query GEO: {e}")
 
-    # Build expression data
-    # Full GEO matrix download (via GEOparse or FTP) is a heavy operation.
-    # For the MVP, we generate biologically calibrated synthetic data
-    # matching the known dataset characteristics.
-    result = _build_geo_expression(accession, genes)
-
-    await cache.set("geo", cache_params, result)
-    return result
+    # Kiri does not yet download and parse GEO series matrices. Until it does,
+    # it must not return numbers for a GEO dataset: an earlier version generated
+    # random values here that were tuned to agree with TCGA.
+    raise KiriDataUnavailableError(
+        "geo",
+        f"GEO dataset {accession} ({dataset_info['count']} NCBI record(s) found) cannot be "
+        "loaded yet: Kiri has no GEO expression download. No values were generated.",
+    )
 
 
 async def _verify_geo_accession(accession: str) -> dict:
@@ -118,82 +110,6 @@ async def _verify_geo_accession(accession: str) -> dict:
         "ncbi_ids": result.get("idlist", []),
         "count": count,
     }
-
-
-def _build_geo_expression(
-    accession: str,
-    genes: list[str],
-) -> dict[str, Any]:
-    """
-    Build expression matrix for a GEO dataset.
-
-    Generates biologically calibrated data matching known dataset characteristics.
-    Gene expression differences (PARL up / MAVS down in tumor) are consistent
-    with TCGA findings to enable cross-dataset validation.
-    """
-    dataset = SUPPORTED_DATASETS[accession]
-    n_samples = dataset["samples"]
-    rng = np.random.default_rng(hash(accession) % 2**32)
-
-    # Generate sample metadata
-    samples = []
-    for i in range(n_samples):
-        # ~80% tumor, ~20% normal in most CRC cohorts
-        is_tumor = rng.random() < 0.80
-        stage = ""
-        if accession == "GSE33113":
-            stage = "Stage II"  # All Stage II in this dataset
-        elif is_tumor:
-            stages = ["Stage I", "Stage II", "Stage III", "Stage IV"]
-            stage = rng.choice(stages, p=[0.15, 0.30, 0.35, 0.20])
-
-        samples.append(SampleMeta(
-            sample_id=f"{accession}_S{i+1:04d}",
-            sample_type="tumor" if is_tumor else "normal",
-            stage=str(stage),
-            msi_status=str(rng.choice(["MSI-H", "MSI-L", "MSS"], p=[0.15, 0.10, 0.75])),
-            project=accession,
-        ).model_dump())
-
-    # Generate expression values (microarray log2 scale, typically 4-14)
-    values: dict[str, list[float]] = {}
-    for gene in genes:
-        base = _get_microarray_base(gene)
-        gene_values = []
-        for s in samples:
-            if s["sample_type"] == "tumor":
-                if gene.upper() == "PARL":
-                    val = rng.normal(base + 1.2, 0.8)  # Upregulated
-                elif gene.upper() == "MAVS":
-                    val = rng.normal(base - 1.5, 0.7)  # Downregulated
-                else:
-                    val = rng.normal(base + 0.3, 0.9)
-            else:
-                val = rng.normal(base, 0.6)
-            gene_values.append(round(val, 3))
-        values[gene] = gene_values
-
-    return {
-        "genes": genes,
-        "samples": samples,
-        "values": values,
-        "normalization": "log2 (microarray)",
-        "source": f"GEO:{accession}",
-        "sample_count": n_samples,
-        "dataset_info": dataset,
-    }
-
-
-def _get_microarray_base(gene: str) -> float:
-    """Get typical microarray log2 expression baseline for known genes."""
-    known = {
-        "PARL": 8.5,
-        "MAVS": 7.8,
-        "DDX58": 6.2,
-        "IRF3": 9.1,
-        "IFNB1": 4.5,
-    }
-    return known.get(gene.upper(), 7.5)
 
 
 async def list_supported_datasets() -> list[dict]:

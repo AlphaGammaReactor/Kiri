@@ -4,7 +4,6 @@ Tests for Error Classes and Error Handling
 Verifies the KiriComputationError, KiriExternalAPIError, and KiriValidationError
 constructors and attribute access.
 """
-import pytest
 from app.core.errors import KiriComputationError, KiriExternalAPIError, KiriValidationError
 
 

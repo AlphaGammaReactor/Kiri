@@ -7,15 +7,12 @@ import pytest
 from app.models.clinical import (
     SurvivalRequest,
     CoxRequest,
-    RSFRequest,
     SynergyRequest,
     SurvivalCurveResult,
     AtRiskTable,
     SurvivalResult,
     HazardRatioResult,
     CoxResult,
-    FeatureImportance,
-    RSFResult,
     SynergyResult,
     CutpointMethod,
 )
@@ -49,17 +46,6 @@ class TestCoxRequest:
     def test_custom_covariates(self):
         req = CoxRequest(genes=["TP53"], covariates=["stage"])
         assert req.covariates == ["stage"]
-
-
-class TestRSFRequest:
-    def test_defaults(self):
-        req = RSFRequest(genes=["PARL"])
-        assert req.n_estimators == 100
-        assert req.max_depth == 5
-
-    def test_bounds(self):
-        with pytest.raises(Exception):
-            RSFRequest(genes=["PARL"], n_estimators=5)  # Below ge=10
 
 
 class TestSynergyRequest:
@@ -119,18 +105,6 @@ class TestResponseModels:
             n_events=35,
         )
         assert result.concordance_index == 0.72
-
-    def test_rsf_result(self):
-        result = RSFResult(
-            feature_importances=[
-                FeatureImportance(feature="PARL", importance=0.15),
-                FeatureImportance(feature="MAVS", importance=0.08),
-            ],
-            concordance_index=0.68,
-            n_samples=80,
-            n_estimators=100,
-        )
-        assert len(result.feature_importances) == 2
 
     def test_synergy_result(self):
         result = SynergyResult(

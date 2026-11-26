@@ -23,7 +23,7 @@ Create Project → Configure Data Sources → Run Analyses → Auto-Save → Sna
 
 | Feature | Description |
 |---|---|
-| **Create Project** | Name, description, target genes (default: PARL, MAVS), cancer type |
+| **Create Project** | Name, description, target genes, cancer type |
 | **Open Project** | Dashboard listing all projects with last-modified, gene targets, data source count |
 | **Auto-Save** | Every state change (filter toggle, gene add, analysis run) persists to backend |
 | **Snapshots** | Named point-in-time saves ("before adding GSE33113", "for paper draft v2") |
@@ -71,7 +71,7 @@ A dedicated page/panel where the user manages all data sources for the active pr
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  📦 Data Sources for "PARL-MAVS CRC Study"          │
+│  📦 Data Sources for "My Research Project"          │
 ├─────────────────────────────────────────────────────┤
 │                                                     │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────┐  │
