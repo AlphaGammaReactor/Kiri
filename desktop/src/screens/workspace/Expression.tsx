@@ -125,7 +125,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
     <>
       {stale && <OutOfDate onRun={run} />}
       <FigureCard svgRef={svgRef} fileName={title} chartName={t("expr.chart")} why={t("expr.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only}
-        caption={caption} notebookBody={() => ({ analysis_id: a.current?.id, kind: r.kind, gene: r.gene, p: r.test.p })}>
+        caption={caption} notebookBody={() => ({ analysis_id: a.current?.id, kind: r.kind, gene: r.gene, title, summary: plainExpression(r, t), checks: r.checks, meta: `${r.data_version.source} · ${r.data_version.built}` })}>
         <BoxPoints ref={svgRef} groups={groups} colors={colors} showPoints={points}
           labels={{ yTitle: `${r.gene} ${F.expr}`, group: groupLabel, stat: statLine, brackets }} />
       </FigureCard>

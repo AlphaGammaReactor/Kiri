@@ -177,8 +177,14 @@ def list_notes():
         op = ws().require()
     except KiriFileError as e:
         return JSONResponse(status_code=409, content={"error": e.code})
-    rows = op.con.execute("SELECT id, kind, body, pinned, created_at FROM notebook ORDER BY created_at")
-    return [{"id": r[0], "kind": r[1], "body": json.loads(r[2]), "pinned": bool(r[3]), "created_at": r[4]} for r in rows]
+    updated = dict(op.con.execute("SELECT id, updated_at FROM analyses").fetchall())
+    out = []
+    for r in op.con.execute("SELECT id, kind, body, pinned, created_at FROM notebook ORDER BY created_at"):
+        body = json.loads(r[2])
+        aid = body.get("analysis_id")
+        changed = bool(aid and aid in updated and updated[aid] > r[4])
+        out.append({"id": r[0], "kind": r[1], "body": body, "pinned": bool(r[3]), "created_at": r[4], "changed_since": changed})
+    return out
 
 
 # ── Saving a figure or table to a file the person picked in the Save dialog ──
@@ -205,3 +211,76 @@ def export_file(body: ExportBody):
     tmp.write_bytes(data)
     os.replace(tmp, p)
     return {"path": str(p), "bytes": len(data)}
+
+
+class NotePatch(BaseModel):
+    pinned: Optional[bool] = None
+    text: Optional[str] = None
+
+
+@router.patch("/notebook/{nid}")
+def patch_note(nid: str, body: NotePatch):
+    try:
+        op = ws().require()
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    if op.read_only:
+        return JSONResponse(status_code=409, content={"error": "read_only"})
+    r = op.con.execute("SELECT body FROM notebook WHERE id = ?", (nid,)).fetchone()
+    if not r:
+        return JSONResponse(status_code=404, content={"error": "not_found"})
+    if body.pinned is not None:
+        op.con.execute("UPDATE notebook SET pinned = ?, updated_at = ? WHERE id = ?", (int(body.pinned), now(), nid))
+    if body.text is not None:
+        b = json.loads(r[0]) | {"text": body.text}
+        op.con.execute("UPDATE notebook SET body = ?, updated_at = ? WHERE id = ?", (json.dumps(b, ensure_ascii=False), now(), nid))
+    try:
+        ws().autosave()
+    except KiriFileError:
+        pass
+    return {"ok": True}
+
+
+@router.delete("/notebook/{nid}")
+def delete_note(nid: str):
+    try:
+        op = ws().require()
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    if op.read_only:
+        return JSONResponse(status_code=409, content={"error": "read_only"})
+    op.con.execute("DELETE FROM notebook WHERE id = ?", (nid,))
+    try:
+        ws().autosave()
+    except KiriFileError:
+        pass
+    return {"ok": True}
+
+
+class ReportBody(BaseModel):
+    path: str
+    format: Literal["pdf", "html"]
+    title: str
+    ids: Optional[list[str]] = None  # entries to include (default: all)
+    labels: dict = Field(default_factory=dict)  # translated headings from the app
+
+
+@router.post("/notebook/export")
+def export_report(body: ReportBody):
+    from app.kiri import report
+
+    try:
+        op = ws().require()
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    p = Path(body.path).expanduser()
+    if p.suffix.lower() != f".{body.format}" or not p.is_absolute() or not p.parent.is_dir():
+        return JSONResponse(status_code=400, content={"error": "bad_export_path"})
+    notes = [n for n in list_notes() if body.ids is None or n["id"] in body.ids]
+    data = report.build(body.format, body.title, op.project(), notes, body.labels)
+    tmp = p.with_name(f".{p.name}.{uuid.uuid4().hex[:8]}.tmp")
+    tmp.write_bytes(data)
+    import os
+
+    os.replace(tmp, p)
+    return {"path": str(p), "bytes": len(data), "entries": len(notes)}

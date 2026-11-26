@@ -34,6 +34,8 @@ class TestSourceScan:
         allowed = {
             "services/cibersort.py",          # permutation null for the fit p-value
             "services/mito_coexpression.py",  # thins a scatter plot to 300 real points
+            "analyses/expression.py",         # bootstrap interval for the effect size (seeded)
+            "analyses/survival.py",           # bootstrap stability of the hazard ratio (seeded)
         }
         offenders = []
         for path in APP_DIR.rglob("*.py"):

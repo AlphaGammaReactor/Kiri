@@ -155,12 +155,12 @@ export function SideTabs({ explain, checks }: { explain: ReactNode; checks: Chec
   );
 }
 
-const CHECK_TITLE: Record<string, StringKey> = {
+export const CHECK_TITLE: Record<string, StringKey> = {
   data: "rel.t.data", enough: "rel.t.enough", assumptions: "rel.t.assumptions", multiple: "rel.t.multiple",
   effect: "rel.t.effect", stability: "rel.t.stability", replication: "rel.t.replication", reproducibility: "rel.t.reproducibility",
 };
 
-function fmtVars(v: Record<string, unknown>) {
+export function fmtVars(v: Record<string, unknown>) {
   const out: Record<string, string | number> = {};
   for (const [k, x] of Object.entries(v)) {
     if (x == null) out[k] = "–";

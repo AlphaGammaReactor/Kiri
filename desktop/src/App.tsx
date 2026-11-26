@@ -12,6 +12,7 @@ import { NewProject, type NewProjectData } from "./screens/NewProject";
 import { Overview } from "./screens/Overview";
 import { Survival } from "./screens/workspace/Survival";
 import { Expression } from "./screens/workspace/Expression";
+import { Notebook } from "./screens/Notebook";
 import { useSettings } from "./lib/settings";
 import { useEngine } from "./lib/engine";
 import { useUpdater } from "./lib/updater";
@@ -105,7 +106,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
     );
   }
 
-  const inProject = screen === "overview" || screen === "survival" || screen === "expression";
+  const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook";
   const docName = proj.project && inProject ? proj.project.file_name
     : screen === "home" ? t("home.title") : screen === "new" ? t("home.new") : screen === "settings" ? t("settings.title") : screen === "about" ? t("about.title") : "Kiri";
 
@@ -133,6 +134,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
           {screen === "overview" && proj.project && <Overview p={proj.project} notYet={notYet} />}
           {screen === "survival" && proj.project && <Survival key={`s-${proj.project.path}-${survGene}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} initialGene={survGene} />}
           {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
+          {screen === "notebook" && proj.project && <Notebook key={`n-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onOpenAnalysis={(k, g) => { if (k === "survival") setSurvGene(g ?? ""); setScreen(k === "survival" ? "survival" : "expression"); }} />}
           {screen === "settings" && <Settings s={settings} update={update} />}
           {screen === "about" && <About update={updater.state} onCheck={updater.check} engine={engine} />}
         </main>

@@ -57,7 +57,7 @@ export const KM = forwardRef<SVGSVGElement, { r: SurvivalResult; labels: KMLabel
       <text x={(L + W - R) / 2} y={T + PH + 32} fontSize={11} textAnchor="middle" fill={FIG.ink}>{labels.xTitle}</text>
       {(["low", "high"] as const).map((k) => (
         <g key={k}>
-          <path d={band(g[k].time, g[k].lo, g[k].hi, xmax, sx, sy)} fill={FIG[k]} opacity={0.13} />
+          <path d={band(g[k].time, g[k].lo, g[k].hi, xmax, sx, sy)} fill={FIG[k]} fillOpacity={0.13} stroke="none" />
           <path d={steps(g[k].time, g[k].surv, xmax, sx, sy)} fill="none" stroke={FIG[k]} strokeWidth={1.8} />
           {g[k].censor_times.map((t, i) => t <= xmax && (
             <line key={i} x1={sx(t)} x2={sx(t)} y1={sy(g[k].censor_surv[i]) - 3.5} y2={sy(g[k].censor_surv[i]) + 3.5} stroke={FIG[k]} strokeWidth={1.2} />

@@ -121,6 +121,25 @@ def test_api_runs_and_stores_in_the_kiri_file(tmp_path, monkeypatch):
     assert len(lst) == 1 and lst[0]["params"]["cut"] == "quartile"
     r = cl.post("/api/v1/kiri/analyses/run", json={"kind": "expression_tn", "gene": "NOPE"})
     assert r.status_code == 409 and r.json()["error"] in ("gene_not_in_cohort", "needs_download")
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect width="100" height="50" fill="#fff"/><text x="5" y="20">生存 KM</text></svg>'
+    r = cl.post("/api/v1/kiri/notebook", json={"kind": "figure", "body": {"analysis_id": rec["id"], "title": "Figure 1", "svg": svg,
+                                                                           "caption": "Figure 1. 测试", "checks": rec["result"]["checks"]}})
+    assert r.status_code == 200 and r.json()["count"] == 1
+    cl.post("/api/v1/kiri/notebook", json={"kind": "text", "body": {"text": "Ask about MSI 下周"}})
+    notes = cl.get("/api/v1/kiri/notebook").json()
+    assert len(notes) == 2 and notes[0]["changed_since"] is False
+    nid = notes[1]["id"]
+    assert cl.patch(f"/api/v1/kiri/notebook/{nid}", json={"pinned": True}).status_code == 200
+    for fmt in ("pdf", "html"):
+        r = cl.post("/api/v1/kiri/notebook/export", json={"path": str(tmp_path / f"report.{fmt}"), "format": fmt, "title": "PARL 报告"})
+        assert r.status_code == 200, r.text
+        assert r.json()["entries"] == 2
+    assert (tmp_path / "report.pdf").read_bytes()[:4] == b"%PDF"
+    assert "生存 KM" in (tmp_path / "report.html").read_text()
+    assert cl.delete(f"/api/v1/kiri/notebook/{nid}").status_code == 200
+    # Re-running the analysis marks the figure entry as changed since
+    cl.post("/api/v1/kiri/analyses/run", json={"kind": "survival", "gene": "G", "cut": "median", "replace": rec["id"]})
+    assert cl.get("/api/v1/kiri/notebook").json()[0]["changed_since"] is True
     cl.post("/api/v1/kiri/close")
     con = __import__("sqlite3").connect(tmp_path / "p.kiri")
     assert con.execute("SELECT COUNT(*) FROM analyses").fetchone()[0] == 1

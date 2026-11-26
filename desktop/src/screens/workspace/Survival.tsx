@@ -112,7 +112,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
       {stale && <OutOfDate onRun={run} />}
       <FigureCard svgRef={svgRef} fileName={title} chartName={t("surv.chart")} why={t("surv.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only}
         caption={t("surv.caption", { c: cohortLabel(r.data_version.projects), cut: cutText(r.cut).toLowerCase(), g: r.gene })}
-        notebookBody={() => ({ analysis_id: a.current?.id, kind: "survival", gene: r.gene, hr: r.cox.hr, p: pShown })}>
+        notebookBody={() => ({ analysis_id: a.current?.id, kind: "survival", gene: r.gene, title: `${t("surv.chart")} · ${title}`, summary: cox ? plainSurvival(r, cox, pShown, n, t) : "", checks: r.checks, meta: `${r.data_version.source} · ${r.data_version.built}` })}>
         <KM ref={svgRef} r={r} labels={{
           yTitle: F.osProb, xTitle: F.months, atRisk: F.atRisk, highShort: F.highShort, lowShort: F.lowShort,
           high: `${r.gene} ${F.high} (n = ${r.groups.high.n})`, low: `${r.gene} ${F.low} (n = ${r.groups.low.n})`,

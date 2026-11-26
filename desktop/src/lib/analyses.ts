@@ -31,6 +31,10 @@ export type Analysis<R = SurvivalResult | ExpressionResult | ErrorResult> = {
   id: string; kind: Kind; params: RunParams & { projects: string[] }; result: R; data_versions: DataVersion;
   created_at: string; updated_at: string; saved?: boolean;
 };
+export type Note = {
+  id: string; kind: "figure" | "text" | "result"; pinned: boolean; created_at: string; changed_since: boolean;
+  body: { analysis_id?: string; kind?: Kind; gene?: string; title?: string; summary?: string; caption?: string; svg?: string; text?: string; checks?: Check[]; meta?: string };
+};
 export type CohortStatus = { projects: string[]; sample_slice: string | null; packs: Record<string, { ready: boolean; state: string; done?: number; total?: number; file?: string; error?: string }> };
 
 async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
@@ -52,6 +56,11 @@ export const analyses = {
   cohort: () => call<CohortStatus>("/cohort"),
   download: (project: string) => call<CohortStatus["packs"][string]>(`/cohort/download?project=${encodeURIComponent(project)}`, "POST"),
   note: (kind: "figure" | "text" | "result", body: Record<string, unknown>) => call<{ id: string; count: number }>("/notebook", "POST", { kind, body }),
+  notes: () => call<Note[]>("/notebook"),
+  patchNote: (id: string, p: { pinned?: boolean; text?: string }) => call(`/notebook/${id}`, "PATCH", p),
+  deleteNote: (id: string) => call(`/notebook/${id}`, "DELETE"),
+  exportReport: (b: { path: string; format: "pdf" | "html"; title: string; labels: Record<string, string> }) =>
+    call<{ path: string; entries: number }>("/notebook/export", "POST", b),
   exportFile: (path: string, data: Uint8Array) => {
     let s = "";
     for (let i = 0; i < data.length; i += 0x8000) s += String.fromCharCode(...data.subarray(i, i + 0x8000));

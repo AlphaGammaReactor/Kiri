@@ -8,7 +8,7 @@ import type { StringKey } from "../i18n/strings";
 import type { EngineState } from "../lib/engine";
 import { APP_VERSION } from "../lib/platform";
 
-export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression";
+export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook";
 
 const Item = ({ icon, label, active, disabled, onClick, title }: { icon: ReactNode; label: string; active?: boolean; disabled?: boolean; onClick?: () => void; title?: string }) => (
   <button className="nav-item" aria-current={active ? "page" : undefined} disabled={disabled} onClick={onClick} title={title}>
@@ -32,8 +32,8 @@ export function Sidebar({ screen, onNav, engine, projectOpen, onLater }: { scree
     ["nav.bench", <FlaskConical {...ic} />],
     ["nav.optional", <SquarePlus {...ic} />],
   ];
-  const record: [StringKey, ReactNode][] = [
-    ["nav.notebook", <NotebookPen {...ic} />],
+  const record: [StringKey, ReactNode, Screen?][] = [
+    ["nav.notebook", <NotebookPen {...ic} />, "notebook"],
     ["nav.figureBoard", <LayoutPanelLeft {...ic} />],
     ["nav.data", <Database {...ic} />],
   ];
@@ -47,7 +47,9 @@ export function Sidebar({ screen, onNav, engine, projectOpen, onLater }: { scree
         ? <Item key={k} icon={i} label={t(k)} disabled={off} title={tip} active={screen === to} onClick={() => onNav(to)} />
         : <Item key={k} icon={i} label={t(k)} disabled={off} title={off ? tip : t("common.notYet")} onClick={onLater} />)}
       <div className="group">{t("nav.record")}</div>
-      {record.map(([k, i]) => <Item key={k} icon={i} label={t(k)} disabled={off} title={off ? tip : t("common.notYet")} onClick={onLater} />)}
+      {record.map(([k, i, to]) => to
+        ? <Item key={k} icon={i} label={t(k)} disabled={off} title={tip} active={screen === to} onClick={() => onNav(to)} />
+        : <Item key={k} icon={i} label={t(k)} disabled={off} title={off ? tip : t("common.notYet")} onClick={onLater} />)}
       <div className="foot">
         <span>
           <span className={`status-dot ${engine.status === "ready" ? "" : engine.status === "failed" ? "bad" : "warn"}`} />
