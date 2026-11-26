@@ -5,7 +5,7 @@ name: Sample project data
 on:
   push:
     branches: [claude/project-thread-btcqwn]
-    paths: ["backend/scripts/build_sample_slice.py", ".github/workflows/sample-data.yml"]
+    paths: ["backend/scripts/build_sample_slice.py", "backend/app/cohorts/**", ".github/workflows/sample-data.yml"]
   workflow_dispatch:
 
 permissions:
@@ -38,3 +38,33 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "Sample project data: TCGA slices built by CI"
           git push
+
+  pack:
+    name: Full cohort download works (as the app does it)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install the engine's packages
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Download TCGA-READ, convert it, run survival and expression on a gene not in the sample slice
+        working-directory: backend
+        run: |
+          uv run python - <<'PY'
+          import time, tempfile
+          from pathlib import Path
+          from app.cohorts import packs
+          from app.cohorts.store import cohort_for
+          from app.analyses import survival, expression
+          d = Path(tempfile.mkdtemp())
+          t = time.time()
+          packs.build_pack(d, "TCGA-READ", lambda k, a, b: None)
+          print("downloaded and converted in", round(time.time() - t), "s;", (packs.pack_dir(d, "TCGA-READ") / "ready.json").read_text())
+          c = cohort_for(["TCGA-READ"], ["EGFR"], d)
+          r = survival.run(c, "EGFR")
+          print("survival EGFR READ: n", r["groups"]["high"]["n"] + r["groups"]["low"]["n"], "HR", r["cox"]["hr"], "p", r["logrank"]["p"])
+          e = expression.tumour_vs_normal(c, "EGFR")
+          print("expression EGFR READ:", e.get("error") or (e["groups"][0]["n"], e["groups"][1]["n"], e["test"]["p"]))
+          PY

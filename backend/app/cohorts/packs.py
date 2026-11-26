@@ -23,8 +23,11 @@ import pandas as pd
 from app.cohorts.store import Cohort, CohortUnavailable
 
 # Tried in order. The hub's own address redirects to its file store.
-HUBS = ["https://gdc.xenahubs.net/download", "https://gdc-hub.s3.us-east-1.amazonaws.com/download"]
-FILES = {"expr": "{p}.star_tpm.tsv.gz", "survival": "{p}.survival.tsv", "clinical": "{p}.clinical.tsv.gz"}
+# Checked from GitHub Actions on 2026-11-26: the hub address redirects to a signed file-store link;
+# the file store itself refuses direct requests (403).
+HUBS = ["https://gdc.xenahubs.net/download"]
+# Each file is tried under these names in turn (the hub has used both plain and gzip names).
+FILES = {"expr": ["{p}.star_tpm.tsv.gz"], "survival": ["{p}.survival.tsv.gz", "{p}.survival.tsv"], "clinical": ["{p}.clinical.tsv.gz", "{p}.clinical.tsv"]}
 PROBEMAP = "gencode.v36.annotation.gtf.gene.probemap"
 
 
@@ -107,12 +110,21 @@ def build_pack(data_dir: Path, project: str, progress=None) -> None:
     d = pack_dir(data_dir, project)
     d.mkdir(parents=True, exist_ok=True)
     raw = {}
-    for key, pattern in FILES.items():
-        name = pattern.format(p=project)
-        dest = d / name
-        if not dest.exists():
-            _fetch(name, dest, (lambda a, b, k=key: progress(k, a, b)) if progress else None)
-        raw[key] = dest
+    for key, patterns in FILES.items():
+        names = [pt.format(p=project) for pt in patterns]
+        have = next((d / n for n in names if (d / n).exists()), None)
+        if have is None:
+            last: Exception | None = None
+            for n in names:
+                try:
+                    _fetch(n, d / n, (lambda a, b, k=key: progress(k, a, b)) if progress else None)
+                    have = d / n
+                    break
+                except httpx.HTTPStatusError as e:
+                    last = e
+            if have is None:
+                raise last or RuntimeError(key)
+        raw[key] = have
     probemap = data_dir / "cohorts" / PROBEMAP
     if not probemap.exists():
         _fetch(PROBEMAP, probemap)

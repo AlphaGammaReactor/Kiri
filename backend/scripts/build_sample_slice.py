@@ -147,8 +147,9 @@ def main(out: str) -> None:
         n_t = sum(s["type"] == "tumor" for s in data["samples"])
         n_n = sum(s["type"] == "normal" for s in data["samples"])
         print(f"{name}: {n_t} tumour, {n_n} normal samples, {len(data['genes'])} genes")
-        with gzip.open(out_dir / f"{name}.slice.json.gz", "wt", encoding="utf-8") as f:
-            json.dump(data, f, separators=(",", ":"))
+        # mtime=0 keeps the file identical when the data are, so CI only commits real changes.
+        raw = json.dumps(data, separators=(",", ":")).encode()
+        (out_dir / f"{name}.slice.json.gz").write_bytes(gzip.compress(raw, mtime=0))
 
 
 if __name__ == "__main__":
