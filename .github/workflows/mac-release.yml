@@ -1,11 +1,14 @@
 name: Mac app release
 
-# Push a tag like v0.1.0 to build Kiri for macOS on GitHub's Macs and publish it.
+# Raising the version in desktop/src-tauri/tauri.conf.json (and Cargo.toml and
+# package.json) and pushing builds Kiri for macOS on GitHub's Macs and publishes
+# release v<version>. Pushes that keep a version already released do nothing.
 # The release gets one .dmg per chip, the updater bundles with their signatures,
 # and latest.json, which installed copies of Kiri read to find updates.
 on:
   push:
-    tags: ["v*"]
+    branches: [main, claude/project-thread-btcqwn]
+    paths: ["desktop/**", "backend/app/**", "backend/uv.lock", ".github/workflows/mac-release.yml"]
 
 permissions:
   contents: write
@@ -15,8 +18,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  version:
+    name: Is this a new version?
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      new: ${{ steps.v.outputs.new }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          v=$(python3 -c "import json;print(json.load(open('desktop/src-tauri/tauri.conf.json'))['version'])")
+          echo "tag=v$v" >> "$GITHUB_OUTPUT"
+          if gh release view "v$v" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "new=false" >> "$GITHUB_OUTPUT"; echo "v$v is already released: nothing to do."
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"; echo "Building and releasing v$v."
+          fi
+
   build:
     name: Build (${{ matrix.arch }})
+    needs: version
+    if: needs.version.outputs.new == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -28,7 +53,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
-      VERSION: ${{ github.ref_name }}
+      VERSION: ${{ needs.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -126,11 +151,11 @@ jobs:
 
   publish:
     name: Publish the release
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ needs.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -148,12 +173,12 @@ jobs:
 
   update-test:
     name: Update from the previous release on a real Mac
-    needs: publish
+    needs: [version, publish]
     runs-on: macos-14
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ needs.version.outputs.tag }}
     steps:
       - name: Find the previous release
         id: prev
@@ -203,11 +228,11 @@ jobs:
 
   screenshots:
     name: Keep the screenshots
-    needs: [build, update-test]
-    if: always()
+    needs: [version, build, update-test]
+    if: always() && needs.version.outputs.new == 'true'
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ needs.version.outputs.tag }}
     steps:
       - uses: actions/download-artifact@v4
         with:
