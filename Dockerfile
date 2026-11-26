@@ -17,6 +17,10 @@ RUN npm run build
 
 # ── Stage 2: install Python dependencies from the lockfile ──
 FROM python:3.11-slim AS python-deps
+# pycairo (needed by svglib for SVG figures in PDF export) has no Linux wheel, so it compiles here.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc pkg-config libcairo2-dev \
+    && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir uv==0.11.32
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/opt/venv
 WORKDIR /build
@@ -34,9 +38,9 @@ ENV PYTHONUNBUFFERED=1 \
     KIRI_STATIC_DIR=/app/static \
     HOST=0.0.0.0
 
-# libgomp: OpenMP runtime needed by scikit-learn. gosu: drop root after fixing volume ownership.
+# libgomp: OpenMP runtime needed by scikit-learn. libcairo2: runtime for pycairo. gosu: drop root after fixing volume ownership.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 gosu \
+    && apt-get install -y --no-install-recommends libgomp1 libcairo2 gosu \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin kiri \
     && mkdir -p /data && chown kiri:kiri /data

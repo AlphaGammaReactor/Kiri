@@ -27,6 +27,8 @@ jobs:
           version: "0.11.32"
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
+      - name: System library for pycairo (no Linux wheel)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libcairo2-dev
       - name: Install exactly what the lockfile says
         run: uv sync --frozen --python 3.11
       - name: Lockfile matches pyproject.toml
