@@ -4,6 +4,8 @@ import { useT, type Lang } from "../i18n";
 
 type Props = {
   docName: string;
+  fileMenu?: { onVersion: () => void; onCopy: () => void; onClose: () => void } | null;
+  bare?: boolean;
   lang: Lang;
   level: "learn" | "expert";
   onLang: (l: Lang) => void;
@@ -18,12 +20,24 @@ type Props = {
 export function TitleBar(p: Props) {
   const { t } = useT();
   const [menu, setMenu] = useState(false);
+  const [fileMenu, setFileMenu] = useState(false);
+  if (p.bare) return <header className="titlebar" data-tauri-drag-region><span className="brand" data-tauri-drag-region>Kiri</span></header>;
   return (
     <header className="titlebar" data-tauri-drag-region>
       <span className="brand" data-tauri-drag-region>Kiri</span>
       <span className="sep" />
-      <span className="doc" data-tauri-drag-region>
-        <FileText size={15} strokeWidth={1.75} /> {p.docName}
+      <span style={{ position: "relative" }}>
+        <button className="doc" onClick={() => p.fileMenu && setFileMenu((m) => !m)} aria-haspopup={p.fileMenu ? "menu" : undefined}
+          style={{ border: 0, background: "transparent", padding: "4px 6px", borderRadius: 6, cursor: p.fileMenu ? "pointer" : "default" }}>
+          <FileText size={15} strokeWidth={1.75} /> {p.docName} {p.fileMenu && <ChevronDown size={13} />}
+        </button>
+        {fileMenu && p.fileMenu && (
+          <div className="menu" role="menu" style={{ left: 0, right: "auto", minWidth: 200 }} onMouseLeave={() => setFileMenu(false)}>
+            <button role="menuitem" onClick={() => { setFileMenu(false); p.fileMenu!.onVersion(); }}>{t("file.saveVersion")}</button>
+            <button role="menuitem" onClick={() => { setFileMenu(false); p.fileMenu!.onCopy(); }}>{t("file.saveCopy")}</button>
+            <button role="menuitem" onClick={() => { setFileMenu(false); p.fileMenu!.onClose(); }}>{t("file.close")}</button>
+          </div>
+        )}
       </span>
       <span className="saved"><Check size={14} color="var(--color-status-success)" /> {t("app.autosaved")}</span>
       <button className="search" onClick={p.onSearch} aria-label={t("app.search")}>

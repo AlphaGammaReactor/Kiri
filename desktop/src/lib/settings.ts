@@ -9,8 +9,11 @@ export type Settings = {
   figureLang: "en" | "zh";
   level: "learn" | "expert";
   autoUpdate: boolean;
+  firstRunDone: boolean;
+  purpose: "course" | "research" | "explore" | null;
+  familiarity: "new" | "class" | "often" | null;
 };
-const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true };
+const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true, firstRunDone: false, purpose: null, familiarity: null };
 
 type StoreLike = { get<T>(k: string): Promise<T | undefined>; set(k: string, v: unknown): Promise<void>; save(): Promise<void> };
 let storePromise: Promise<StoreLike | null> | null = null;

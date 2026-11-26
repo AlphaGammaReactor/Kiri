@@ -10,7 +10,14 @@ export type EngineState =
 type Info = { port: number; token: string; status: "starting" | "ready" | "failed"; message?: string | null };
 let info: Info | null = null;
 
+// Browser preview only (screenshot tests): VITE_KIRI_ENGINE="port:token" points at an engine started by hand.
+const previewEngine = import.meta.env.VITE_KIRI_ENGINE as string | undefined;
+
 async function getInfo(): Promise<Info> {
+  if (!isTauri && previewEngine) {
+    const [port, token] = previewEngine.split(":");
+    return { port: Number(port), token, status: "ready" };
+  }
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<Info>("engine_info");
 }
@@ -25,7 +32,7 @@ export async function engineFetch(path: string, init: RequestInit = {}) {
 export function useEngine(): EngineState {
   const [state, setState] = useState<EngineState>({ status: "starting" });
   useEffect(() => {
-    if (!isTauri) {
+    if (!isTauri && !previewEngine) {
       setState({ status: "failed", message: "browser preview: no engine" });
       return;
     }

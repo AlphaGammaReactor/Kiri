@@ -1,30 +1,44 @@
 import type React from "react";
-import { Compass, Search, Folder, FileText, Activity, Table2, BookOpen, Play } from "lucide-react";
+import { Compass, Search, Folder, FileText, Activity, Table2, BookOpen, Play, TriangleAlert, MoreHorizontal } from "lucide-react";
+import type { RecentItem, TemplateId } from "../lib/api";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
 
-export function Home({ notYet }: { notYet: () => void }) {
-  const { t } = useT();
+export type HomeActions = {
+  notYet: () => void; onOpenFile: () => void; onNew: (tpl?: TemplateId) => void; onSample: () => void;
+  onOpenRecent: (path: string) => void; onLocate: (item: RecentItem) => void; onForget: (path: string) => void;
+};
+
+export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
+  const { t, lang } = useT();
+  const notYet = a.notYet;
+  const when = (iso: string) => {
+    const d = new Date(iso), now = new Date();
+    const loc = lang === "en" ? "en-GB" : "zh-CN";
+    if (d.toDateString() === now.toDateString()) return t("home.today", { t: d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" }) });
+    if (new Date(now.getTime() - 864e5).toDateString() === d.toDateString()) return t("home.yesterday");
+    return d.toLocaleDateString(loc, { day: "numeric", month: "short" });
+  };
   const qs: StringKey[] = ["home.show.q1", "home.show.q2", "home.show.q3", "home.show.q4", "home.show.q5", "home.show.q6"];
   const checks: StringKey[] = ["home.check.run", "home.check.save", "home.check.reliable", "home.check.word", "home.check.version", "home.check.glossary"];
   const tuts: [StringKey, number][] = [["home.tut.1", 8], ["home.tut.2", 6], ["home.tut.3", 7], ["home.tut.4", 9], ["home.tut.5", 10], ["home.tut.6", 8]];
-  const tpls: [StringKey, StringKey, React.JSX.Element][] = [
-    ["home.tpl.blank", "home.tpl.blank.sub", <FileText size={16} />],
-    ["home.tpl.one", "home.tpl.one.sub", <Search size={16} />],
-    ["home.tpl.two", "home.tpl.two.sub", <Activity size={16} />],
-    ["home.tpl.table", "home.tpl.table.sub", <Table2 size={16} />],
-    ["home.tpl.course", "home.tpl.course.sub", <BookOpen size={16} />],
+  const tpls: [StringKey, StringKey, React.JSX.Element, TemplateId][] = [
+    ["home.tpl.blank", "home.tpl.blank.sub", <FileText size={16} />, "blank"],
+    ["home.tpl.one", "home.tpl.one.sub", <Search size={16} />, "one_gene"],
+    ["home.tpl.two", "home.tpl.two.sub", <Activity size={16} />, "two_gene"],
+    ["home.tpl.table", "home.tpl.table.sub", <Table2 size={16} />, "own_table"],
+    ["home.tpl.course", "home.tpl.course.sub", <BookOpen size={16} />, "course"],
   ];
   return (
     <div className="home">
       <div className="home-head">
         <div>
           <h1 className="page">{t("home.title")}</h1>
-          <div className="sub">{t("home.subEmpty")}</div>
+          <div className="sub">{recent.length ? t("home.subReturning") : t("home.subEmpty")}</div>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn" onClick={notYet}>{t("home.open")}</button>
-          <button className="btn primary" onClick={notYet}>{t("home.new")}</button>
+          <button className="btn" onClick={a.onOpenFile}>{t("home.open")}</button>
+          <button className="btn primary" onClick={() => a.onNew()}>{t("home.new")}</button>
         </div>
       </div>
       <div className="home-grid">
@@ -48,24 +62,47 @@ export function Home({ notYet }: { notYet: () => void }) {
               <span className="eyebrow">{t("home.recent")}</span>
               <span className="muted" style={{ fontSize: 11.5 }}>{t("home.dragHint")}</span>
             </div>
+            {recent.length === 0 ? (
             <div className="empty">
               <Folder size={26} strokeWidth={1.5} color="var(--color-text-secondary)" />
               <div className="empty-title">{t("home.empty.title")}</div>
               <p>{t("home.empty.body")}</p>
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                <button className="btn primary" onClick={notYet}>{t("home.empty.sample")}</button>
-                <button className="btn" onClick={notYet}>{t("home.empty.gene")}</button>
+                <button className="btn primary" onClick={a.onSample}>{t("home.empty.sample")}</button>
+                <button className="btn" onClick={() => a.onNew("one_gene")}>{t("home.empty.gene")}</button>
               </div>
             </div>
+            ) : (
+              <ul className="recent-list">
+                {recent.map((r) => r.exists ? (
+                  <li key={r.path}>
+                    <button className="recent-row" onClick={() => a.onOpenRecent(r.path)}>
+                      <span className="file-icon"><FileText size={17} /></span>
+                      <span className="recent-text"><b>{r.name}.kiri</b><span className="mono path">{r.path}</span></span>
+                      {r.review ? <span className="badge">● {t("home.badge.review")}</span> : r.template === "course" ? <span className="badge ok">● {t("home.badge.course")}</span> : null}
+                      <span className="mono muted when">{when(r.opened_at)}</span>
+                      <span className="icon-btn" role="button" aria-label={t("home.remove")} title={t("home.remove")} onClick={(e) => { e.stopPropagation(); a.onForget(r.path); }}><MoreHorizontal size={16} /></span>
+                    </button>
+                  </li>
+                ) : (
+                  <li key={r.path} className="recent-missing">
+                    <span className="file-icon warn"><TriangleAlert size={17} /></span>
+                    <span className="recent-text"><b>{r.name}.kiri</b><span className="warn-text">{t("home.missing", { p: r.path })}</span></span>
+                    <button className="btn" onClick={() => a.onLocate(r)}>{t("home.locate")}</button>
+                    <button className="btn ghost muted-link" onClick={() => a.onForget(r.path)}>{t("home.remove")}</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
           <div>
             <div className="eyebrow" style={{ margin: "4px 0 8px" }}>{t("home.templates")}</div>
             <div className="templates">
-              {tpls.map(([a, b, icon]) => (
-                <button key={a} className="tpl" onClick={notYet}>
+              {tpls.map(([k, sub, icon, id]) => (
+                <button key={k} className="tpl" onClick={() => a.onNew(id)}>
                   <span style={{ color: "var(--color-accent-text)" }}>{icon}</span>
-                  <b>{t(a)}</b>
-                  <span className="muted">{t(b)}</span>
+                  <b>{t(k)}</b>
+                  <span className="muted">{t(sub)}</span>
                 </button>
               ))}
             </div>
