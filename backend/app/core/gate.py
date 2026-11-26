@@ -49,6 +49,9 @@ def _verification_files(spec: str) -> dict[str, bytes]:
 VERIFICATION_FILES = _verification_files(settings.KIRI_VERIFICATION_FILES)
 
 _PAGE = (Path(__file__).parent / "gate_page.html").read_text(encoding="utf-8")
+# The mascot on the password page. Public artwork, so it is served before the password.
+GATE_IMAGE_PATH = "/gate/kiri.jpg"
+_GATE_IMAGE = (Path(__file__).parent / "gate_kiri.jpg").read_bytes()
 
 
 def _signing_key() -> bytes:
@@ -152,7 +155,7 @@ async def _send(send, status: int, body: bytes, content_type: str, extra: list[t
         (b"referrer-policy", b"no-referrer"),
         (
             b"content-security-policy",
-            b"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+            b"default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
         ),
     ]
     await send({"type": "http.response.start", "status": status, "headers": headers + (extra or [])})
@@ -184,6 +187,9 @@ class AccessGateMiddleware:
 
         if method in ("GET", "HEAD") and path in VERIFICATION_FILES:
             return await _send(send, 200, VERIFICATION_FILES[path], "text/plain")
+
+        if method in ("GET", "HEAD") and path == GATE_IMAGE_PATH:
+            return await _send(send, 200, _GATE_IMAGE, "image/jpeg")
 
         if path in OPEN_PATHS:
             if path == "/robots.txt":

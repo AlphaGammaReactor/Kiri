@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     KIRI_ACCESS_LOCKOUT_MINUTES: int = 15
     # Folder with the built frontend (index.html). Served by the API when present.
     KIRI_STATIC_DIR: str = ""
+    # Product website (app.site): folder of built pages, and the GitHub repo whose releases hold the .dmg.
+    KIRI_SITE_DIR: str = "website/public"
+    KIRI_RELEASE_REPO: str = "AlphaGammaReactor/Kiri"
 
     # Where Kiri keeps its database, cache, uploads and user-installed reference
     # files (for example signatures/LM22.txt). On Railway this is the volume.

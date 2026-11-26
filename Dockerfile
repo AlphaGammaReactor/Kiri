@@ -36,6 +36,7 @@ ENV PYTHONUNBUFFERED=1 \
     KIRI_SERVER_MODE=true \
     KIRI_DATA_DIR=/data \
     KIRI_STATIC_DIR=/app/static \
+    KIRI_SITE_DIR=/app/website/public \
     HOST=0.0.0.0
 
 # libgomp: OpenMP runtime needed by scikit-learn. libcairo2: runtime for pycairo. gosu: drop root after fixing volume ownership.
@@ -49,6 +50,8 @@ WORKDIR /app
 COPY --from=python-deps /opt/venv /opt/venv
 COPY backend/app ./app
 COPY --from=frontend /build/dist ./static
+# The product website (static pages, built by website/src/build.py). Served when KIRI_ASGI_APP=app.site:app.
+COPY website/public ./website/public
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
 
@@ -59,5 +62,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
     CMD python -c "import os,urllib.request as u; u.urlopen('http://127.0.0.1:%s/api/health' % os.environ.get('PORT','8000'), timeout=4)" || exit 1
 
 ENTRYPOINT ["docker-entrypoint.sh"]
+# KIRI_ASGI_APP picks what this container serves: app.main:app (the web app, default)
+# or app.site:app (the password-gated product website).
 # One worker: the job list, cache and sign-in lockouts live in this process.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "exec uvicorn ${KIRI_ASGI_APP:-app.main:app} --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips='*'"]
