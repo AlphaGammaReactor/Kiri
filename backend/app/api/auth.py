@@ -7,6 +7,7 @@ Endpoints for user registration, login, token refresh, logout, and profile.
 from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from datetime import datetime, timezone
@@ -105,6 +106,31 @@ def _user_dict(user: User) -> dict:
         "email": user.email,
         "display_name": user.display_name,
     }
+
+
+GUEST_EMAIL = "tester@kiri.invalid"
+
+
+async def _guest_user(db: AsyncSession) -> User:
+    """The one shared account of the hosted test build.
+
+    There the shared access password is the only sign-in, so everybody who
+    got past it works as this user. Its password field can never match.
+    """
+    result = await db.execute(select(User).where(User.email == GUEST_EMAIL))
+    user = result.scalar_one_or_none()
+    if user is None:
+        user = User(email=GUEST_EMAIL, display_name="Tester", hashed_password="!")
+        db.add(user)
+        try:
+            await db.commit()
+        except IntegrityError:  # another request created it first
+            await db.rollback()
+            result = await db.execute(select(User).where(User.email == GUEST_EMAIL))
+            user = result.scalar_one()
+        else:
+            await db.refresh(user)
+    return user
 
 
 # ── Endpoints ──
@@ -210,6 +236,11 @@ async def refresh(
     db: AsyncSession = Depends(get_db),
 ):
     """Rotate access token using the refresh token cookie."""
+    if settings.KIRI_SERVER_MODE:
+        # Test build: the access gate already let this person in. No second sign-in.
+        guest = await _guest_user(db)
+        return TokenResponse(access_token=create_access_token(str(guest.id)), user=_user_dict(guest))
+
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

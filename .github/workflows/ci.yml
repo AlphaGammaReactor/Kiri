@@ -97,6 +97,8 @@ jobs:
           curl -s -c jar -o /dev/null -d 'password=ci-only-password-not-a-secret' http://127.0.0.1:8000/gate/login
           curl -fsS -b jar http://127.0.0.1:8000/api/v1/meta | grep '"server_mode":true'
           curl -fsS -b jar http://127.0.0.1:8000/ | grep -qi '<div id="root"'
+          # Past the gate there is no second sign-in: the app gets the shared tester account.
+          curl -fsS -b jar -X POST http://127.0.0.1:8000/api/v1/auth/refresh | grep -q '"access_token"'
           docker exec kiri sh -c 'grep "^Uid:" /proc/1/status' | grep -q 10001
       - name: Container logs
         if: always()
