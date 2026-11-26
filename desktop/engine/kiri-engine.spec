@@ -21,6 +21,20 @@ for root, _dirs, files in os.walk(os.path.join(BACKEND, "app")):
             src = os.path.join(root, f)
             datas.append((src, os.path.relpath(root, BACKEND)))
 
+# Matplotlib (pulled in by lifelines) scans every system font on first import, which takes
+# minutes on a Mac. Kiri draws no figures with it, so ship a font list of its own bundled
+# fonts; the engine copies it into place before anything imports matplotlib.
+import matplotlib
+import matplotlib.font_manager as fm
+
+_mpl_data = os.path.abspath(matplotlib.get_data_path())
+fm.fontManager.ttflist = [f for f in fm.fontManager.ttflist if os.path.abspath(f.fname).startswith(_mpl_data)]
+fm.fontManager.afmlist = [f for f in fm.fontManager.afmlist if os.path.abspath(f.fname).startswith(_mpl_data)]
+os.makedirs(os.path.join(SPECPATH, "build"), exist_ok=True)
+_fontlist = os.path.join(SPECPATH, "build", f"fontlist-v{fm.FontManager.__version__}.json")
+fm.json_dump(fm.fontManager, _fontlist)
+datas.append((_fontlist, "kiri_mpl"))
+
 a = Analysis(
     [os.path.join(SPECPATH, "kiri_engine.py")],
     pathex=[BACKEND],
