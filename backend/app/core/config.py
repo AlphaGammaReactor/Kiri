@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Hosted test build (see module docstring)
     KIRI_SERVER_MODE: bool = False
     KIRI_ACCESS_PASSWORD: str = ""
+    # Domain-ownership files some services ask for (WeChat, search consoles), served
+    # at the site root outside the password gate. "name.txt:content;other.txt:content"
+    KIRI_VERIFICATION_FILES: str = ""
     # Days a browser stays signed in to the test build after entering the password
     KIRI_ACCESS_SESSION_DAYS: int = 7
     # Wrong passwords allowed per address before a lockout

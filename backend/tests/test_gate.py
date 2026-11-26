@@ -176,3 +176,11 @@ class TestSettingsFailClosed:
     def test_default_database_is_sqlite_in_the_data_folder(self, tmp_path):
         s = Settings(KIRI_DATA_DIR=str(tmp_path), _env_file=None)
         assert s.is_sqlite and s.DATABASE_URL.endswith("/kiri.db")
+
+
+def test_verification_files_parse_only_plain_tokens():
+    from app.core.gate import _verification_files
+
+    files = _verification_files("abc123.txt:tok_en-1; ../x.txt:a ;robots.txt:a;b.html:a;c.txt:<script>")
+    assert files == {"/abc123.txt": b"tok_en-1"}
+    assert _verification_files("") == {}

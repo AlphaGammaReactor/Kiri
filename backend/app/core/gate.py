@@ -19,6 +19,7 @@ later. It is deliberately not a FastAPI dependency that each route must opt in t
 import hashlib
 import hmac
 import json
+import re
 import time
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -30,6 +31,22 @@ LOGIN_PATH = "/gate/login"
 LOGOUT_PATH = "/gate/logout"
 OPEN_PATHS = {"/api/health", "/robots.txt"}
 MAX_BODY_BYTES = 4096
+
+_VERIFY_NAME = re.compile(r"[A-Za-z0-9_.-]{1,80}\.txt")
+_VERIFY_BODY = re.compile(r"[A-Za-z0-9_-]{1,200}")
+
+
+def _verification_files(spec: str) -> dict[str, bytes]:
+    """Parse KIRI_VERIFICATION_FILES. Only plain tokens in root-level .txt files."""
+    files: dict[str, bytes] = {}
+    for item in spec.split(";"):
+        name, _, body = item.strip().partition(":")
+        if _VERIFY_NAME.fullmatch(name) and _VERIFY_BODY.fullmatch(body) and name != "robots.txt":
+            files["/" + name] = body.encode()
+    return files
+
+
+VERIFICATION_FILES = _verification_files(settings.KIRI_VERIFICATION_FILES)
 
 _PAGE = (Path(__file__).parent / "gate_page.html").read_text(encoding="utf-8")
 
@@ -164,6 +181,9 @@ class AccessGateMiddleware:
         path = scope.get("path", "")
         method = scope.get("method", "GET")
         headers = _headers(scope)
+
+        if method in ("GET", "HEAD") and path in VERIFICATION_FILES:
+            return await _send(send, 200, VERIFICATION_FILES[path], "text/plain")
 
         if path in OPEN_PATHS:
             if path == "/robots.txt":
