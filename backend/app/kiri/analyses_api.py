@@ -17,7 +17,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app.analyses import correlation, de, expression, pathways, survival
+from app.analyses import across, correlation, de, expression, pathways, survival
 from app.analyses.genesets import GENESETS
 from app.cohorts import packs
 from app.cohorts.store import CohortUnavailable, cohort_for, slice_for
@@ -40,7 +40,7 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "de", "signature"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "de", "signature", "across"]
     gene: str = ""
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal"] = "median"
@@ -57,6 +57,8 @@ class RunBody(BaseModel):
     lfc: float = Field(1.0, ge=0, le=10)
     q: float = Field(0.05, gt=0, le=0.25)
     library: Literal["hallmark", "reactome"] = "hallmark"
+    # Expression across cancers
+    normal: Literal["tcga", "tcga_gtex"] = "tcga_gtex"
 
 
 def _row(r) -> dict:
@@ -156,6 +158,11 @@ def analysis_rows(aid: str):
     if not r:
         return JSONResponse(status_code=404, content={"error": "not_found"})
     params = json.loads(r[1])
+    if r[0] == "across":
+        try:
+            return across.rows(params["gene"], _data_dir(), params.get("normal", "tcga_gtex"))
+        except CohortUnavailable as e:
+            return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
     genes = [g for g in [params.get("gene")] + ([params["gene2"]] if params.get("gene2") else []) if g]
     try:
         projects = params.get("projects") or _projects(op.project())
@@ -189,6 +196,15 @@ def run(body: RunBody):
         gene = ""
     if body.kind != "de" and not gene:
         return JSONResponse(status_code=400, content={"error": "needs_gene"})
+    if body.kind == "across":
+        # Every TCGA cancer plus GTEx, from the Toil recompute: independent of the project's own cohort.
+        try:
+            with _run_lock:
+                result = across.run(gene, _data_dir(), body.normal)
+        except CohortUnavailable as e:
+            return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
+        params = {"kind": "across", "gene": gene, "normal": body.normal, "projects": result["data_version"]["projects"]}
+        return _store(op, body, params, result, result["data_version"])
     own = own_dataset_of(op.project())
     projects = [own] if own else _projects(op.project())
     if not projects:
@@ -233,7 +249,7 @@ def run(body: RunBody):
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
 
-    exclude = {"replace", "check_only"} | (set() if body.kind == "de" else {"compare", "group_a", "group_b", "lfc", "q", "library"})
+    exclude = {"replace", "check_only", "normal"} | (set() if body.kind == "de" else {"compare", "group_a", "group_b", "lfc", "q", "library"})
     params = body.model_dump(exclude=exclude) | {"gene": gene, "projects": projects}
     if body.kind == "correlation":
         params["gene2"] = gene2
@@ -244,8 +260,12 @@ def run(body: RunBody):
         params.pop("members", None)
     elif body.set_id != "custom":
         params["members"] = []
+    return _store(op, body, params, result, c.data_version())
+
+
+def _store(op, body, params: dict, result: dict, dv: dict):
     record = {"id": body.replace or uuid.uuid4().hex, "kind": body.kind, "params": params, "result": result,
-              "data_versions": c.data_version(), "created_at": now(), "updated_at": now()}
+              "data_versions": dv, "created_at": now(), "updated_at": now()}
     if body.check_only:
         record["saved"] = False
         return record

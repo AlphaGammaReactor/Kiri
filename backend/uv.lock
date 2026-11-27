@@ -865,6 +865,7 @@ dependencies = [
     { name = "structlog" },
     { name = "svglib" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "xenapython" },
 ]
 
 [package.optional-dependencies]
@@ -916,6 +917,7 @@ requires-dist = [
     { name = "structlog", specifier = ">=24.4" },
     { name = "svglib", specifier = ">=1.5,<2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34,<0.35" },
+    { name = "xenapython", specifier = "==1.0.14" },
 ]
 provides-extras = ["ai", "server"]
 
@@ -2168,6 +2170,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7d/0a/ab645f8b4c594cac2db49bbc805bff97a9d3f2944061b865f67e0351b6c8/wrapt-2.5.2-cp312-cp312-win_amd64.whl", hash = "sha256:36021ef761856bdbc10d5f3da9a95af93ef60d6acf9c72c8f849937ba2b902aa", size = 106220, upload-time = "2026-10-29T23:04:58.081Z" },
     { url = "https://files.pythonhosted.org/packages/37/1e/232868b68b925ab29ca5acbec4ad54ee42a853fcd8f596bf7e0e0e3850f1/wrapt-2.5.2-cp312-cp312-win_arm64.whl", hash = "sha256:81bdf0bd141d9b1706a0751b2ee068c7afe6be4042712d427b32b3072d5c40b9", size = 103377, upload-time = "2026-10-29T23:04:59.366Z" },
     { url = "https://files.pythonhosted.org/packages/77/8b/1ea57b936b70f98e8e7620a352578096d778dbee95b262f73c066d210ffb/wrapt-2.5.2-py3-none-any.whl", hash = "sha256:61eb54e9540ea522c2c4752a57549a83d3c67e6704ed708403d28e067aaf90f0", size = 82025, upload-time = "2026-10-29T23:06:38.56Z" },
+]
+
+[[package]]
+name = "xenapython"
+version = "1.0.14"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/85/15b73c554875aff11a1d3ea3a3c0678f1a63908f007e83ced7cc9bfd4933/xenaPython-1.0.14.tar.gz", hash = "sha256:87156a011a0a6f15d9a8ec7a7361ffd34902a8ddaa450b8cd219720250437e78", size = 14781, upload-time = "2020-04-09T06:23:53.684Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c9/e4/b212e365bba325aa9c879ea76f84ddf0a3989dcd112ebb37cdfaf39e2ece/xenaPython-1.0.14-py3-none-any.whl", hash = "sha256:fda4350b14c3d77195cc65349be5d760b117dafb1e3eda37d1dcc880b665ddb9", size = 30548, upload-time = "2020-04-09T06:23:52.271Z" },
 ]
 
 [[package]]
