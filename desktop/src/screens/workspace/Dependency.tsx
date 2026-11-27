@@ -2,6 +2,7 @@
 // cancer lineage and in every other? From the DepMap CRISPR screens, bundled with Kiri (works offline).
 import { useCallback, useRef, useState } from "react";
 import { useT } from "../../i18n";
+import type { StringKey } from "../../i18n/strings";
 import type { ProjectSummary } from "../../lib/api";
 import { fmt, type DependencyResult } from "../../lib/analyses";
 import { Dependency as DepChart } from "../../charts/Dependency";
@@ -106,6 +107,7 @@ export function Dependency({ p, figLang, onFigLang, say, onLater, onGuide }: {
         <p className="plain">{plain}</p>
         <p className="small">{t("dep.note")}</p>
       </div>
+      {r.opentargets && <OpenTargetsCard ot={r.opentargets} gene={r.gene} />}
       <Method title={t("dep.method.title")} body={t("dep.method.body")} cite={r.data_version.cite} />
     </>
   ) : (
@@ -128,4 +130,27 @@ export function plainDependency(r: DependencyResult, t: ReturnType<typeof useT>[
   const top = r.rows[0];
   return top && !r.common_essential && (top.median ?? 0) <= -0.5 && top.lineage !== f?.lineage
     ? `${s} ${t("dep.plain.top", { l: linLabel(top.lineage, zh), m: fmt(top.median) })}` : s;
+}
+
+const OT_TYPES = ["somatic_mutation", "genetic_association", "known_drug", "affected_pathway", "rna_expression", "literature", "animal_model"] as const;
+
+/** Open Targets: how strongly the gene is linked to the project's cancer, and by which kinds of evidence. */
+function OpenTargetsCard({ ot, gene }: { ot: NonNullable<DependencyResult["opentargets"]>; gene: string }) {
+  const { t } = useT();
+  return (
+    <div className="side-card ot-card">
+      <span className="eyebrow">{t("ot.title")}</span>
+      {ot.score == null ? <p className="small">{t("ot.none", { g: gene, d: ot.disease, m: ot.min_score })}</p> : <>
+        <div className="row-between"><span className="small">{ot.disease}</span><b className="mono">{fmt(ot.score)}</b></div>
+        <p className="small muted">{t("ot.rank", { r: ot.rank ?? 0, n: ot.linked.toLocaleString() })}</p>
+        <table className="mini"><tbody>
+          {OT_TYPES.filter((k) => ot.types[k] != null).map((k) => (
+            <tr key={k}><td>{t(`ot.type.${k}` as StringKey)}</td><td className="ot-bar"><span style={{ width: `${Math.round((ot.types[k] ?? 0) * 100)}%` }} /></td><td className="mono">{fmt(ot.types[k])}</td></tr>
+          ))}
+        </tbody></table>
+        <p className="small muted">{t("ot.note")}</p>
+      </>}
+      <div className="mono small muted">{ot.release} · CC0</div>
+    </div>
+  );
 }

@@ -61,7 +61,8 @@ export type AcrossResult = {
 };
 export type DependencyRow = { lineage: string; n: number; q10: number | null; q25: number | null; median: number | null; q75: number | null; q90: number | null; dep: number | null; mine: boolean };
 export type DependencyResult = {
-  kind: "dependency"; gene: string; rows: DependencyRow[]; cut: number; focus: DependencyRow | null; common_essential: boolean;
+  kind: "dependency"; gene: string; rows: DependencyRow[];
+  opentargets: { cancer: string; disease: string; disease_id?: string; linked: number; release: string; cite: string; min_score: number; score: number | null; rank: number | null; types: Record<string, number> } | null; cut: number; focus: DependencyRow | null; common_essential: boolean;
   all: { n: number; median: number | null; dep: number | null; q10: number | null; q90: number | null }; checks: Check[];
   data_version: DataVersion & { cite: string; renamed?: Record<string, string> };
 };

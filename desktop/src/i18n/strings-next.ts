@@ -1036,6 +1036,17 @@ export const enNext = {
   "errw.gene_not_screened.what": "{gene} was not in the DepMap screens",
   "errw.gene_not_screened.why": "The CRISPR library leaves out some genes, and a few results do not pass DepMap's quality checks.",
   "errw.gene_not_screened.todo": "Check the gene name, or look at its expression and survival instead.",
+  "ot.title": "Linked to this cancer · Open Targets",
+  "ot.none": "{g} has no association with {d} above {m} in Open Targets.",
+  "ot.rank": "Rank {r} of {n} genes linked to it.",
+  "ot.note": "Scores run from 0 to 1 and combine published evidence. A high score says the link is well studied, not that the gene causes the cancer.",
+  "ot.type.somatic_mutation": "Somatic mutations",
+  "ot.type.genetic_association": "Inherited genetics",
+  "ot.type.known_drug": "Drugs in trials",
+  "ot.type.affected_pathway": "Pathways",
+  "ot.type.rna_expression": "RNA expression",
+  "ot.type.literature": "Literature",
+  "ot.type.animal_model": "Animal models",
 } as const;
 
 export const zhNext: Record<keyof typeof enNext, string> = {
@@ -2073,4 +2084,15 @@ export const zhNext: Record<keyof typeof enNext, string> = {
   "errw.gene_not_screened.what": "{gene} 不在 DepMap 筛选中",
   "errw.gene_not_screened.why": "CRISPR 文库未包含部分基因，少数结果也未通过 DepMap 的质量检查。",
   "errw.gene_not_screened.todo": "请检查基因名称，或改看它的表达与生存分析。",
+  "ot.title": "与此癌症的关联 · Open Targets",
+  "ot.none": "在 Open Targets 中，{g} 与 {d} 的关联未超过 {m}。",
+  "ot.rank": "在与之关联的 {n} 个基因中排第 {r}。",
+  "ot.note": "评分从 0 到 1，综合已发表的证据。高分表示这一关联研究充分，而不表示该基因导致癌症。",
+  "ot.type.somatic_mutation": "体细胞突变",
+  "ot.type.genetic_association": "遗传关联",
+  "ot.type.known_drug": "临床试验药物",
+  "ot.type.affected_pathway": "通路",
+  "ot.type.rna_expression": "RNA 表达",
+  "ot.type.literature": "文献",
+  "ot.type.animal_model": "动物模型",
 };

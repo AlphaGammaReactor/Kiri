@@ -41,3 +41,17 @@ def test_alias_and_unknown(table):
 
 def test_lineage_map():
     assert dependency.lineages_for(["TCGA-COAD", "TCGA-READ"]) == ["Bowel"]
+
+
+def test_opentargets_evidence(tmp_path, monkeypatch):
+    from app.analyses import opentargets as ot
+    pd.DataFrame([{"cancer": "COADREAD", "gene": "APC", "score": 0.9, "somatic_mutation": 0.95, "literature": 0.8},
+                  {"cancer": "COADREAD", "gene": "KRAS", "score": 0.85, "somatic_mutation": 0.9, "literature": 0.0},
+                  {"cancer": "BRCA", "gene": "KRAS", "score": 0.4, "somatic_mutation": 0.3, "literature": 0.1}]).to_csv(tmp_path / "opentargets_cancer.tsv.gz", sep="\t", index=False)
+    (tmp_path / "opentargets_release.json").write_text(json.dumps({"release": "Open Targets Platform 25.6", "diseases": {"COADREAD": {"id": "EFO_x", "name": "colorectal adenocarcinoma"}}}))
+    monkeypatch.setattr(ot, "DIR", tmp_path); ot._table.cache_clear(); ot.release.cache_clear()
+    e = ot.evidence("KRAS", ["TCGA-COAD", "TCGA-READ"])
+    assert e["rank"] == 2 and e["linked"] == 2 and e["types"] == {"somatic_mutation": 0.9} and e["disease"] == "colorectal adenocarcinoma"
+    assert ot.evidence("PARL", ["TCGA-COAD"])["score"] is None
+    assert ot.evidence("KRAS", ["TCGA-COAD", "TCGA-BRCA"]) is not None and ot.code_for(["TCGA-LUAD", "TCGA-BRCA"]) is None
+    ot._table.cache_clear(); ot.release.cache_clear()

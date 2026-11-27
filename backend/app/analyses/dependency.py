@@ -86,7 +86,10 @@ def run(gene: str, projects: list[str]) -> dict:
         checks.append(check("enough", "pass" if ok else "caution", "enough.lineage" if ok else "enough.fewLines", n=focus["n"], lineage=focus["lineage"]))
     checks.append(check("assumptions", "caution", "assume.cellLines"))
     renamed = {gene: used} if used != gene else {}
+    from app.analyses import opentargets
+
     return {
+        "opentargets": opentargets.evidence(used, projects),
         "kind": "dependency", "gene": gene, "rows": rows, "cut": DEP_CUT,
         "all": {"n": int(allrow["n"]), "median": clean(allrow["q50"]), "dep": clean(allrow["dep"]), "q10": clean(allrow["q10"]), "q90": clean(allrow["q90"])},
         "focus": focus, "common_essential": common, "checks": checks,
