@@ -26,6 +26,10 @@ def rows_for(c: Cohort, kind: str, params: dict) -> dict:
     gene = params.get("gene") or ""
     if kind == "signature":
         return _signature_rows(c, params)
+    if kind == "immune":
+        from app.analyses import immune
+
+        return immune.table(c, gene)
     if kind == "de":
         # One line per tested gene (not per sample): the full table behind the volcano plot.
         from app.analyses import de

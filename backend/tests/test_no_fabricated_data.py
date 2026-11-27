@@ -40,6 +40,7 @@ class TestSourceScan:
             "analyses/de.py",                 # thins the volcano plot to 4,000 real genes (seeded)
             "analyses/signature.py",          # GSEA gene-set permutations and bootstrap of rho (seeded)
             "analyses/across.py",             # picks 60 real points per box to draw (seeded)
+            "analyses/immune.py",             # picks up to 500 real tumours to draw, and the bootstrap (seeded)
         }
         offenders = []
         for path in APP_DIR.rglob("*.py"):

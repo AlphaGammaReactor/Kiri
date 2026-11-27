@@ -18,6 +18,14 @@ from pathlib import Path
 
 import xenaPython as xena
 
+# Immune context: the Danaher et al. 2017 marker genes, so the sample projects run it offline.
+IMMUNE = ["PTPRC", "CD2", "CD3D", "CD3E", "CD3G", "CD6", "SH2D1A", "TRAT1", "CD8A", "CD8B", "CD244", "EOMES",
+          "LAG3", "PTGER4", "FOXP3", "TBX21", "CTSW", "GNLY", "GZMA", "GZMB", "GZMH", "KLRB1", "KLRD1", "KLRK1",
+          "NKG7", "PRF1", "NCR1", "XCL1", "XCL2", "IL21R", "KIR2DL3", "KIR3DL1", "KIR3DL2", "BLK", "CD19", "FCRL2",
+          "MS4A1", "FAM30A", "TNFRSF17", "TCL1A", "SPIB", "PNOC", "CD163", "CD68", "CD84", "MS4A4A", "CCL13",
+          "CD209", "HSD11B1", "CPA3", "HDC", "MS4A2", "TPSAB1", "CEACAM3", "CSF3R", "FCAR", "FCGR3B", "FPR1",
+          "S100A12", "SIGLEC5"]
+
 HUB = "https://gdc.xenahubs.net"
 SLICES = {
     "TCGA-COADREAD": {"projects": ["TCGA-COAD", "TCGA-READ"],
@@ -31,10 +39,10 @@ SLICES = {
                                 "TOMM20", "TOMM40", "TIMM23", "VDAC1", "CS", "SDHA", "COX4I1", "ATP5F1A",
                                 "TOP2A", "PCNA", "MCM2", "CCNB1", "CDK1", "CCNA2", "AURKA", "BUB1", "CENPF",
                                 "PRKN", "BNIP3", "BNIP3L", "FUNDC1", "PHB2", "FKBP8", "BCL2L13", "OPTN",
-                                "CALCOCO2", "SQSTM1", "MAP1LC3B"]},
+                                "CALCOCO2", "SQSTM1", "MAP1LC3B"] + IMMUNE},
     "TCGA-BRCA": {"projects": ["TCGA-BRCA"],
                   "genes": ["TP53", "MDM2", "CDKN1A", "BAX", "ESR1", "PGR", "ERBB2", "MKI67",
-                            "GAPDH", "ACTB", "BRCA1", "BRCA2", "GATA3", "FOXA1", "KRT5", "EGFR"]},
+                            "GAPDH", "ACTB", "BRCA1", "BRCA2", "GATA3", "FOXA1", "KRT5", "EGFR"] + IMMUNE},
 }
 
 

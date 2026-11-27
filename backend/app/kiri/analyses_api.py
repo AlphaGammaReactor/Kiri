@@ -17,10 +17,10 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app.analyses import across, correlation, de, expression, pathways, survival
+from app.analyses import across, correlation, de, expression, immune, pathways, survival
 from app.analyses.genesets import GENESETS
 from app.cohorts import packs
-from app.cohorts.store import CohortUnavailable, cohort_for, slice_for
+from app.cohorts.store import Cohort, CohortUnavailable, cohort_for, load_slice, slice_for
 from app.core.config import settings
 from app.kiri.api import ws
 from app.kiri.fileformat import KiriFileError, now
@@ -40,7 +40,7 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "de", "signature", "across"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "de", "signature", "across", "immune"]
     gene: str = ""
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal"] = "median"
@@ -175,11 +175,25 @@ def analysis_rows(aid: str):
             from app.kiri.signature_api import signature_cohort
 
             c = signature_cohort(projects, params["gene"], params.get("set_id", "uprmt_markers"), params.get("members") or [], _data_dir())
+        elif r[0] == "immune":
+            c = immune_cohort(projects, params["gene"], _data_dir())
         else:
             c = cohort_for(projects, genes, _data_dir())
         return rows_for(c, r[0], params) | {"units": c.units, "data_version": c.data_version()}
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
+
+
+def immune_cohort(projects: list[str], gene: str, data_dir: Path) -> Cohort:
+    """The full cohort when downloaded; otherwise the bundled slice when it has my gene and the markers."""
+    if all(packs.is_ready(data_dir, p) for p in projects):
+        return packs.open_packs(projects, data_dir)
+    name = slice_for(projects)
+    if name:
+        c = load_slice(name)
+        if c.has(gene) and sum(c.has(g) for g in immune.MARKERS) >= 20:
+            return c
+    raise CohortUnavailable("needs_download", projects=[p for p in projects if not packs.is_ready(data_dir, p)])
 
 
 @router.post("/analyses/run")
@@ -220,6 +234,8 @@ def run(body: RunBody):
             from app.kiri.signature_api import signature_cohort
 
             c = signature_cohort(projects, gene, body.set_id, body.members, _data_dir())
+        elif body.kind == "immune":
+            c = immune_cohort(projects, gene, _data_dir())
         else:
             c = cohort_for(projects, wanted, _data_dir())
         for g in wanted:
@@ -238,6 +254,8 @@ def run(body: RunBody):
                 result = de.run(c, body.compare, gene or None, body.group_a, body.group_b, lfc=body.lfc, q=body.q,
                                 sets=pathways.load(body.library))
                 result.pop("rows", None)
+            elif body.kind == "immune":
+                result = immune.run(c, gene)
             elif body.kind == "signature":
                 from app.kiri.signature_api import run_signature
 
