@@ -1,6 +1,6 @@
 [package]
 name = "kiri"
-version = "0.1.1"
+version = "0.1.2"
 description = "Kiri: cancer genomics analysis for students"
 authors = ["Kiri developers"]
 license = "LicenseRef-Proprietary"
