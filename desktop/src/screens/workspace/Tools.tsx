@@ -80,7 +80,7 @@ export function ReproduceDialog({ a, fileName, initialTab = "record", onClose, s
   const locale = lang === "en" ? "en-GB" : "zh-CN";
   const p = a.params;
   const settings = a.kind === "survival"
-    ? [t(`surv.cut.${p.cut ?? "median"}` as StringKey), p.adjust?.length ? t("repro.adjusted", { c: p.adjust.map((x) => t(x === "age" ? "surv.adj.age" : "surv.adj.stage").toLowerCase()).join(", ") }) : t("repro.unadjusted")].join(" · ")
+    ? [t(`surv.Ep.${p.endpoint ?? "OS"}` as StringKey), t(`surv.cut.${p.cut ?? "median"}` as StringKey), p.adjust?.length ? t("repro.adjusted", { c: p.adjust.map((x) => t(x === "age" ? "surv.adj.age" : "surv.adj.stage").toLowerCase()).join(", ") }) : t("repro.unadjusted")].join(" · ")
     : (a.kind as string) === "signature" ? t("sig.repro.settings", { s: String((a.result as { set_name?: string }).set_name ?? (p as { set_id?: string }).set_id ?? ""), n: sigMembers(a).length })
     : a.kind === "expression_tn" ? (p.paired ? t("repro.paired") : t("repro.unpaired"))
     : a.kind === "immune" ? "Danaher 2017 · Spearman · BH"
@@ -182,7 +182,7 @@ ${adj.length ? `
 d2 <- d${adj.includes("age") ? "\nd2 <- subset(d2, !is.na(age))" : ""}${adj.includes("stage") ? '\nd2 <- subset(d2, stage %in% c("I", "II", "III", "IV"))\nd2$stage_n <- match(d2$stage, c("I", "II", "III", "IV"))' : ""}
 summary(coxph(Surv(time_months, event) ~ high${adj.includes("age") ? " + age" : ""}${adj.includes("stage") ? " + stage_n" : ""}, data = d2))
 ` : ""}
-plot(fit, col = c("#b5462f", "#2f6b8f"), xlab = "Months", ylab = "Overall survival", mark.time = TRUE)
+plot(fit, col = c("#b5462f", "#2f6b8f"), xlab = "Months", ylab = "${({ PFI: "Progression-free interval", DSS: "Disease-specific survival" } as Record<string, string>)[String(p.endpoint)] ?? "Overall survival"}", mark.time = TRUE)
 legend("topright", legend = levels(factor(d$group)), col = c("#b5462f", "#2f6b8f"), lty = 1)
 `;
   }

@@ -28,18 +28,20 @@ MIN_EVENTS_PER_GROUP = 10
 RNG_SEED = 20261126
 
 
-def _patients(c: Cohort, gene: str) -> tuple[pd.DataFrame, dict]:
-    s = c.samples.copy()
+def _patients(c: Cohort, gene: str, endpoint: str = "OS") -> tuple[pd.DataFrame, dict]:
+    from app.cohorts.cdr import attach
+
+    s = attach(c.samples, endpoint)
     s["expr"] = c.gene(gene)
     t = s[(s["type"] == "tumor")].sort_values("id").drop_duplicates("case", keep="first")
     n_all = len(t)
     t = t[t["expr"].notna()]
     no_expr = n_all - len(t)
-    ok = t["os_time"].notna() & t["os_event"].notna() & (t["os_time"] > 0)
+    ok = t["ep_time"].notna() & t["ep_event"].notna() & (t["ep_time"] > 0)
     no_surv = int((~ok).sum())
     t = t[ok].copy()
-    t["time"] = t["os_time"] / 30.4375  # months
-    t["event"] = t["os_event"].astype(int)
+    t["time"] = t["ep_time"] / 30.4375  # months
+    t["event"] = t["ep_event"].astype(int)
     return t, {"patients": int(n_all), "no_expression": int(no_expr), "no_survival": no_surv}
 
 
@@ -119,9 +121,9 @@ def _stability(main_sig: bool, stab: list, same_dir: int, same_sig: int, boot_sa
                  "stability.nullHolds" if any_sig == 0 else "stability.nullSomeSig", **v)
 
 
-def run(c: Cohort, gene: str, cut: str = "median", adjust: list[str] | None = None) -> dict:
+def run(c: Cohort, gene: str, cut: str = "median", adjust: list[str] | None = None, endpoint: str = "OS") -> dict:
     adjust = adjust or []
-    t, counts = _patients(c, gene)
+    t, counts = _patients(c, gene, endpoint)
     if len(t) < 20:
         return {"kind": "survival", "gene": gene, "error": "too_few_patients", "n": int(len(t))}
     g, value, cutinfo = _split(t, cut)
@@ -166,7 +168,7 @@ def run(c: Cohort, gene: str, cut: str = "median", adjust: list[str] | None = No
     events = {"high": int(hi["event"].sum()), "low": int(lo["event"].sum())}
     excl = counts["no_expression"] + counts["no_survival"]
     checks = [
-        check("data", "pass", "data.patients", n=int(len(g)), excluded=int(excl), no_survival=counts["no_survival"], source=c.source),
+        check("data", "pass", "data.patients" if endpoint == "OS" else "data.patientsCdr", n=int(len(g)), excluded=int(excl), no_survival=counts["no_survival"], source=c.source, endpoint=endpoint),
         check("enough", "pass" if min(events.values()) >= MIN_EVENTS_PER_GROUP else "caution",
               "enough.events" if min(events.values()) >= MIN_EVENTS_PER_GROUP else "enough.fewEvents",
               high=events["high"], low=events["low"], min=MIN_EVENTS_PER_GROUP),
@@ -183,11 +185,11 @@ def run(c: Cohort, gene: str, cut: str = "median", adjust: list[str] | None = No
         check("reproducibility", "pass", "repro.recorded", built=c.built),
     ]
     return {
-        "kind": "survival", "gene": gene, "endpoint": "OS", "cut": cut, "cut_value": clean(value), "cut_info": {k: clean(v) if isinstance(v, float) else v for k, v in cutinfo.items()},
+        "kind": "survival", "gene": gene, "endpoint": endpoint, "cut": cut, "cut_value": clean(value), "cut_info": {k: clean(v) if isinstance(v, float) else v for k, v in cutinfo.items()},
         "groups": {"high": {"n": int(len(hi)), "events": events["high"], **_curve(hi["time"], hi["event"])},
                    "low": {"n": int(len(lo)), "events": events["low"], **_curve(lo["time"], lo["event"])}},
         "at_risk": {"ticks": ticks, **at_risk},
         "logrank": {"statistic": clean(lr.test_statistic), "p": clean(lr.p_value)}, "p_report": clean(p_report),
         "cox": cox, "cox_adjusted": adj, "stability": {"cutpoints": stab, "bootstrap_same_direction": clean(boot_same)},
-        "counts": counts, "checks": checks, "data_version": c.data_version(),
+        "counts": counts, "checks": checks, "data_version": c.data_version() | ({"endpoint_source": "TCGA-CDR (Liu et al. 2018)"} if endpoint != "OS" else {}),
     }

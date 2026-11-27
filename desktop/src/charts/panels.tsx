@@ -14,7 +14,7 @@ import { Network } from "./Network";
 import { networkFigure, plainInteractions } from "../screens/workspace/Interactions";
 import { benchFigure, plainBench } from "../screens/workspace/Bench";
 import { FIG } from "./figure";
-import { figText, fillFig, stars, type FigLang } from "./figStrings";
+import { probTitle, figText, fillFig, stars, type FigLang } from "./figStrings";
 import { plainSurvival } from "../screens/workspace/Survival";
 import type { SignatureResult } from "../screens/workspace/Signature";
 import { GROUP_COLORS, plainExpression, STAGE_COLORS } from "../screens/workspace/Expression";
@@ -44,7 +44,7 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
     const cox = r.cox_adjusted ?? r.cox;
     const p = r.cut === "optimal" ? r.p_report : r.logrank.p;
     el = <KM r={r} labels={{
-      yTitle: F.osProb, xTitle: F.months, atRisk: F.atRisk, highShort: F.highShort, lowShort: F.lowShort,
+      yTitle: probTitle(F, r.endpoint), xTitle: F.months, atRisk: F.atRisk, highShort: F.highShort, lowShort: F.lowShort,
       high: `${r.gene} ${F.high} (n = ${r.groups.high.n})`, low: `${r.gene} ${F.low} (n = ${r.groups.low.n})`,
       stat: fillFig(r.cut === "optimal" ? F.hrLineAdj : r.cox_adjusted ? F.aHR : F.hrLine, { hr: fmt(cox.hr), lo: fmt(cox.lo), hi: fmt(cox.hi), p: fmtP(p) }),
     }} />;

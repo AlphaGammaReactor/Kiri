@@ -5,7 +5,7 @@ name: Sample project data
 on:
   push:
     branches: [claude/project-thread-btcqwn, claude/project-thread-bdrb9s, claude/project-thread-2tc0ep]
-    paths: ["backend/scripts/build_sample_slice.py", "backend/app/cohorts/**", ".github/workflows/sample-data.yml"]
+    paths: ["backend/scripts/build_sample_slice.py", "backend/scripts/build_cdr.py", "backend/app/cohorts/**", ".github/workflows/sample-data.yml"]
   workflow_dispatch:
 
 permissions:
@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install "xenaPython==1.0.14"
+      - run: pip install "xenaPython==1.0.14" "pandas>=2.2" "openpyxl==3.1.5"
       - name: Cohort pack files are reachable (what the app downloads)
         continue-on-error: true
         run: |
@@ -31,6 +31,8 @@ jobs:
           done
       - name: Build the slices
         run: python backend/scripts/build_sample_slice.py backend/app/cohorts/samples
+      - name: Build the TCGA-CDR endpoints table (PFI, DSS)
+        run: python backend/scripts/build_cdr.py backend/app/cohorts/samples
       - name: Commit them
         run: |
           git config user.name "kiri-ci"; git config user.email "kiri-ci@users.noreply.github.com"

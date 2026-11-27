@@ -40,7 +40,7 @@ def rows_for(c: Cohort, kind: str, params: dict) -> dict:
         cols = ["gene", "log2_fold_change", f"mean_{a}", f"mean_{b}", "welch_t", "p", "p_adj_BH", "direction"]
         return {"columns": cols, "rows": [[x["gene"], x["lfc"], x["mean_a"], x["mean_b"], x["t"], x["p"], x["p_adj"], x["dir"]] for x in r.get("rows", [])]}
     if kind == "survival":
-        t, _ = _patients(c, gene)
+        t, _ = _patients(c, gene, params.get("endpoint", "OS"))
         g, value, _ = _split(t, params.get("cut", "median"))
         g = g.sort_values("expr", ascending=False)
         cols = ["sample", "patient", "project", "expression", "group", "time_months", "event", "age", "stage"]

@@ -46,6 +46,7 @@ class RunBody(BaseModel):
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal"] = "median"
     adjust: list[Literal["age", "stage"]] = Field(default_factory=list)
+    endpoint: Literal["OS", "PFI", "DSS"] = "OS"  # survival: overall, progression-free interval, disease-specific
     paired: bool = False
     set_id: str = "uprmt_markers"  # signature: a built-in gene set, or "custom"
     members: list[str] = Field(default_factory=list, max_length=200)  # signature: the custom set
@@ -296,7 +297,9 @@ def run(body: RunBody):
                 raise CohortUnavailable("gene_not_in_cohort", gene=g, cohort=c.name)
         with _run_lock:
             if body.kind == "survival":
-                result = survival.run(c, gene, cut=body.cut, adjust=list(body.adjust))
+                if body.endpoint != "OS" and own:
+                    return JSONResponse(status_code=400, content={"error": "endpoint_unavailable", "endpoint": body.endpoint})
+                result = survival.run(c, gene, cut=body.cut, adjust=list(body.adjust), endpoint=body.endpoint)
             elif body.kind == "correlation":
                 result = correlation.run(c, gene, gene2)
             elif body.kind == "expression_tn":
@@ -322,7 +325,7 @@ def run(body: RunBody):
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
 
-    exclude = {"replace", "check_only", "projects", "normal", "mode", "text", "ref", "control", "log", "title"} | (set() if body.kind == "de" else {"compare", "group_a", "group_b", "lfc", "q", "library"})
+    exclude = {"replace", "check_only", "projects", "normal", "mode", "text", "ref", "control", "log", "title"} | (set() if body.kind == "de" else {"compare", "group_a", "group_b", "lfc", "q", "library"}) | (set() if body.kind == "survival" else {"endpoint"})
     params = body.model_dump(exclude=exclude) | {"gene": gene, "projects": projects}
     if body.kind == "correlation":
         params["gene2"] = gene2
