@@ -79,6 +79,7 @@ def main(out: str) -> None:
         print(f"{code}: {dname} ({did}) {n} genes with score >= {MIN_SCORE}")
     df = pd.DataFrame(rows).fillna(0)
     o = Path(out)
+    df = df.sort_values(["cancer", "score", "gene"], ascending=[True, False, True]).reset_index(drop=True)  # same file every run
     df.to_csv(o / "opentargets_cancer.tsv.gz", sep="\t", index=False, compression={"method": "gzip", "mtime": 0})
     (o / "opentargets_release.json").write_text(json.dumps({"release": f"Open Targets Platform {version}", "licence": "CC0 1.0",
                                                             "diseases": ids, "min_score": MIN_SCORE}, indent=1))
