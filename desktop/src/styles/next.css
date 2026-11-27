@@ -295,3 +295,16 @@
 /* Four choices in a narrow panel: two rows of two, never clipped. */
 .segmented.quad { display: grid; grid-template-columns: 1fr 1fr; width: 100%; gap: 2px; }
 .segmented.quad button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Cohort download panel (design page 15) */
+.dl-state { gap: 10px; }
+.dl-state .state-icon.bad { background: color-mix(in srgb, var(--color-status-danger) 12%, transparent); color: var(--color-status-danger); }
+.dl-state.left .state-icon { align-self: center; }
+.dl-state.left .state-title { align-self: center; }
+.dl-bar { width: min(360px, 100%); display: flex; flex-direction: column; gap: 4px; }
+.dl-steps { list-style: none; margin: 4px 0 0; padding: 0; align-self: stretch; max-width: 360px; margin-inline: auto; text-align: left; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.dl-steps li { display: flex; align-items: center; gap: 8px; color: var(--color-text-muted); }
+.dl-steps li.done, .dl-steps li.now { color: var(--color-text); }
+.dl-steps li.done svg { color: var(--color-accent-text); }
+.dl-steps .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin: 0 4px; }
+.dl-actions .run-btn { flex: 0 1 auto; min-width: 200px; gap: 12px; }

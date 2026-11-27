@@ -41,11 +41,11 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "expression_mut", "expression_cn", "correlation", "de", "signature", "across", "immune", "interactions", "bench"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "expression_mut", "expression_cn", "expression_subtype", "correlation", "de", "signature", "across", "immune", "interactions", "bench"]
     gene: str = ""
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal", "mutation"] = "median"
-    adjust: list[Literal["age", "stage"]] = Field(default_factory=list)
+    adjust: list[Literal["age", "stage", "purity"]] = Field(default_factory=list)
     endpoint: Literal["OS", "PFI", "DSS"] = "OS"  # survival: overall, progression-free interval, disease-specific
     paired: bool = False
     set_id: str = "uprmt_markers"  # signature: a built-in gene set, or "custom"
@@ -113,7 +113,7 @@ def cohort_status(projects: Optional[str] = None):
     return {
         "projects": projects,
         "sample_slice": sl,
-        "packs": {p: {"ready": packs.is_ready(_data_dir(), p), **packs.progress_of(p)} for p in projects},
+        "packs": {p: _pack_status(p) for p in projects},
     }
 
 
@@ -125,12 +125,27 @@ def genesets(language: str = "en"):
     return {"items": listing(language)}
 
 
+def _pack_status(p: str) -> dict:
+    """What is on disk wins over the download's own record: a finished pack is ready whatever the thread said."""
+    ready = packs.is_ready(_data_dir(), p)
+    st = packs.progress_of(p)
+    if ready:
+        return {"ready": True, **st, "state": "ready", **packs.pack_info(_data_dir(), p)}
+    return {"ready": False, **st}
+
+
+@router.post("/cohort/download/cancel")
+def cancel_download(project: str):
+    packs.cancel_download(project)
+    return {"ok": True}
+
+
 @router.post("/cohort/download")
 def download(project: str):
     if not project.startswith("TCGA-"):
         return JSONResponse(status_code=400, content={"error": "unknown_project"})
     packs.start_download(_data_dir(), project)
-    return packs.progress_of(project)
+    return _pack_status(project)
 
 
 @router.get("/analyses")
@@ -304,6 +319,9 @@ def run(body: RunBody):
         elif body.kind == "interactions":
             interactions.data(gene, _data_dir())  # fetch (or read the cache) first: needs_internet comes from here
             c = inter_cohort(projects, gene, _data_dir())
+        elif body.kind == "de":
+            # Every gene is tested, so the bundled slice never fits: always the downloaded project.
+            c = packs.open_packs(projects, _data_dir())
         else:
             c = cohort_for(projects, wanted, _data_dir(), mutated=[mut_gene] if mut_gene else None, copies=[cn_gene] if cn_gene else None)
         if mut_gene and not own:
@@ -330,6 +348,10 @@ def run(body: RunBody):
                 result = expression.by_mutation(c, gene, mut_gene)
             elif body.kind == "expression_cn":
                 result = expression.by_copies(c, gene, cn_gene)
+            elif body.kind == "expression_subtype":
+                if own:
+                    return JSONResponse(status_code=400, content={"error": "no_subtypes"})
+                result = expression.by_subtype(c, gene)
             elif body.kind == "de":
                 result = de.run(c, body.compare, gene or None, body.group_a, body.group_b, lfc=body.lfc, q=body.q,
                                 sets=pathways.load(body.library))

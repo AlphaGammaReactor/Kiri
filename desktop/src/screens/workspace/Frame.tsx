@@ -1,5 +1,5 @@
 // The layout every analysis workspace shares: header, parameters, figure card, and the Explain / Reliability panel.
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Copy, Download, NotebookPen, LayoutPanelLeft, Table2, Code2, ChevronDown, CircleHelp, ShieldCheck, Check, TriangleAlert, CircleX, Info, Loader2, RotateCcw, CloudDownload, Activity, WifiOff } from "lucide-react";
 import { useT } from "../../i18n";
 import type { StringKey } from "../../i18n/strings";
@@ -14,9 +14,11 @@ import { addToBoard } from "../../charts/board";
 import { Dialog } from "../../shell/Dialog";
 import { api, type Cancer } from "../../lib/api";
 import { cohortLabel } from "./useAnalysis";
+import { downloads, usePacks } from "../../lib/downloads";
+import { fmtBytes } from "../../lib/system";
 
 /** What a workspace hands the frame so "Check in another cohort" can run the same analysis elsewhere. */
-export type CohortSwitch = { other: string[] | null; home: string[]; checkIn: (ps: string[] | null) => void };
+export type CohortSwitch = { other: string[] | null; home: string[]; checkIn: (ps: string[] | null) => void; phase?: { kind: string; projects?: string[] } };
 
 export const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 export const runKeys = isMac ? "⌘ ↩" : "Ctrl Enter";
@@ -37,6 +39,8 @@ export function Frame({ crumb, title, badges, params, figure, side, onLater, ana
   const [repro, setRepro] = useState(false);
   const [pick, setPick] = useState(false);
   const usable = !!analysis && !(analysis.result as { error?: string }).error;
+  const packs = usePacks();
+  const waiting = cohorts?.phase?.kind === "download" && (cohorts.phase.projects ?? []).some((p) => packs[p]?.state === "downloading");
   return (
     <div className="ws">
       <div className="ws-head">
@@ -56,7 +60,7 @@ export function Frame({ crumb, title, badges, params, figure, side, onLater, ana
         </div>
       </div>
       <div className="ws-grid">
-        <aside className="card ws-params">{params}</aside>
+        <aside className="card ws-params"><WaitCtx.Provider value={waiting}>{params}</WaitCtx.Provider></aside>
         <section className="card ws-fig">{figure}</section>
         <aside className="ws-side">{side}</aside>
       </div>
@@ -335,25 +339,99 @@ export function ErrorState({ what, why, todo, code, actions }: { what: string; w
   );
 }
 
-export function DownloadState({ project, state, onDownload }: { project: string; state?: { state: string; done?: number; total?: number; error?: string }; onDownload: () => void }) {
+/** "TCGA-COAD and READ": the projects of a download, named once. */
+export function cohortName(projects: string[], and: string) {
+  return projects.map((p, i) => (i ? p.replace(/^TCGA-/, "") : p)).join(and);
+}
+
+const STEPS: { key: string; files: string[] }[] = [
+  { key: "dl.step.expr", files: ["expr"] },
+  { key: "dl.step.clin", files: ["survival", "clinical"] },
+  { key: "dl.step.check", files: ["convert"] },
+  { key: "dl.step.extra", files: ["mutation", "copies"] },
+];
+const stepOf = (file?: string) => Math.max(0, STEPS.findIndex((s) => s.files.includes(file ?? "")));
+
+/** The four cohort download states (design page 15): needs download, downloading, ready, failed.
+ *  The panel follows what is on disk, so a finished download shows Ready, never "needs download" again. */
+export function CohortDownload({ a, runLabel, onRun }: {
+  a: { phase: { kind: string; projects?: string[] }; download: (ps: string[]) => void }; runLabel: string; onRun: () => void;
+}) {
   const { t } = useT();
-  const pct = state?.total ? Math.round(((state.done ?? 0) / state.total) * 100) : 0;
+  const all = usePacks();
+  const projects = a.phase.projects ?? [];
+  const name = cohortName(projects, t("dl.and"));
+  const st = projects.map((p) => ({ project: p, ...(all[p] ?? { ready: false, state: "idle" }) }));
+  const failed = st.find((s) => s.state === "failed");
+  const busyNow = st.filter((s) => s.state === "downloading");
+  const ready = st.length > 0 && st.every((s) => s.ready);
+  const mb = (n?: number) => fmtBytes(n ?? 0);
+
+  if (ready) {
+    const bytes = st.reduce((x, s) => x + (s.bytes ?? 0), 0), n = st.reduce((x, s) => x + (s.samples ?? 0), 0);
+    return (
+      <div className="state dl-state">
+        <div className="state-icon"><Check size={22} /></div>
+        <div className="state-title">{t(projects.length > 1 ? "dl.ready.titleMany" : "dl.ready.title", { c: name })}</div>
+        <p>{t("dl.ready.body")}</p>
+        <div className="mono small muted">{[bytes ? mb(bytes) : "", n ? t("dl.ready.n", { n }) : "", st[0].built ?? ""].filter(Boolean).join(" · ")}</div>
+        <div className="row-gap dl-actions"><RunButton label={runLabel} onClick={onRun} /></div>
+      </div>
+    );
+  }
+  if (failed) {
+    const reason = failed.reason ?? "other";
+    return (
+      <div className="state left dl-state">
+        <div className="state-icon bad"><TriangleAlert size={22} /></div>
+        <div className="state-title">{failed.total ? t("dl.fail.at", { a: mb(failed.done), b: mb(failed.total) }) : t("dl.fail.title", { c: name })}</div>
+        <div className="err-grid">
+          <span className="eyebrow">{t("err.ws.what")}</span><p>{t(`dl.why.${reason}.what` as StringKey, { p: failed.project })}</p>
+          <span className="eyebrow">{t("err.ws.why")}</span><p>{t(`dl.why.${reason}.why` as StringKey)}</p>
+          <span className="eyebrow">{t("err.ws.todo")}</span><p>{t(reason === "disk" ? "dl.todo.disk" : failed.done ? "dl.todo.retry" : "dl.todo.retry0", { a: mb(failed.done) })}</p>
+        </div>
+        <div className="row-gap dl-actions"><button className="btn primary" onClick={() => a.download(projects)}><RotateCcw size={15} />{t("dl.retryNow")}</button></div>
+        <div className="mono small muted">{t("err.ws.code", { c: `DL-${reason}` })}{failed.error ? ` · ${failed.error}` : ""}
+          {" · "}<button className="link small" onClick={() => navigator.clipboard?.writeText(`DL-${reason} ${failed.project} ${failed.error ?? ""} ${(failed as { detail?: string }).detail ?? ""}`.trim())}>{t("dl.copy")}</button></div>
+      </div>
+    );
+  }
+  if (busyNow.length) {
+    const now = busyNow[0];
+    const pct = now.total ? Math.min(100, Math.round(((now.done ?? 0) / now.total) * 100)) : 0;
+    const left = downloads.secondsLeft(now.project);
+    const at = stepOf(now.file);
+    const sizeLine = now.file === "convert" ? t("dl.preparing", { p: now.project })
+      : now.total ? [`${mb(now.done)} / ${mb(now.total)}`, left != null ? t("dl.left", { s: left < 90 ? `${left} s` : `${Math.round(left / 60)} min` }) : ""].filter(Boolean).join(" · ") : mb(now.done);
+    return (
+      <div className="state dl-state">
+        <div className="state-title">{t("dl.busy.title", { c: name })}</div>
+        <div className="dl-bar"><div className="progress"><span style={{ width: `${Math.max(2, now.file === "convert" ? 100 : pct)}%` }} /></div>
+          <div className="row-between mono small muted"><span>{projects.length > 1 ? `${now.project} · ` : ""}{now.file === "convert" ? "" : `${pct}%`}</span><span>{sizeLine}</span></div></div>
+        <ul className="dl-steps">
+          {STEPS.map((s, i) => <li key={s.key} className={i < at ? "done" : i === at ? "now" : ""}>
+            {i < at ? <Check size={14} /> : i === at ? <Loader2 size={14} className="spin" /> : <span className="dot" />}{t(s.key as StringKey)}</li>)}
+        </ul>
+        <p className="small">{t("dl.busy.body")}</p>
+        <button className="btn" onClick={() => downloads.cancel(projects)}>{t("dl.cancel")}</button>
+      </div>
+    );
+  }
+  const stopped = st.some((s) => s.cancelled);
   return (
-    <div className="state">
+    <div className="state dl-state">
       <div className="state-icon"><CloudDownload size={22} /></div>
-      <div className="state-title">{t("dl.title", { p: project })}</div>
+      <div className="state-title">{t("dl.need.title", { c: name })}</div>
       <p>{t("dl.body")}</p>
-      {state?.state === "downloading" ? (
-        <div style={{ width: 320 }}><div className="progress"><span style={{ width: `${pct}%` }} /></div><div className="small muted mono">{t("dl.progress", { pct, mb: Math.round((state.done ?? 0) / 1e6) })}</div></div>
-      ) : (
-        <>
-          {state?.state === "failed" && <><Mascot pose="oops" size={80} /><p className="warn-text">{t("dl.failed")}</p></>}
-          <button className="btn primary" onClick={onDownload}>{state?.state === "failed" ? <RotateCcw size={15} /> : <CloudDownload size={15} />}{state?.state === "failed" ? t("dl.retry") : t("dl.start")}</button>
-        </>
-      )}
+      {stopped && <p className="small muted">{t("dl.stopped")}</p>}
+      <div className="row-gap dl-actions"><button className="btn primary" onClick={() => a.download(projects)}><CloudDownload size={15} />{t(stopped ? "dl.resume" : "dl.start")}</button></div>
+      <p className="small muted">{t("dl.where")}</p>
     </div>
   );
 }
+
+/** True while this screen's cohort is downloading: the run button waits (design page 15). */
+export const WaitCtx = createContext(false);
 
 export function OutOfDate({ onRun }: { onRun: () => void }) {
   const { t } = useT();
@@ -362,8 +440,10 @@ export function OutOfDate({ onRun }: { onRun: () => void }) {
 
 /** The run button: one line, full width, with its shortcut inside. A long name is cut with "…" and shown whole on hover. */
 export function RunButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
+  const { t } = useT();
+  const waiting = useContext(WaitCtx);
   return (
-    <button className="btn primary run-btn" onClick={onClick} disabled={disabled} title={`${label} (${runKeys})`} aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}>
+    <button className="btn primary run-btn" onClick={onClick} disabled={disabled || waiting} title={waiting ? t("dl.waiting") : `${label} (${runKeys})`} aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}>
       <span className="run-label">{label}</span>
       <kbd className="btn-kbd">{runKeys}</kbd>
     </button>

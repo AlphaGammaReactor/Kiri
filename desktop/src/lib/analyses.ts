@@ -17,7 +17,7 @@ export type SurvivalResult = {
 export type Summary = { n: number; median?: number | null; q1?: number | null; q3?: number | null; min?: number | null; max?: number | null; mean?: number | null };
 export type Group = { key: string; n: number; median: number; q1: number; q3: number; min: number; max: number; mean: number; values: number[] };
 export type ExpressionResult = {
-  kind: "expression_tn" | "expression_stage" | "expression_group" | "expression_mut" | "expression_cn" | "expression_cn"; gene: string; gene2?: string; dosage?: { rho: number | null; p: number | null }; units: string; paired?: boolean;
+  kind: "expression_tn" | "expression_stage" | "expression_group" | "expression_mut" | "expression_cn" | "expression_subtype"; gene: string; gene2?: string; dosage?: { rho: number | null; p: number | null }; units: string; paired?: boolean;
   groups: Group[]; test: { name: string; statistic: number; p: number; n_pairs?: number };
   effect: { median_diff?: number; rank_biserial?: number; rb_ci?: [number, number]; epsilon_squared?: number };
   pairwise?: { a: string; b: string; p: number; p_adj: number }[];
@@ -31,8 +31,8 @@ export type CorrelationResult = {
 };
 export type ErrorResult = { kind: string; gene: string; error: string; [k: string]: unknown };
 export type DataVersion = { cohort: string; projects: string[]; source: string; units: string; built: string };
-export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "expression_mut" | "expression_cn" | "correlation" | "de" | "signature" | "across" | "immune" | "interactions" | "bench";
-export type RunParams = { kind: Kind; gene: string; gene2?: string; set_id?: string; members?: string[]; check_only?: boolean; cut?: "median" | "quartile" | "optimal" | "mutation"; adjust?: ("age" | "stage")[]; endpoint?: "OS" | "PFI" | "DSS"; paired?: boolean; replace?: string;
+export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "expression_mut" | "expression_cn" | "expression_subtype" | "correlation" | "de" | "signature" | "across" | "immune" | "interactions" | "bench";
+export type RunParams = { kind: Kind; gene: string; gene2?: string; set_id?: string; members?: string[]; check_only?: boolean; cut?: "median" | "quartile" | "optimal" | "mutation"; adjust?: ("age" | "stage" | "purity")[]; endpoint?: "OS" | "PFI" | "DSS"; paired?: boolean; replace?: string;
   compare?: "tn" | "gene" | "group"; group_a?: string | null; group_b?: string | null; lfc?: number; q?: number; library?: PathwayLibrary; normal?: "tcga" | "tcga_gtex";
   mode?: "qpcr" | "values"; text?: string; ref?: string; control?: string | null; log?: boolean; title?: string; projects?: string[] };
 export type Headline = { p_report?: number | null; error?: string | null; hr?: number | null; p?: number | null; rho?: number | null; n?: number | null; worst?: "pass" | "caution" | "problem" | null };
@@ -84,7 +84,8 @@ export type BenchResult = {
 };
 export type PathwayInfo = { id: PathwayLibrary; available: boolean; version?: string; licence?: string; citation?: string; source?: string; n?: number };
 export type OwnCohort = { id: string; name: string; n: number; values: number; survival: boolean; groups: string[]; units: string };
-export type CohortStatus = { own?: OwnCohort; projects: string[]; sample_slice: string | null; packs: Record<string, { ready: boolean; state: string; done?: number; total?: number; file?: string; error?: string }> };
+export type CohortStatus = { own?: OwnCohort; projects: string[]; sample_slice: string | null; packs: Record<string, PackStatus> };
+export type PackStatus = { ready: boolean; state: string; done?: number; total?: number; file?: string; error?: string; reason?: string; cancelled?: boolean; bytes?: number; samples?: number; built?: string };
 
 export async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   const r = await engineFetch(`/api/v1/kiri${path}`, {
@@ -113,6 +114,7 @@ export const analyses = {
   exportPdf: (path: string, svg: string) => call<{ path: string; bytes: number }>("/export/pdf", "POST", { path, svg }),
   cohort: (projects?: string[] | null) => call<CohortStatus>(projects?.length ? `/cohort?projects=${encodeURIComponent(projects.join(","))}` : "/cohort"),
   download: (project: string) => call<CohortStatus["packs"][string]>(`/cohort/download?project=${encodeURIComponent(project)}`, "POST"),
+  cancelDownload: (project: string) => call<{ ok: boolean }>(`/cohort/download/cancel?project=${encodeURIComponent(project)}`, "POST"),
   note: (kind: "figure" | "text" | "result", body: Record<string, unknown>) => call<{ id: string; count: number }>("/notebook", "POST", { kind, body }),
   notes: () => call<Note[]>("/notebook"),
   patchNote: (id: string, p: { pinned?: boolean; text?: string }) => call(`/notebook/${id}`, "PATCH", p),

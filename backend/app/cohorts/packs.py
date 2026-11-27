@@ -25,7 +25,7 @@ from app.cohorts.store import Cohort, CohortUnavailable
 # Tried in order. The hub's own address redirects to its file store.
 # Checked from GitHub Actions on 2026-11-26: the hub address redirects to a signed file-store link;
 # the file store itself refuses direct requests (403).
-HUBS = ["https://gdc.xenahubs.net/download"]
+HUBS = [h for h in [os.environ.get("KIRI_XENA_HUB", "").rstrip("/")] if h] or ["https://gdc.xenahubs.net/download"]
 # Each file is tried under these names in turn (the hub has used both plain and gzip names).
 FILES = {"expr": ["{p}.star_tpm.tsv.gz"], "survival": ["{p}.survival.tsv.gz", "{p}.survival.tsv"], "clinical": ["{p}.clinical.tsv.gz", "{p}.clinical.tsv"]}
 PROBEMAP = "gencode.v36.annotation.gtf.gene.probemap"
@@ -41,6 +41,18 @@ def is_ready(data_dir: Path, project: str) -> bool:
 
 _progress: dict[str, dict] = {}
 _threads: dict[str, threading.Thread] = {}
+_cancel: set[str] = set()
+
+
+class DownloadCancelled(Exception):
+    pass
+
+
+def cancel_download(project: str) -> None:
+    """Stop a running download. What was downloaded stays, so the next start carries on from there."""
+    t = _threads.get(project)
+    if t and t.is_alive():
+        _cancel.add(project)
 
 
 def progress_of(project: str) -> dict:
@@ -53,21 +65,55 @@ def start_download(data_dir: Path, project: str) -> None:
     if t and t.is_alive() or is_ready(data_dir, project):
         return
 
+    _cancel.discard(project)
+
     def work():
         _progress[project] = {"state": "downloading", "file": "", "done": 0, "total": 0, "started": time.time()}
 
         def prog(key, done, total):
+            if project in _cancel:
+                raise DownloadCancelled(project)
             _progress[project].update({"file": key, "done": done, "total": total})
 
         try:
             build_pack(data_dir, project, prog)
             _progress[project] = {"state": "ready"}
+        except DownloadCancelled:
+            _progress[project] = {"state": "idle", "cancelled": True}
         except Exception as e:  # noqa: BLE001 - reported to the UI as a code
-            _progress[project] = {"state": "failed", "error": type(e).__name__, "detail": str(e)[:300]}
+            last = _progress.get(project, {})
+            _progress[project] = {"state": "failed", "error": type(e).__name__, "reason": _reason(e), "detail": str(e)[:300],
+                                  "file": last.get("file", ""), "done": last.get("done", 0), "total": last.get("total", 0)}
+        finally:
+            _cancel.discard(project)
 
     t = threading.Thread(target=work, name=f"pack-{project}", daemon=True)
     _threads[project] = t
     t.start()
+
+
+def _reason(e: Exception) -> str:
+    """A short reason the screen can explain: offline, timeout, refused, disk, server or other."""
+    if isinstance(e, (httpx.ConnectError,)):
+        return "offline"
+    if isinstance(e, httpx.TimeoutException):
+        return "timeout"
+    if isinstance(e, httpx.HTTPStatusError):
+        return "refused" if e.response.status_code in (401, 403, 404) else "server"
+    if isinstance(e, OSError) and getattr(e, "errno", None) == 28:
+        return "disk"
+    return "other"
+
+
+def pack_info(data_dir: Path, project: str) -> dict:
+    """Size on disk and sample count of a ready pack, for the Ready panel."""
+    d = pack_dir(data_dir, project)
+    try:
+        info = json.loads((d / "ready.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    size = sum(f.stat().st_size for f in d.iterdir() if f.is_file())
+    return {"bytes": size, "samples": info.get("samples"), "built": time.strftime("%Y-%m-%d", time.localtime((d / "ready.json").stat().st_mtime))}
 
 
 def _fetch(name: str, dest: Path, progress=None) -> None:
@@ -97,7 +143,7 @@ def _download(url: str, dest: Path, progress=None) -> None:
         mode = "ab" if r.status_code == 206 else "wb"
         done = have if mode == "ab" else 0
         with open(part, mode) as f:
-            for chunk in r.iter_bytes(1 << 20):
+            for chunk in r.iter_bytes(1 << 16):
                 f.write(chunk)
                 done += len(chunk)
                 if progress:
@@ -128,6 +174,8 @@ def build_pack(data_dir: Path, project: str, progress=None) -> None:
     probemap = data_dir / "cohorts" / PROBEMAP
     if not probemap.exists():
         _fetch(PROBEMAP, probemap)
+    if progress:
+        progress("convert", 0, 0)
     convert(raw["expr"], raw["survival"], raw["clinical"], probemap, d, project)
     fetch_mutations(d, project, progress)
     fetch_copies(data_dir, d, project, progress)

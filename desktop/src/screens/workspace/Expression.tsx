@@ -7,11 +7,11 @@ import { fmt, fmtP, type ExpressionResult, type Group } from "../../lib/analyses
 import { BoxPoints } from "../../charts/BoxPoints";
 import { FIG } from "../../charts/figure";
 import { figText, fillFig, stars, type FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, CohortDownload, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
-type Mode = "tn" | "stage" | "group" | "mut" | "cn";
+type Mode = "tn" | "stage" | "group" | "mut" | "cn" | "subtype";
 const CN_COLORS: Record<string, string> = { deletion: "#2f5f8f", loss: "#7fa3c4", normal: "#9a9184", gain: "#d08a5c", amplification: "#a5402a" };
 export const STAGE_COLORS: Record<string, string> = { I: "#7a9a5a", II: "#2a6fa8", III: "#c8641a", IV: "#a3392b" };
 export const GROUP_COLORS = ["#2a6fa8", "#c8641a", "#7a9a5a", "#a3392b", "#6b5ca5", "#3f8f8a", "#b0892b", "#5a5a5a"];
@@ -20,7 +20,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
   p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void; onSurvival: (gene: string) => void; onAcross: (gene: string) => void; initialGene?: string; initialMode?: "tn" | "stage";
 }) {
   const { t } = useT();
-  const a = useAnalysis(["expression_tn", "expression_stage", "expression_group", "expression_mut", "expression_cn"]);
+  const a = useAnalysis(["expression_tn", "expression_stage", "expression_group", "expression_mut", "expression_cn", "expression_subtype"]);
   const r = a.current && !(a.current.result as { error?: string }).error && a.current.kind !== "survival" ? (a.current.result as ExpressionResult) : null;
   const saved = a.current?.params;
   const targets = p.project.targets.length ? p.project.targets : ["TP53"];
@@ -34,7 +34,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
     const keepAsked = !synced && !!initialGene && a.current.params.gene !== initialGene.toUpperCase();
     setSynced(a.current.id);
     if (!keepAsked) setGene(a.current.params.gene);
-    setMode(a.current.kind === "expression_stage" ? "stage" : a.current.kind === "expression_group" ? "group" : a.current.kind === "expression_mut" ? "mut" : a.current.kind === "expression_cn" ? "cn" : "tn"); setPaired(!!a.current.params.paired);
+    setMode(a.current.kind === "expression_stage" ? "stage" : a.current.kind === "expression_group" ? "group" : a.current.kind === "expression_mut" ? "mut" : a.current.kind === "expression_cn" ? "cn" : a.current.kind === "expression_subtype" ? "subtype" : "tn"); setPaired(!!a.current.params.paired);
     if (a.current.kind === "expression_mut" || a.current.kind === "expression_cn") setMutGene(a.current.params.gene2 ?? "");
   }
   const svgRef = useRef<SVGSVGElement>(null);
@@ -42,7 +42,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
   // A project on your own table compares the groups in its group column.
   const own = a.cohort?.own;
   useEffect(() => { if (own && mode !== "group") setMode("group"); else if (!own && a.cohort && mode === "group") setMode("tn"); }, [own, a.cohort]); // eslint-disable-line react-hooks/exhaustive-deps
-  const kind = mode === "tn" ? "expression_tn" : mode === "group" ? "expression_group" : mode === "mut" ? "expression_mut" : mode === "cn" ? "expression_cn" : "expression_stage";
+  const kind = mode === "tn" ? "expression_tn" : mode === "group" ? "expression_group" : mode === "mut" ? "expression_mut" : mode === "cn" ? "expression_cn" : mode === "subtype" ? "expression_subtype" : "expression_stage";
   const mg = (mutGene.trim() || gene.trim()).toUpperCase();
   const run = useCallback(() => a.run({ kind, gene, paired: mode === "tn" ? paired : false, ...(mode === "mut" || mode === "cn" ? { gene2: mg } : {}) }), [a, kind, gene, paired, mode, mg]);
   useRunShortcut(run, a.phase.kind !== "running" && !!gene.trim());
@@ -81,7 +81,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
     colors = (k) => (k === "mutated" ? FIG.tumour : FIG.normal);
     brackets = [{ a: r.groups[0].key, b: r.groups[1].key, text: stars(r.test.p) }];
     groupLabel = (k) => `${r.gene2} ${k === "mutated" ? F.mutated : F.notMutated}`;
-  } else if (r?.kind === "expression_group") {
+  } else if (r?.kind === "expression_group" || r?.kind === "expression_subtype") {
     groups = r.groups;
     const idx = Object.fromEntries(r.groups.map((g, i) => [g.key, i]));
     colors = (k) => GROUP_COLORS[(idx[k] ?? 0) % GROUP_COLORS.length];
@@ -95,7 +95,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
     : r.test.name === "wilcoxon_signed_rank" ? fillFig(F.signedRank, { p: fmtP(r.test.p), n: r.test.n_pairs ?? 0 }) : fillFig(F.rankSum, { p: fmtP(r.test.p) });
 
   const titleGene = r?.gene ?? (gene.trim().toUpperCase() || "…");
-  const title = t(mode === "tn" ? "expr.title.tn" : mode === "group" ? "expr.title.group" : mode === "mut" ? "expr.title.mut" : mode === "cn" ? "expr.title.cn" : "expr.title.stage", { g: titleGene, m: r?.kind === "expression_mut" || r?.kind === "expression_cn" ? r.gene2 ?? mg : mg || "…" });
+  const title = t(mode === "tn" ? "expr.title.tn" : mode === "group" ? "expr.title.group" : mode === "mut" ? "expr.title.mut" : mode === "cn" ? "expr.title.cn" : mode === "subtype" ? "expr.title.subtype" : "expr.title.stage", { g: titleGene, m: r?.kind === "expression_mut" || r?.kind === "expression_cn" ? r.gene2 ?? mg : mg || "…" });
   const nSamples = r ? r.groups.reduce((s, g) => s + g.n, 0) : 0;
   const badges = (
     <>
@@ -128,6 +128,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
           <button aria-pressed={mode === "stage"} onClick={() => setMode("stage")}>{t("expr.mode.stage")}</button>
           <button aria-pressed={mode === "mut"} onClick={() => setMode("mut")}>{t("expr.mode.mut")}</button>
           <button aria-pressed={mode === "cn"} onClick={() => setMode("cn")}>{t("expr.mode.cn")}</button>
+          <button aria-pressed={mode === "subtype"} onClick={() => setMode("subtype")}>{t("expr.mode.subtype")}</button>
           <button aria-pressed={false} onClick={() => onAcross(gene)}>{t("expr.mode.cancers")}</button>
         </div>)}
       </Param>
@@ -143,14 +144,14 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
         </Param>
       )}
       <Param label={t("expr.test")} help={t("expr.test.help")} recommended>
-        <Select value={mode === "group" ? "grp" : mode === "stage" || mode === "cn" ? "kw" : mode === "mut" ? "rs" : paired ? "sr" : "rs"} onChange={(v) => setPaired(v === "sr")} options={mode === "mut"
+        <Select value={mode === "group" ? "grp" : mode === "stage" || mode === "cn" || mode === "subtype" ? "kw" : mode === "mut" ? "rs" : paired ? "sr" : "rs"} onChange={(v) => setPaired(v === "sr")} options={mode === "mut"
           ? [{ value: "rs", label: t("expr.test.rs") }]
           : mode === "group"
           ? [{ value: "grp", label: (own?.groups.length ?? 0) > 2 ? t("expr.test.kw") : t("expr.test.rs") }]
-          : mode === "stage" || mode === "cn"
+          : mode === "stage" || mode === "cn" || mode === "subtype"
           ? [{ value: "kw", label: t("expr.test.kw") }]
           : [{ value: "rs", label: t("expr.test.rs") }, { value: "sr", label: t("expr.test.sr") }]} />
-        <p className="help">{mode === "cn" ? t("expr.test.cn.help") : mode === "mut" ? t("expr.test.mut.help") : mode === "group" ? t("expr.test.group.help") : mode === "stage" ? t("expr.test.kw.help") : paired ? t("expr.test.sr.help") : t("expr.test.rs.help")}</p>
+        <p className="help">{mode === "subtype" ? t("expr.test.subtype.help") : mode === "cn" ? t("expr.test.cn.help") : mode === "mut" ? t("expr.test.mut.help") : mode === "group" ? t("expr.test.group.help") : mode === "stage" ? t("expr.test.kw.help") : paired ? t("expr.test.sr.help") : t("expr.test.rs.help")}</p>
       </Param>
       <label className="toggle-row"><span>{t("expr.points")}</span><span className="switch"><input type="checkbox" checked={points} onChange={(e) => setPoints(e.target.checked)} /><span /></span></label>
       {r && r.excluded > 0 && <div className="excluded"><CircleAlert size={14} /><span>{t(r.kind === "expression_stage" ? "expr.excludedStage" : "expr.excluded", { n: r.excluded })}</span></div>}
@@ -162,7 +163,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
 
   let body;
   if (a.phase.kind === "running") body = <LoadingState steps={[t("load.cohort"), t("load.groups"), t("load.test"), t("load.checks")]} />;
-  else if (a.phase.kind === "download") body = <DownloadState project={a.phase.projects.join(", ")} state={a.cohort?.packs[a.phase.projects[0]]} onDownload={() => a.download((a.phase as { projects: string[] }).projects)} />;
+  else if (a.phase.kind === "download") body = <CohortDownload a={a} runLabel={t("expr.run")} onRun={run} />;
   else if (a.phase.kind === "error") {
     const e = errorText(t, a.phase.code, { gene: gene.toUpperCase(), ...a.phase.extra });
     body = <ErrorState {...e} code={a.phase.code} actions={<>
@@ -171,7 +172,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
       <button className="btn" onClick={run}>{t("err.ws.retry")}</button></>} />;
   } else if (!r) body = a.loaded ? <EmptyState title={t("expr.empty.title")} body={t("expr.empty.body")} onRun={() => { setGene(targets[0]); const k = own ? "expression_group" : "expression_tn"; setMode(own ? "group" : "tn"); a.run({ kind: k, gene: targets[0] }); }} onGuide={onGuide} /> : null;
 
-  const caption = !r ? "" : r.kind === "expression_cn" ? t("expr.caption.cn", { g: r.gene, m: r.gene2 ?? "", c: cohortLabel(r.data_version.projects) }) : r.kind === "expression_mut" ? t("expr.caption.mut", { g: r.gene, m: r.gene2 ?? "", c: cohortLabel(r.data_version.projects) }) : r.kind === "expression_group" ? t("expr.caption.group", { g: r.gene, c: cohortLabel(r.data_version.projects) }) : r.kind === "expression_stage"
+  const caption = !r ? "" : r.kind === "expression_subtype" ? t("expr.caption.subtype", { g: r.gene, c: cohortLabel(r.data_version.projects) }) : r.kind === "expression_cn" ? t("expr.caption.cn", { g: r.gene, m: r.gene2 ?? "", c: cohortLabel(r.data_version.projects) }) : r.kind === "expression_mut" ? t("expr.caption.mut", { g: r.gene, m: r.gene2 ?? "", c: cohortLabel(r.data_version.projects) }) : r.kind === "expression_group" ? t("expr.caption.group", { g: r.gene, c: cohortLabel(r.data_version.projects) }) : r.kind === "expression_stage"
     ? t("expr.caption.stage", { g: r.gene, c: cohortLabel(r.data_version.projects) })
     : t("expr.caption.tn", { g: r.gene, c: cohortLabel(r.data_version.projects), test: r.test.name === "wilcoxon_signed_rank" ? t("expr.test.sr") : t("expr.test.rs") });
 
@@ -197,7 +198,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
             ))}
             {r.kind === "expression_cn" && r.groups.map((g) => <tr key={g.key}><td>{groupLabel(g.key)}</td><td className="mono">n {g.n}</td><td className="mono">{t("expr.med", { m: fmt(g.median) })}</td></tr>)}
             {r.kind === "expression_mut" && r.groups.map((g) => <tr key={g.key}><td>{groupLabel(g.key)}</td><td className="mono">n {g.n}</td><td className="mono">{t("expr.med", { m: fmt(g.median) })}</td></tr>)}
-            {r.kind === "expression_group" && r.groups.map((g) => <tr key={g.key}><td>{g.key}</td><td className="mono">n {g.n}</td><td className="mono">{t("expr.med", { m: fmt(g.median) })}</td></tr>)}
+            {(r.kind === "expression_group" || r.kind === "expression_subtype") && r.groups.map((g) => <tr key={g.key}><td>{g.key}</td><td className="mono">n {g.n}</td><td className="mono">{t("expr.med", { m: fmt(g.median) })}</td></tr>)}
             {r.kind === "expression_stage" && r.groups.map((g) => <tr key={g.key}><td>{t("expr.stageN", { s: g.key })}</td><td className="mono">n {g.n}</td><td className="mono">{t("expr.med", { m: fmt(g.median) })}</td></tr>)}
           </tbody>
         </table>
@@ -205,9 +206,9 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
       <div className="side-card shows">
         <span className="eyebrow">{t("ws.whatShows")}</span><span className="small muted">{t("ws.fromNumbers")}</span>
         <p className="plain">{plainExpression(r, t)}</p>
-        <p className="small">{r.kind === "expression_tn" ? t("expr.note.tn") : r.kind === "expression_mut" ? t("expr.note.mut") : r.kind === "expression_cn" ? t("expr.note.cn") : r.kind === "expression_group" ? t("expr.note.group") : t("expr.note.stage")}</p>
+        <p className="small">{r.kind === "expression_tn" ? t("expr.note.tn") : r.kind === "expression_mut" ? t("expr.note.mut") : r.kind === "expression_cn" ? t("expr.note.cn") : r.kind === "expression_subtype" ? t("expr.note.subtype") : r.kind === "expression_group" ? t("expr.note.group") : t("expr.note.stage")}</p>
       </div>
-      <Method title={r.kind === "expression_stage" || r.kind === "expression_cn" || (r.kind === "expression_group" && r.groups.length > 2) ? t("expr.method.stage") : r.test.name === "wilcoxon_signed_rank" ? t("expr.method.sr") : t("expr.method.rs")}
+      <Method title={r.kind === "expression_stage" || r.kind === "expression_cn" || r.kind === "expression_subtype" || (r.kind === "expression_group" && r.groups.length > 2) ? t("expr.method.stage") : r.test.name === "wilcoxon_signed_rank" ? t("expr.method.sr") : t("expr.method.rs")}
         body={r.kind === "expression_stage" ? t("expr.method.stage.body") : t("expr.method.tn.body")} cite="scipy · Mann & Whitney 1947 · Kruskal & Wallis 1952" />
       <div className="side-card next">
         <span className="eyebrow">{t("ws.next")}</span>
@@ -234,6 +235,10 @@ export function plainExpression(r: ExpressionResult, t: ReturnType<typeof useT>[
     const [m, w] = r.groups;
     const v = { g: r.gene, m: r.gene2 ?? "", a: fmt(m.median), b: fmt(w.median), p: fmtP(r.test.p), n1: m.n, n2: w.n };
     return t(r.test.p < 0.05 ? ((r.effect.median_diff ?? 0) > 0 ? "expr.plain.mutHigher" : "expr.plain.mutLower") : "expr.plain.mutNone", v);
+  }
+  if (r.kind === "expression_subtype") {
+    const top = [...r.groups].sort((x, y) => (y.median ?? 0) - (x.median ?? 0))[0];
+    return t(r.test.p < 0.05 ? "expr.plain.subtype" : "expr.plain.subtypeNone", { g: r.gene, p: fmtP(r.test.p), k: r.groups.length, top: top?.key ?? "" });
   }
   if (r.kind === "expression_group") return t(r.test.p < 0.05 ? "expr.plain.group" : "expr.plain.groupNone", { g: r.gene, p: fmtP(r.test.p), k: r.groups.length });
   if (r.kind === "expression_stage") return t(r.test.p < 0.05 ? "expr.plain.stage" : "expr.plain.stageNone", { g: r.gene, p: fmtP(r.test.p) });

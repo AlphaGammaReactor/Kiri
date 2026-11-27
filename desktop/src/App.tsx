@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { downloads } from "./lib/downloads";
+import { cohortName } from "./screens/workspace/Frame";
 import { LangProvider, systemLang, useT, type Lang } from "./i18n";
 import { TitleBar } from "./shell/TitleBar";
 import { Sidebar, type Screen } from "./shell/Sidebar";
@@ -114,6 +116,11 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
 
   const say = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
   const notYet = () => say(t("common.notYet"));
+  // A cohort download that finishes while the person is elsewhere: tell them.
+  useEffect(() => {
+    downloads.onReady((ps) => say(t(ps.length > 1 ? "dl.toastMany" : "dl.toast", { c: cohortName(ps, t("dl.and")) })));
+    return () => downloads.onReady(null);
+  }, [say, t]);
   useEffect(() => { document.documentElement.dataset.level = settings.level; }, [settings.level]);
   const [tour, setTour] = useState<{ id: TutId; step: number } | null>(null);
   const tourStep = (n: number) => {

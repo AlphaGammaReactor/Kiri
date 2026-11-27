@@ -7,7 +7,7 @@ import type { ProjectSummary } from "../../lib/api";
 import { analyses, fmt, fmtP, type DEGene, type DEResult, type EnrichRow, type PathwayInfo, type PathwayLibrary } from "../../lib/analyses";
 import { Volcano } from "../../charts/Volcano";
 import type { FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, CohortDownload, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -129,7 +129,7 @@ export function DE({ p, figLang, onFigLang, say, onLater, onGuide, onGene }: {
 
   let body;
   if (a.phase.kind === "running") body = <LoadingState steps={[t("load.cohort"), t("de.load.matrix"), t("de.load.test"), t("de.load.enrich"), t("load.checks")]} />;
-  else if (a.phase.kind === "download") body = <DownloadState project={a.phase.projects.join(", ")} state={a.cohort?.packs[a.phase.projects[0]]} onDownload={() => a.download((a.phase as { projects: string[] }).projects)} />;
+  else if (a.phase.kind === "download") body = <CohortDownload a={a} runLabel={t("de.run")} onRun={run} />;
   else if (a.phase.kind === "error") {
     const e = errorText(t, a.phase.code, { gene: String(a.phase.extra.gene ?? gene.toUpperCase()), ...a.phase.extra });
     body = <ErrorState {...e} code={a.phase.code} actions={<>

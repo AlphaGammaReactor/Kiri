@@ -6,7 +6,7 @@ import type { ProjectSummary } from "../../lib/api";
 import { fmt, fmtP, type SurvivalResult } from "../../lib/analyses";
 import { KM } from "../../charts/KM";
 import { figText, fillFig, probTitle, type FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, CohortDownload, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -18,6 +18,7 @@ export const epVars = (t: ReturnType<typeof useT>["t"], e?: string) => {
   return { ep: t(`surv.ep.${k}` as const), Ep: t(`surv.Ep.${k}` as const), abbr: k };
 };
 
+type Adj = "age" | "stage" | "purity";
 export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initialGene }: {
   p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void; initialGene?: string;
 }) {
@@ -28,14 +29,14 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
   const targets = p.project.targets.length ? p.project.targets : ["TP53"];
   const [gene, setGene] = useState<string>(initialGene || targets[0]);
   const [cut, setCut] = useState<Cut>((saved?.cut as Cut) ?? "median");
-  const [adjust, setAdjust] = useState<("age" | "stage")[]>((saved?.adjust as ("age" | "stage")[]) ?? ["age", "stage"]);
+  const [adjust, setAdjust] = useState<Adj[]>((saved?.adjust as Adj[]) ?? ["age", "stage"]);
   const [endpoint, setEndpoint] = useState<Endpoint>((saved?.endpoint as Endpoint) ?? "OS");
   const [synced, setSynced] = useState<string | null>(null);
   // When a stored analysis loads, show its settings.
   if (a.current && synced !== a.current.id) {
     setSynced(a.current.id);
     const keepAsked = !synced && !!initialGene && a.current.params.gene !== initialGene.toUpperCase();
-    if (!keepAsked) { setGene(a.current.params.gene); setCut((a.current.params.cut as Cut) ?? "median"); setAdjust((a.current.params.adjust as ("age" | "stage")[]) ?? []); setEndpoint((a.current.params.endpoint as Endpoint) ?? "OS"); }
+    if (!keepAsked) { setGene(a.current.params.gene); setCut((a.current.params.cut as Cut) ?? "median"); setAdjust((a.current.params.adjust as Adj[]) ?? []); setEndpoint((a.current.params.endpoint as Endpoint) ?? "OS"); }
   }
   const svgRef = useRef<SVGSVGElement>(null);
   const projects = a.cohort?.projects ?? p.project.datasets;
@@ -103,7 +104,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
       </Param>
       {!own && <Param label={t("surv.adjust")} help={t("surv.adjust.help")}>
         <div className="row-gap">
-          {(["age", "stage"] as const).map((k) => (
+          {(["age", "stage", "purity"] as const).map((k) => (
             <button key={k} className={`chip ${adjust.includes(k) ? "on" : ""}`} aria-pressed={adjust.includes(k)}
               onClick={() => setAdjust((x) => x.includes(k) ? x.filter((y) => y !== k) : [...x, k])}>{t(`surv.adj.${k}` as const)}</button>
           ))}
@@ -120,7 +121,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
 
   let body;
   if (a.phase.kind === "running") body = <LoadingState steps={[t("load.cohort"), t("load.split", { g: gene.toUpperCase() }), t("load.cox"), t("load.checks")]} />;
-  else if (a.phase.kind === "download") body = <DownloadState project={a.phase.projects.join(", ")} state={a.cohort?.packs[a.phase.projects[0]]} onDownload={() => a.download((a.phase as { projects: string[] }).projects)} />;
+  else if (a.phase.kind === "download") body = <CohortDownload a={a} runLabel={t("surv.run")} onRun={run} />;
   else if (a.phase.kind === "error") {
     const e = errorText(t, a.phase.code, { gene: gene.toUpperCase(), ...a.phase.extra });
     body = <ErrorState {...e} code={a.phase.code} actions={<>
@@ -156,7 +157,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
         <p className="plain">{plainSurvival(r, cox, pShown, n, t)}</p>
         <p className="small">{t("surv.association")}</p>
       </div>
-      <Method title={cox.covariates.length > 1 ? t("surv.method.titleAdj", { c: cox.covariates.filter((c) => c !== "high").map((c) => t(c === "age" ? "surv.adj.age" : "surv.adj.stage").toLowerCase()).join(t("ws.and")) }) : t("surv.method.title")}
+      <Method title={cox.covariates.length > 1 ? t("surv.method.titleAdj", { c: cox.covariates.filter((c) => c !== "high").map((c) => t(c === "age" ? "surv.adj.age" : c === "purity" ? "surv.adj.purity" : "surv.adj.stage").toLowerCase()).join(t("ws.and")) }) : t("surv.method.title")}
         body={t("surv.method.body")} cite="lifelines · Kaplan & Meier 1958 · Cox 1972" />
       <div className="side-card next"><span className="eyebrow">{t("ws.next")}</span><p className="small">{t("surv.next")}</p></div>
     </>

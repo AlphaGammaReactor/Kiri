@@ -7,7 +7,7 @@ import type { ProjectSummary } from "../../lib/api";
 import { fmt, fmtP, type CorrelationResult } from "../../lib/analyses";
 import { Scatter } from "../../charts/Scatter";
 import type { FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, CohortDownload, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -81,7 +81,7 @@ export function Correlation({ p, figLang, onFigLang, say, onLater, onGuide, init
 
   let body;
   if (a.phase.kind === "running") body = <LoadingState steps={[t("load.cohort"), t("corr.load.pair"), t("corr.load.test"), t("load.checks")]} />;
-  else if (a.phase.kind === "download") body = <DownloadState project={a.phase.projects.join(", ")} state={a.cohort?.packs[a.phase.projects[0]]} onDownload={() => a.download((a.phase as { projects: string[] }).projects)} />;
+  else if (a.phase.kind === "download") body = <CohortDownload a={a} runLabel={t("corr.run")} onRun={run} />;
   else if (a.phase.kind === "error") {
     const e = errorText(t, a.phase.code, { gene: String(a.phase.extra.gene ?? g1.toUpperCase()), ...a.phase.extra });
     body = <ErrorState {...e} code={a.phase.code} actions={<>

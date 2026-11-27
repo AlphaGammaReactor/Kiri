@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../lib/api";
 import { analyses, type Analysis, type CohortStatus, type Kind, type RunParams } from "../../lib/analyses";
 import { busy } from "../../lib/busy";
+import { downloads } from "../../lib/downloads";
 import { progress } from "../../lib/progress";
 
 export type Phase =
@@ -17,14 +18,13 @@ export function useAnalysis(kinds: Kind[]) {
   const [loaded, setLoaded] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [cohort, setCohort] = useState<CohortStatus | null>(null);
-  const poll = useRef<number>(0);
   // "Check in another cohort": TCGA projects that replace the project's own cohort until the person goes back.
   const [other, setOther] = useState<string[] | null>(null);
   const otherRef = useRef<string[] | null>(null);
   const home = useRef<string[]>([]);
 
   // Remember the imported table's name so badges and pickers show it rather than its id.
-  const keep = useCallback((c: CohortStatus) => { if (c.own) ownNames.set(c.own.id, c.own.name); setCohort(c); }, []);
+  const keep = useCallback((c: CohortStatus) => { if (c.own) ownNames.set(c.own.id, c.own.name); downloads.seen(c.packs); setCohort(c); }, []);
   const refreshCohort = useCallback(() => analyses.cohort(otherRef.current).then(keep).catch(() => {}), [keep]);
   const useOther = (ps: string[] | null) => { otherRef.current = ps; setOther(ps); };
 
@@ -39,12 +39,20 @@ export function useAnalysis(kinds: Kind[]) {
         // The newest result was checked in another cohort: stay there.
         const ps = last?.params.projects ?? [];
         if (!stop && ps.length && ps[0].startsWith("TCGA-") && ps.join() !== c0.projects.join()) useOther(ps);
-        if (!stop) await refreshCohort();
+        if (!stop) {
+          const c = await analyses.cohort(otherRef.current).catch(() => null);
+          if (c) {
+            keep(c);
+            // Came back while this cohort is still downloading: show the download, not an old result.
+            const busyPs = Object.entries(c.packs).filter(([, s]) => s.state === "downloading").map(([p]) => p);
+            if (busyPs.length) setPhase({ kind: "download", projects: busyPs });
+          }
+        }
         if (last && !stop) setCurrent(await analyses.get(last.id));
       } catch { refreshCohort(); /* no project */ }
       if (!stop) setLoaded(true);
     })();
-    return () => { stop = true; clearInterval(poll.current); };
+    return () => { stop = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = useCallback(async (p: RunParams) => {
@@ -69,25 +77,24 @@ export function useAnalysis(kinds: Kind[]) {
       failed = e instanceof ApiError ? e.code : "engine";
       if (e instanceof ApiError && (e.code === "needs_download" || e.code === "gene_not_in_cohort")) {
         const projects = (e.extra.projects as string[] | undefined) ?? cohort?.projects ?? [];
-        setPhase(e.code === "needs_download" ? { kind: "download", projects } : { kind: "error", code: e.code, extra: e.extra });
+        if (e.code === "needs_download") { const c = await analyses.cohort(otherRef.current).catch(() => null); if (c) keep(c); }
+        // Asked again for a download that is on disk: say so rather than going round in a circle.
+        const onDisk = e.code === "needs_download" && projects.length > 0 && projects.every((x) => downloads.isReady(x));
+        if (onDisk) setPhase({ kind: "error", code: "download_incomplete", extra: { projects: projects.join(", ") } });
+        else setPhase(e.code === "needs_download" ? { kind: "download", projects } : { kind: "error", code: e.code, extra: e.extra });
       } else if (e instanceof ApiError) setPhase({ kind: "error", code: e.code, extra: e.extra });
       else setPhase({ kind: "error", code: "engine", extra: {} });
     } finally { busy.end(job, failed); }
-  }, [current, cohort]);
+  }, [current, cohort, keep]);
 
+  // Downloads are followed app-wide (lib/downloads); the panel reads what is on disk and offers the run.
   const download = useCallback(async (projects: string[]) => {
-    for (const p of projects) await analyses.download(p).catch(() => {});
-    clearInterval(poll.current);
-    poll.current = window.setInterval(async () => {
-      const c = await analyses.cohort(otherRef.current).catch(() => null);
-      if (!c) return;
-      keep(c);
-      const states = projects.map((p) => c.packs[p]);
-      if (states.every((s) => s?.ready)) { clearInterval(poll.current); setPhase({ kind: "idle" }); }
-      if (states.some((s) => s?.state === "failed")) clearInterval(poll.current);
-    }, 1000);
+    try {
+      await downloads.start(projects);
+    } catch (e) {
+      setPhase({ kind: "error", code: e instanceof ApiError ? e.code : "engine", extra: e instanceof ApiError ? e.extra : {} });
+    }
   }, []);
-
   /** Show the same analysis in other projects (null: back to the project's own cohort). An earlier
    *  result there with the same settings is reopened rather than run again. */
   const basis = useRef<Analysis | null>(null);

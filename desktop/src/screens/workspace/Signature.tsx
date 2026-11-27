@@ -11,7 +11,7 @@ import { BoxPoints } from "../../charts/BoxPoints";
 import { Heatmap, KM4, GseaCurve, Forest, type Surv4, type GseaCurveT } from "../../charts/SigCharts";
 import { FIG } from "../../charts/figure";
 import type { FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, CohortDownload, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -139,7 +139,7 @@ export function Signature({ p, figLang, onFigLang, say, onLater, onGuide }: {
 
   let body;
   if (a.phase.kind === "running") body = <LoadingState steps={[t("load.cohort"), t("sig.load.genes"), t("sig.load.score"), t("sig.load.tests"), t("load.checks")]} />;
-  else if (a.phase.kind === "download") body = <DownloadState project={a.phase.projects.join(", ")} state={a.cohort?.packs[a.phase.projects[0]]} onDownload={() => a.download((a.phase as { projects: string[] }).projects)} />;
+  else if (a.phase.kind === "download") body = <CohortDownload a={a} runLabel={t("sig.run")} onRun={run} />;
   else if (a.phase.kind === "error") {
     const ex = a.phase.extra as Record<string, unknown>;
     const flat = { gene: String(ex.gene ?? G), ...ex, present: ((ex.present as string[]) ?? []).join(", ") || "–", missing: ((ex.missing as string[]) ?? []).join(", ") || "–" };
