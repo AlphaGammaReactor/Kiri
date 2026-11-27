@@ -58,7 +58,7 @@ class RunBody(BaseModel):
     group_b: Optional[str] = None
     lfc: float = Field(1.0, ge=0, le=10)
     q: float = Field(0.05, gt=0, le=0.25)
-    library: Literal["hallmark", "reactome"] = "hallmark"
+    library: Literal["hallmark", "reactome", "gobp", "wikipathways"] = "hallmark"
     # Expression across cancers
     normal: Literal["tcga", "tcga_gtex"] = "tcga_gtex"
     # Bench data (the student's own numbers, pasted)

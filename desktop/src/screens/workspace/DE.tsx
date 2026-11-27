@@ -114,7 +114,7 @@ export function DE({ p, figLang, onFigLang, say, onLater, onGuide, onGene }: {
         <Select value={q} onChange={setQ} options={QS.map((x) => ({ value: x, label: `q < ${x}` }))} />
       </Param>
       <Param label={t("de.lib")} help={t("de.lib.help")} recommended={lib === "hallmark"}>
-        <Select<PathwayLibrary> value={lib} onChange={setLib} options={(["hallmark", "reactome"] as const).map((x) => {
+        <Select<PathwayLibrary> value={lib} onChange={setLib} options={(["hallmark", "reactome", "gobp", "wikipathways"] as const).map((x) => {
           const info = libs?.find((y) => y.id === x);
           return { value: x, label: info?.n ? t("de.lib.n", { l: t(`de.lib.${x}`), n: info.n.toLocaleString() }) : t(`de.lib.${x}`), disabled: !!libs && !info?.available };
         })} />

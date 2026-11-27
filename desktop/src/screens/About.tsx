@@ -21,6 +21,9 @@ const GDC = "Grossman RL, et al. Toward a shared vision for cancer genomic data.
 const CDR = "Liu J, et al. An Integrated TCGA Pan-Cancer Clinical Data Resource to Drive High-Quality Survival Outcome Analytics. Cell. 2018;173:400–416. (progression-free interval and disease-specific survival)";
 const SUBTYPES = "Sanchez-Vega F, et al. Oncogenic Signaling Pathways in The Cancer Genome Atlas. Cell. 2018;173:321–337. (molecular subtypes, from the TCGA marker papers)";
 const DEPMAP = "DepMap, Broad Institute. DepMap 24Q4 Public (CC BY 4.0). Dempster JM, et al. Chronos: a cell population dynamics model of CRISPR experiments. Genome Biol. 2021;22:343. (cell line dependency)";
+const OPENTARGETS = "Buniello A, et al. Open Targets Platform: facilitating therapeutic hypotheses building in drug discovery. Nucleic Acids Res. 2025;53:D1467–D1475. (CC0; target–disease associations)";
+const GO = "Gene Ontology Consortium. The Gene Ontology knowledgebase in 2023. Genetics. 2023;224:iyad031. (CC BY 4.0; GO Biological Process sets via MSigDB)";
+const WIKIPATHWAYS = "Agrawal A, et al. WikiPathways 2024: next generation pathway database. Nucleic Acids Res. 2024;52:D679–D689. (CC0)";
 const PURITY = "Taylor AM, et al. Genomic and Functional Approaches to Understanding Cancer Aneuploidy. Cancer Cell. 2018;33:676–689. (ABSOLUTE tumour purity)";
 const TCGA: Record<string, string> = {
   "TCGA-COAD": "Cancer Genome Atlas Network. Comprehensive molecular characterization of human colon and rectal cancer. Nature. 2012;487:330–337.",
@@ -46,7 +49,7 @@ export function About({ update, onCheck, engine, project }: { update: UpdateStat
   }
   const checkedAt = update.kind === "idle" ? update.checkedAt : update.kind === "error" ? update.checkedAt : undefined;
   const ds = (project?.project.datasets ?? []).filter((d) => d.startsWith("TCGA-"));
-  const refs = [...new Set(ds.map((d) => TCGA[d]).filter(Boolean)), GDC, XENA, CDR, SUBTYPES, PURITY, DEPMAP, MSIGDB, REACTOME];
+  const refs = [...new Set(ds.map((d) => TCGA[d]).filter(Boolean)), GDC, XENA, CDR, SUBTYPES, PURITY, DEPMAP, OPENTARGETS, MSIGDB, REACTOME, GO, WIKIPATHWAYS];
   const CopyBtn = ({ k, s }: { k: string; s: string }) => (
     <button className="icon-btn" aria-label={t("about.copy")} onClick={() => copy(k, s)}>{copied === k ? <Check size={15} /> : <Copy size={15} />}</button>
   );

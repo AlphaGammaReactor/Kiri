@@ -23,6 +23,9 @@ HALLMARK_VERSION = "2024.1.Hs"
 HALLMARK = f"https://data.broadinstitute.org/gsea-msigdb/msigdb/release/{HALLMARK_VERSION}/h.all.v{HALLMARK_VERSION}.symbols.gmt"
 REACTOME = "https://reactome.org/download/current/ReactomePathways.gmt.zip"
 REACTOME_VERSION_URL = "https://reactome.org/ContentService/data/database/version"
+GOBP = f"https://data.broadinstitute.org/gsea-msigdb/msigdb/release/{HALLMARK_VERSION}/c5.go.bp.v{HALLMARK_VERSION}.symbols.gmt"
+WIKIPATHWAYS_DIR = "https://data.wikipathways.org/current/gmt/"
+HGNC_COMPLETE = "https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt"
 
 
 def get(url: str) -> bytes:
@@ -49,6 +52,44 @@ def parse_gmt(text: str, id_col: int, name_fn) -> dict:
         genes = sorted({g for g in parts[2:] if g})
         sets[sid] = {"name": name_fn(parts), "genes": genes}
     return sets
+
+
+def go_name(raw: str) -> str:
+    out = raw.removeprefix("GOBP_").replace("_", " ").lower()
+    return out[0].upper() + out[1:]
+
+
+def wikipathways(d: Path) -> None:
+    """WikiPathways (CC0) for human: the GMT lists Entrez ids, turned into HGNC symbols."""
+    import re
+
+    listing = get(WIKIPATHWAYS_DIR).decode()
+    name = next(iter(sorted(set(re.findall(r"wikipathways-\d+-gmt-Homo_sapiens\.gmt", listing)), reverse=True)), None)
+    if not name:
+        raise SystemExit("no human WikiPathways GMT in " + WIKIPATHWAYS_DIR)
+    hgnc = get(HGNC_COMPLETE).decode().splitlines()
+    head = hgnc[0].split("\t")
+    si, ei = head.index("symbol"), head.index("entrez_id")
+    ent = {}
+    for line in hgnc[1:]:
+        p = line.split("\t")
+        if len(p) > ei and p[ei]:
+            ent[p[ei]] = p[si]
+    sets = {}
+    for line in get(WIKIPATHWAYS_DIR + name).decode().splitlines():
+        p = line.split("\t")
+        if len(p) < 3:
+            continue
+        title, _ver, wpid, _sp = (p[0].split("%") + ["", "", "", ""])[:4]
+        genes = sorted({ent[g] for g in p[2:] if g in ent})
+        if len(genes) >= 5:
+            sets[wpid] = {"name": title, "genes": genes}
+    version = name.split("-")[1]
+    write(d / "wikipathways.json.gz", {
+        "library": "wikipathways", "version": version, "source": WIKIPATHWAYS_DIR + name, "built": date.today().isoformat(),
+        "licence": "CC0 1.0 (WikiPathways)",
+        "citation": "Agrawal A, et al. WikiPathways 2024: next generation pathway database. Nucleic Acids Res. 2024;52(D1):D679-D689.",
+        "sets": sets})
 
 
 def write(out: Path, lib: dict) -> None:
@@ -78,6 +119,14 @@ def main(dest: str) -> None:
         "licence": "CC0 1.0 (Reactome data; attribution encouraged)",
         "citation": "Milacic M, et al. The Reactome Pathway Knowledgebase 2024. Nucleic Acids Res. 2024;52(D1):D672-D678.",
         "sets": r})
+    g = parse_gmt(get(GOBP).decode(), 0, lambda p: go_name(p[0]))
+    g = {k: v for k, v in g.items() if 15 <= len(v["genes"]) <= 500}
+    write(d / "gobp.json.gz", {
+        "library": "gobp", "version": HALLMARK_VERSION, "source": GOBP, "built": date.today().isoformat(),
+        "licence": "CC BY 4.0 (Gene Ontology, via MSigDB C5)",
+        "citation": "Gene Ontology Consortium. The Gene Ontology knowledgebase in 2023. Genetics. 2023;224(1):iyad031. Sets as packaged by MSigDB (Liberzon A, et al. 2011).",
+        "sets": g})
+    wikipathways(d)
 
 
 if __name__ == "__main__":

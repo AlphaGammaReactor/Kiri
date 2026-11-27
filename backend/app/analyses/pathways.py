@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 
 DIR = Path(__file__).resolve().parent.parent / "pathway_sets"
-LIBRARIES = ("hallmark", "reactome")
+LIBRARIES = ("hallmark", "reactome", "gobp", "wikipathways")
 
 
 @lru_cache(maxsize=4)

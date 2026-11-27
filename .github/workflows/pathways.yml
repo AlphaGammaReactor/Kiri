@@ -22,7 +22,7 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p backend/app/pathway_sets
-          for u in https://www.gsea-msigdb.org/gsea/msigdb_license_terms.jsp https://raw.githubusercontent.com/GSEA-MSigDB/msigdb-documentation/main/docs/MSigDB_License.md https://www.gsea-msigdb.org/gsea/license_terms_list.jsp https://reactome.org/license; do
+          for u in https://www.gsea-msigdb.org/gsea/msigdb_license_terms.jsp https://raw.githubusercontent.com/GSEA-MSigDB/msigdb-documentation/main/docs/MSigDB_License.md https://www.gsea-msigdb.org/gsea/license_terms_list.jsp https://reactome.org/license https://www.wikipathways.org/about.html https://geneontology.org/docs/go-citation-policy/; do
             echo "=== $u"; curl -s -L "$u" | sed -e 's/<[^>]*>/ /g' | tr -s ' \n' | grep -i -o '.\{0,240\}\(licen[cs]e\|creative commons\|CC BY\|CC0\|commercial\).\{0,240\}' | head -25
           done | tee backend/app/pathway_sets/LICENCE-PAGES.txt
       - name: Build the libraries
@@ -44,7 +44,7 @@ jobs:
           d = Path(tempfile.mkdtemp())
           packs.build_pack(d, "TCGA-READ", lambda k, a, b: None)
           c = cohort_for(["TCGA-READ"], ["EGFR"], d)
-          for lib in ("hallmark", "reactome"):
+          for lib in ("hallmark", "reactome", "gobp", "wikipathways"):
               t = time.time()
               r = de.run(c, "tn", sets=pathways.load(lib))
               print(lib, "DE tumour vs normal READ:", r.get("error") or (r["n"], r["n_tested"], r["n_up"], r["n_down"]), round(time.time() - t, 1), "s")

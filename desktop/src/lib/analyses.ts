@@ -44,7 +44,7 @@ export type Note = {
   id: string; kind: "figure" | "text" | "result"; pinned: boolean; created_at: string; changed_since: boolean;
   body: { analysis_id?: string; kind?: Kind; gene?: string; title?: string; summary?: string; caption?: string; svg?: string; text?: string; checks?: Check[]; meta?: string };
 };
-export type PathwayLibrary = "hallmark" | "reactome";
+export type PathwayLibrary = "hallmark" | "reactome" | "gobp" | "wikipathways";
 export type DEGene = { gene: string; lfc: number; mean_a: number; mean_b: number; t: number; p: number; p_adj: number; dir: "up" | "down" | "" };
 export type EnrichRow = { id: string; name: string; size: number; k: number; ratio: number; fold: number; p: number; p_adj: number; genes: string[] };
 export type DEResult = {
