@@ -5,7 +5,7 @@ name: Sample project data
 on:
   push:
     branches: [claude/project-thread-btcqwn, claude/project-thread-bdrb9s, claude/project-thread-2tc0ep]
-    paths: ["backend/scripts/build_sample_slice.py", "backend/scripts/build_cdr.py", "backend/scripts/build_pancan.py", "backend/app/cohorts/mutations.py", "backend/app/cohorts/**", ".github/workflows/sample-data.yml"]
+    paths: ["backend/scripts/build_sample_slice.py", "backend/scripts/build_cdr.py", "backend/scripts/build_pancan.py", "backend/scripts/build_depmap.py", "backend/app/cohorts/mutations.py", "backend/app/cohorts/**", ".github/workflows/sample-data.yml"]
   workflow_dispatch:
 
 permissions:
@@ -35,6 +35,9 @@ jobs:
         run: python backend/scripts/build_cdr.py backend/app/cohorts/samples
       - name: Build the PanCanAtlas subtype and purity tables
         run: python backend/scripts/build_pancan.py backend/app/cohorts/samples
+      - name: Build the DepMap dependency summary (CC BY 4.0, licence checked by the script)
+        continue-on-error: true
+        run: python backend/scripts/build_depmap.py backend/app/cohorts/samples
       - name: Commit them
         run: |
           git config user.name "kiri-ci"; git config user.email "kiri-ci@users.noreply.github.com"
