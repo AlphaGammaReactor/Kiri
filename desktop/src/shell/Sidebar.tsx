@@ -8,7 +8,7 @@ import type { StringKey } from "../i18n/strings";
 import type { EngineState } from "../lib/engine";
 import { APP_VERSION } from "../lib/platform";
 
-export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation" | "import" | "de" | "signature";
+export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation" | "import" | "de" | "signature" | "across";
 
 const Item = ({ icon, label, active, disabled, onClick, title }: { icon: ReactNode; label: string; active?: boolean; disabled?: boolean; onClick?: () => void; title?: string }) => (
   <button className="nav-item" aria-current={active ? "page" : undefined} disabled={disabled} onClick={onClick} title={title}>
@@ -45,7 +45,7 @@ export function Sidebar({ screen, onNav, engine, projectOpen, onLater }: { scree
       <Item icon={<LayoutGrid {...ic} />} label={t("nav.overview")} disabled={off} title={tip} active={screen === "overview"} onClick={() => onNav("overview")} />
       <div className="group">{t("nav.analyses")}</div>
       {analyses.map(([k, i, to]) => to
-        ? <Item key={k} icon={i} label={t(k)} disabled={off && to !== "guide"} title={to === "guide" ? undefined : tip} active={screen === to} onClick={() => onNav(to)} />
+        ? <Item key={k} icon={i} label={t(k)} disabled={off && to !== "guide"} title={to === "guide" ? undefined : tip} active={screen === to || (to === "expression" && screen === "across")} onClick={() => onNav(to)} />
         : <Item key={k} icon={i} label={t(k)} disabled={off} title={off ? tip : t("common.notYet")} onClick={onLater} />)}
       <div className="group">{t("nav.record")}</div>
       {record.map(([k, i, to]) => to

@@ -94,6 +94,22 @@ def _write(path: Path, obj) -> None:
     tmp.replace(path)
 
 
+def _decode(v, codes):
+    """A phenotype value: categorical codes are indices into `codes`; missing comes as None, NaN or "NaN"."""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return v
+    if math.isnan(f):
+        return None
+    if codes:
+        i = int(f)
+        return codes[i] if 0 <= i < len(codes) else None
+    return v
+
+
 def phenotype(data_dir: Path) -> dict:
     """Samples with study, sample type, site and TCGA code. Fetched once, then read from the data folder."""
     path = _cache(data_dir) / "phenotype.json.gz"
@@ -113,7 +129,7 @@ def phenotype(data_dir: Path) -> dict:
     out = {"samples": samples, "fetched": time.strftime("%Y-%m-%d")}
     for (k, field), col in zip(use.items(), vals):
         cd = codes.get(field)
-        out[k] = [None if v is None or (isinstance(v, float) and math.isnan(v)) else (cd[int(v)] if cd else v) for v in col]
+        out[k] = [_decode(v, cd) for v in col]
     disease = out.get("disease") or out.get("detail") or [None] * len(samples)
     out["code"] = [(_NAME2CODE.get(_key(d)) if (st or "").upper() == "TCGA" else None) for d, st in zip(disease, out.get("study", [None] * len(samples)))]
     _write(path, out)

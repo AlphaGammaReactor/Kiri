@@ -6,7 +6,7 @@ export type Alt = { figure: Pair; verdict: "ok" | "avoid"; why: Pair };
 export type Recipe = {
   id: "tn" | "stage" | "survival" | "correlation" | "across" | "pathways" | "bench";
   question: Pair; figure: Pair; test: Pair; why: Pair; read: Pair; caution: Pair; alts: Alt[];
-  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | null;
+  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | "across" | null;
   keywords: RegExp;
 };
 
@@ -82,13 +82,13 @@ export const RECIPES: Recipe[] = [
     keywords: /correlat|together|co-?express|relationship|two genes|vs\.? gene|associat\w* with \w+ gene|相关|共表达|一起|两个基因|关联/i,
   },
   {
-    id: "across", action: null,
+    id: "across", action: "across",
     question: ["Is my gene different across many cancer types?", "我的基因在不同癌种之间是否不同？"],
     figure: ["Paired box plots, tumour and normal side by side for each cancer", "每个癌种的肿瘤与正常并排箱线图"],
     test: ["Rank-sum test per cancer, corrected for the number of cancers (Benjamini–Hochberg)", "每个癌种做秩和检验，并按癌种数量校正（Benjamini–Hochberg）"],
     why: ["Shows the pattern at a glance while keeping each cancer's own normal tissue as its comparison.", "一眼看出整体规律，同时每个癌种都与自己的正常组织比较。"],
     read: ["Look for cancers where the boxes clearly separate and that have enough normal samples (n under the box).", "找箱体明显分开、且正常样本足够（看箱下方的 n）的癌种。"],
-    caution: ["Several TCGA cancers have fewer than 10 normal samples; GTEx normals help but come from different donors and processing.", "部分 TCGA 癌种的正常样本不足 10 个；GTEx 正常样本有帮助，但来自不同供体和处理流程。"],
+    caution: ["Several TCGA cancers have fewer than 10 normal samples. GTEx normals help; Kiri uses the Toil recompute so TCGA and GTEx share one pipeline, but GTEx donors are healthy, post-mortem and different people.", "部分 TCGA 癌种的正常样本不足 10 个。GTEx 正常样本有帮助；Kiri 使用 Toil 重新计算的数据，使 TCGA 与 GTEx 采用同一流程，但 GTEx 供体是健康的已故者，且是不同的人。"],
     alts: [{ figure: ["One bar per cancer", "每个癌种一根柱子"], verdict: "avoid", why: ["Loses the spread and the normal comparison.", "丢失了分布和正常组织对照。"] }],
     keywords: /across|pan-?cancer|cancers|many cancer|cancer types|泛癌|不同癌|多个癌|癌种之间/i,
   },

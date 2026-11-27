@@ -15,8 +15,8 @@ type Mode = "tn" | "stage" | "group";
 export const STAGE_COLORS: Record<string, string> = { I: "#7a9a5a", II: "#2a6fa8", III: "#c8641a", IV: "#a3392b" };
 export const GROUP_COLORS = ["#2a6fa8", "#c8641a", "#7a9a5a", "#a3392b", "#6b5ca5", "#3f8f8a", "#b0892b", "#5a5a5a"];
 
-export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSurvival, initialGene }: {
-  p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void; onSurvival: (gene: string) => void; initialGene?: string;
+export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSurvival, onAcross, initialGene, initialMode }: {
+  p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void; onSurvival: (gene: string) => void; onAcross: (gene: string) => void; initialGene?: string; initialMode?: "tn" | "stage";
 }) {
   const { t } = useT();
   const a = useAnalysis(["expression_tn", "expression_stage", "expression_group"]);
@@ -24,7 +24,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
   const saved = a.current?.params;
   const targets = p.project.targets.length ? p.project.targets : ["TP53"];
   const [gene, setGene] = useState<string>(initialGene || targets[0]);
-  const [mode, setMode] = useState<Mode>("tn");
+  const [mode, setMode] = useState<Mode>(initialMode ?? "tn");
   const [paired, setPaired] = useState(false);
   const [points, setPoints] = useState(true);
   const [synced, setSynced] = useState<string | null>(null);
@@ -113,7 +113,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
         <div className="segmented full">
           <button aria-pressed={mode === "tn"} onClick={() => setMode("tn")}>{t("expr.mode.normal")}</button>
           <button aria-pressed={mode === "stage"} onClick={() => setMode("stage")}>{t("expr.mode.stage")}</button>
-          <button aria-pressed={false} onClick={onLater} title={t("common.notYet")} className="muted">{t("expr.mode.cancers")}</button>
+          <button aria-pressed={false} onClick={() => onAcross(gene)}>{t("expr.mode.cancers")}</button>
         </div>)}
       </Param>
       {mode === "tn" && (

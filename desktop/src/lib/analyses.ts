@@ -14,6 +14,7 @@ export type SurvivalResult = {
   counts: { patients: number; no_expression: number; no_survival: number };
   checks: Check[]; data_version: DataVersion; error?: undefined;
 };
+export type Summary = { n: number; median?: number | null; q1?: number | null; q3?: number | null; min?: number | null; max?: number | null; mean?: number | null };
 export type Group = { key: string; n: number; median: number; q1: number; q3: number; min: number; max: number; mean: number; values: number[] };
 export type ExpressionResult = {
   kind: "expression_tn" | "expression_stage" | "expression_group"; gene: string; units: string; paired?: boolean;
@@ -30,11 +31,11 @@ export type CorrelationResult = {
 };
 export type ErrorResult = { kind: string; gene: string; error: string; [k: string]: unknown };
 export type DataVersion = { cohort: string; projects: string[]; source: string; units: string; built: string };
-export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "correlation" | "de" | "signature";
+export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "correlation" | "de" | "signature" | "across";
 export type RunParams = { kind: Kind; gene: string; gene2?: string; set_id?: string; members?: string[]; check_only?: boolean; cut?: "median" | "quartile" | "optimal"; adjust?: ("age" | "stage")[]; paired?: boolean; replace?: string;
-  compare?: "tn" | "gene" | "group"; group_a?: string | null; group_b?: string | null; lfc?: number; q?: number; library?: PathwayLibrary };
+  compare?: "tn" | "gene" | "group"; group_a?: string | null; group_b?: string | null; lfc?: number; q?: number; library?: PathwayLibrary; normal?: "tcga" | "tcga_gtex" };
 export type Headline = { p_report?: number | null; error?: string | null; hr?: number | null; p?: number | null; rho?: number | null; n?: number | null; worst?: "pass" | "caution" | "problem" | null };
-export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | DEResult | ErrorResult> = {
+export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | DEResult | AcrossResult | ErrorResult> = {
   id: string; kind: Kind; params: RunParams & { projects: string[] }; result: R; data_versions: DataVersion;
   created_at: string; updated_at: string; saved?: boolean;
 };
@@ -51,6 +52,11 @@ export type DEResult = {
   volcano: [string, number, number, "up" | "down" | ""][]; top_up: DEGene[]; top_down: DEGene[];
   enrichment: { library: PathwayLibrary | null; n_sets?: number; up: EnrichRow[]; down: EnrichRow[] };
   test: { name: string; correction: string }; checks: Check[]; data_version: DataVersion; excluded: number;
+};
+export type AcrossResult = {
+  kind: "across"; gene: string; normal: "tcga" | "tcga_gtex"; units: string; n_tested: number; n_up: number; n_down: number; up: string[]; down: string[];
+  rows: { code: string; tumour: Summary; normal: Summary; n_tcga_normal: number; n_gtex: number; gtex_site: string | null; p: number | null; p_adj?: number; diff: number | null; points_t: number[]; points_n: number[] }[];
+  checks: Check[]; data_version: DataVersion; test: { name: string; correction: string };
 };
 export type PathwayInfo = { id: PathwayLibrary; available: boolean; version?: string; licence?: string; citation?: string; source?: string; n?: number };
 export type OwnCohort = { id: string; name: string; n: number; values: number; survival: boolean; groups: string[]; units: string };

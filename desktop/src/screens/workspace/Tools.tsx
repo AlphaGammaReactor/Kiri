@@ -83,10 +83,12 @@ export function ReproduceDialog({ a, fileName, initialTab = "record", onClose, s
     ? [t(`surv.cut.${p.cut ?? "median"}` as StringKey), p.adjust?.length ? t("repro.adjusted", { c: p.adjust.map((x) => t(x === "age" ? "surv.adj.age" : "surv.adj.stage").toLowerCase()).join(", ") }) : t("repro.unadjusted")].join(" · ")
     : (a.kind as string) === "signature" ? t("sig.repro.settings", { s: String((a.result as { set_name?: string }).set_name ?? (p as { set_id?: string }).set_id ?? ""), n: sigMembers(a).length })
     : a.kind === "expression_tn" ? (p.paired ? t("repro.paired") : t("repro.unpaired"))
+    : a.kind === "across" ? (p.normal === "tcga" ? t("acr.normal.tcga") : t("acr.normal.gtex"))
     : a.kind === "de" ? t("repro.de", { c: t(`de.cmp.${p.compare ?? "tn"}` as StringKey, { g: p.gene ?? "" }), l: p.lfc ?? 1, q: p.q ?? 0.05, lib: t(`de.lib.${p.library ?? "hallmark"}` as StringKey) }) : (p as { gene2?: string }).gene2 ? t("repro.withGene", { g: (p as { gene2?: string }).gene2! }) : "–";
   const headline = (r: unknown) => {
     const x = r as Partial<Omit<SurvivalResult, "kind">> & Partial<Omit<ExpressionResult, "kind">> & { rho?: number; p?: number };
     if (a.kind === "survival") return `HR ${fmt((x.cox_adjusted ?? x.cox)?.hr)} · p = ${fmtP(x.p_report)}`;
+    if (a.kind === "across") { const d = r as { n_up?: number; n_down?: number; n_tested?: number }; return `${d.n_up} up · ${d.n_down} down / ${d.n_tested}`; }
     if (a.kind === "de") { const d = r as { n_up?: number; n_down?: number; n_tested?: number }; return `${d.n_up} up · ${d.n_down} down / ${d.n_tested}`; }
     if ((a.kind as string) === "correlation" || (a.kind as string) === "signature") return `ρ = ${fmt(x.rho)} · p = ${fmtP(x.p)}`;
     return `p = ${fmtP(x.test?.p)}`;
@@ -196,6 +198,23 @@ wilcox.test(pairs$expression.x, pairs$expression.y, paired = TRUE)
 boxplot(expression ~ group, data = d, outline = FALSE, ylab = "${a.data_versions.units}")
 stripchart(expression ~ group, data = d, vertical = TRUE, method = "jitter", add = TRUE, pch = 16, cex = 0.4)
 `;
+  if (a.kind === "across") return `# One row per sample, from the UCSC Toil recompute of TCGA and GTEx (log2(TPM + 1)).
+d <- read.csv("${csv}", check.names = FALSE)
+v <- d[[5]]
+cancers <- sort(unique(d$cancer_or_tissue[d$study == "TCGA"]))
+out <- data.frame(cancer = cancers, p = NA, diff = NA)
+for (i in seq_along(cancers)) {
+  tum <- v[d$study == "TCGA" & d$cancer_or_tissue == cancers[i] & d$group == "tumour"]
+  nor <- v[d$study == "TCGA" & d$cancer_or_tissue == cancers[i] & d$group == "normal"]
+  # Kiri also adds GTEx normals of the matching organ when that option is on (see the GTEx rows).
+  if (length(tum) >= 3 && length(nor) >= 3) {
+    out$p[i] <- wilcox.test(tum, nor)$p.value
+    out$diff[i] <- median(tum) - median(nor)
+  }
+}
+out$q <- p.adjust(out$p, method = "BH")
+out[order(out$q), ]
+`;
   if (a.kind === "de") return `# One row per tested gene, as Kiri computed it (Welch t-test per gene on log2 values).
 # The per-sample matrix is in the project's cohort files; this script checks the
 # multiple-testing correction and the thresholds, and redraws the volcano plot.
@@ -282,6 +301,23 @@ pn = d[d.group == "normal"].groupby("patient").expression.mean()
 both = pt.index.intersection(pn.index)
 print("signed-rank p =", stats.wilcoxon(pt[both], pn[both]).pvalue, "pairs =", len(both))
 ` : ""}`;
+  if (a.kind === "across") return `import pandas as pd                        # pip install pandas scipy statsmodels
+from scipy import stats
+from statsmodels.stats.multitest import multipletests
+
+# One row per sample, from the UCSC Toil recompute of TCGA and GTEx (log2(TPM + 1)).
+d = pd.read_csv("${csv}")
+v = d.columns[4]
+rows = []
+for c, x in d[d.study == "TCGA"].groupby("cancer_or_tissue"):
+    tum, nor = x[x.group == "tumour"][v], x[x.group == "normal"][v]
+    # Kiri also adds GTEx normals of the matching organ when that option is on (see the GTEx rows).
+    if len(tum) >= 3 and len(nor) >= 3:
+        rows.append((c, tum.median() - nor.median(), stats.mannwhitneyu(tum, nor, alternative="two-sided").pvalue))
+r = pd.DataFrame(rows, columns=["cancer", "diff", "p"])
+r["q"] = multipletests(r.p, method="fdr_bh")[1]
+print(r.sort_values("q"))
+`;
   if (a.kind === "de") return `import numpy as np, pandas as pd              # pip install pandas statsmodels matplotlib
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt

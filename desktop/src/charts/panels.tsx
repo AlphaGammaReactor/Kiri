@@ -2,11 +2,12 @@
 // so a panel exists even for an analysis that was never opened or sent to the notebook.
 import { renderToStaticMarkup } from "react-dom/server";
 import type { StringKey } from "../i18n/strings";
-import { fmt, fmtP, type Analysis, type Check, type CorrelationResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
+import { fmt, fmtP, type Analysis, type Check, type AcrossResult, type CorrelationResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
 import { BoxPoints } from "./BoxPoints";
 import { KM } from "./KM";
 import { Scatter } from "./Scatter";
 import { Volcano } from "./Volcano";
+import { Across } from "./Across";
 import { FIG } from "./figure";
 import { figText, fillFig, stars, type FigLang } from "./figStrings";
 import { plainSurvival } from "../screens/workspace/Survival";
@@ -43,6 +44,13 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
       stat: fillFig(r.cut === "optimal" ? F.hrLineAdj : r.cox_adjusted ? F.aHR : F.hrLine, { hr: fmt(cox.hr), lo: fmt(cox.lo), hi: fmt(cox.hi), p: fmtP(p) }),
     }} />;
     summary = plainSurvival(r, cox, p, r.groups.high.n + r.groups.low.n, t);
+  } else if (a.kind === "across") {
+    const r = a.result as AcrossResult;
+    const zh = figLang === "zh";
+    const rows = [...r.rows].sort((x, y) => (y.tumour.median ?? -99) - (x.tumour.median ?? -99));
+    el = <Across rows={rows} labels={{ x: zh ? `${r.gene} 表达量，log2(TPM + 1)` : `${r.gene} expression, log2(TPM + 1)`, tumour: zh ? "肿瘤" : "Tumour",
+      normal: r.normal === "tcga_gtex" ? (zh ? "正常（TCGA + GTEx）" : "Normal (TCGA + GTEx)") : (zh ? "正常" : "Normal"), noNormal: zh ? "无正常" : "no normal", stat: "n T/N · BH q" }} />;
+    summary = t(r.n_up + r.n_down ? "acr.plain" : "acr.plainNone", { g: r.gene, u: r.n_up, d: r.n_down, k: r.n_tested });
   } else if (a.kind === "de") {
     const r = a.result as DEResult;
     const zh = figLang === "zh";
