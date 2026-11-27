@@ -16,7 +16,11 @@ export type UpdateState =
   | { kind: "error"; reason: UpdateFailure; message: string; checkedAt: Date; version?: string }
   | { kind: "unsupported" };
 
-const RECHECK_MS = 6 * 60 * 60 * 1000;
+// Kiri is often left open for days, so a check only at launch is not enough: check every 30 minutes,
+// again when the window comes back to the front (at most every 10 minutes), and retry a failed check soon.
+const RECHECK_MS = 30 * 60 * 1000;
+const FOCUS_MIN_MS = 10 * 60 * 1000;
+const RETRY_MS = 5 * 60 * 1000;
 
 type UpdateHandle = { version: string; body?: string; download: (cb: (e: any) => void) => Promise<void>; install: () => Promise<void> };
 
@@ -50,9 +54,10 @@ export function useUpdater(enabled: boolean) {
   const pending = useRef<UpdateHandle | null>(null);
   const running = useRef(false);
 
-  const check = useCallback(async () => {
-    if (preview) { setState({ kind: "checking" }); setTimeout(() => setState(previewState(preview === "offline" ? "offline" : "idle")), 900); return; }
-    if (!isTauri || import.meta.env.DEV || running.current || pending.current) return;
+  /** Returns false when the check failed (so the automatic check can retry), true otherwise. */
+  const check = useCallback(async (): Promise<boolean> => {
+    if (preview) { setState({ kind: "checking" }); setTimeout(() => setState(previewState(preview === "offline" ? "offline" : "idle")), 900); return true; }
+    if (!isTauri || import.meta.env.DEV || running.current || pending.current) return true;
     running.current = true;
     setState({ kind: "checking" });
     let phase: "check" | "download" = "check";
@@ -60,7 +65,7 @@ export function useUpdater(enabled: boolean) {
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = (await check()) as unknown as UpdateHandle | null;
-      if (!update) { setState({ kind: "idle", checkedAt: new Date() }); return; }
+      if (!update) { setState({ kind: "idle", checkedAt: new Date() }); return true; }
       phase = "download";
       version = update.version;
       let total = 0, got = 0;
@@ -75,19 +80,39 @@ export function useUpdater(enabled: boolean) {
       });
       pending.current = update;
       setState({ kind: "ready", version: update.version, notes: update.body, bytes: total || got || undefined });
+      return true;
     } catch (err) {
+      console.warn("update check failed", err);
       setState({ kind: "error", reason: classify(err, phase), message: String(err), checkedAt: new Date(), version });
+      return false;
     } finally {
       running.current = false;
     }
   }, []);
 
+  const lastCheck = useRef(0);
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const auto = useCallback(async () => {
+    lastCheck.current = Date.now();
+    if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+    const ok = await check();
+    if (ok === false) retry.current = setTimeout(auto, RETRY_MS);
+  }, [check]);
+
   useEffect(() => {
     if (!enabled || preview) return;
-    const first = setTimeout(check, 3000);
-    const every = setInterval(check, RECHECK_MS);
-    return () => { clearTimeout(first); clearInterval(every); };
-  }, [enabled, check]);
+    const first = setTimeout(auto, 3000);
+    const every = setInterval(auto, RECHECK_MS);
+    const onFront = () => { if (document.visibilityState === "visible" && Date.now() - lastCheck.current > FOCUS_MIN_MS) auto(); };
+    window.addEventListener("focus", onFront);
+    document.addEventListener("visibilitychange", onFront);
+    return () => {
+      clearTimeout(first); clearInterval(every);
+      if (retry.current) clearTimeout(retry.current);
+      window.removeEventListener("focus", onFront);
+      document.removeEventListener("visibilitychange", onFront);
+    };
+  }, [enabled, auto]);
 
   /** Save, install and restart. Refuses while an analysis is running. `beforeRestart` saves the project and where the person was. */
   const restart = useCallback(async (beforeRestart?: () => Promise<void>): Promise<"busy" | "ok"> => {

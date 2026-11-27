@@ -100,7 +100,7 @@ export const en = {
   "settings.level": "Explanation level",
   "settings.level.help": "Learn shows plain-language explanations and tooltips. Expert shows methods and assumptions first. Nothing about the analysis changes.",
   "settings.autoUpdate": "Check for updates automatically",
-  "settings.autoUpdate.help": "Kiri asks GitHub for a newer version when it starts and every few hours. Nothing about you or your projects is sent. Updates are never installed in the middle of an analysis.",
+  "settings.autoUpdate.help": "Kiri asks GitHub for a newer version when it starts, every 30 minutes while open, and when you come back to the window. Nothing about you or your projects is sent. Updates are never installed in the middle of an analysis.",
   "settings.telemetry": "Usage data",
   "settings.telemetry.help": "Kiri collects none. There is nothing to turn off.",
 
@@ -802,7 +802,7 @@ export const zh: Record<StringKey, string> = {
   "settings.level": "讲解程度",
   "settings.level.help": "学习模式显示通俗讲解和提示；专家模式优先显示方法和假设。分析本身不变。",
   "settings.autoUpdate": "自动检查更新",
-  "settings.autoUpdate.help": "Kiri 在启动时和每隔几小时向 GitHub 查询新版本，不会发送任何关于你或你的项目的信息。分析进行中绝不安装更新。",
+  "settings.autoUpdate.help": "Kiri 在启动时、打开期间每 30 分钟以及你回到窗口时向 GitHub 查询新版本，不会发送任何关于你或你的项目的信息。分析进行中绝不安装更新。",
   "settings.telemetry": "使用数据",
   "settings.telemetry.help": "Kiri 不收集任何使用数据，因此没有需要关闭的选项。",
 
