@@ -22,20 +22,22 @@ purposes. The full license terms are available here .
 available under a single user license agreement for internal research purposes. The 
  full license terms are available here .
 === https://reactome.org/license
-	 License Agreement - Reactome Pathway Database 
- What is Reactome ? News Team Scientific Advisory Board Funding Editorial Calendar Release Calendar Statistics Our Logo License Agreement Privacy Notice Disclaimer Digital Preservation Contact us Content 
- What is Reactome ? News Team Scientific Advisory Board Funding Editorial Calendar Release Calendar Statistics Our Logo License Agreement Privacy Notice Disclaimer Digital Preservation Contact us Content 
-					License Agreement				 
- What is Reactome ? News Team Scientific Advisory Board Funding Editorial Calendar Release Calendar Statistics Our Logo License Agreement Privacy Notice Disclaimer Digital Preservation Contact us 
-				License Agreement			 
-		 This License Agreement (the “Agreement”) governs the use of the Reactome database and its contents, including all data, graphics, software, and other materials associated therewith. By accessing and/or using Reactome, you (the “User”) agree to be bound
- 1. Applicable Open-Source Licenses.  User agrees that the content on Reactome is governed by various open-source licenses and agrees to adhere to applicable license terms as follows: 
- a)  Pathway Illustrations, Icon Library, Art, and Branding Materials . This Reactome content is licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0) . User may copy, modify, and distribute these materials, provided that appropriate credit is given, a link to the license is included, and any modifications made by User are clearly indicated. For information on how to properly credit
- data use, please review the Creative Commons FAQ or contact the This email address is being protected from spambots. You need JavaScript enabled to view it. 
- b)  Software and Code : Except for software using dependencies with copyleft licenses (e.g., GPL-3) that require derivative works to use the same license, and except for FoamTree software, which is subject to a Special License as further described in Section 2 a) below, all Reactome software is licensed under the Apache License 2.0 . Individual repositories are marked with the appropriate licensing requirements, and User must ensure their intended use is complia
-nt with the relevant license, as applicable. 
- c)  Data : All data in the Reactome database and files derived from that data are licensed under the Creative Commons Public Domain Dedication (CC0) . User may copy, modify, and distribute these data, even for commercial purposes, without asking for permission. Attribution is encouraged but not required. 
- 2. Special Licenses.  Notwithstanding the Applicable Open-Source Licenses set out in Section 1 above, User agrees to the application of Special Licenses to certain Reactome content as follows: 
- a)  FoamTree (Voronoi Treemaps) : The FoamTree software, used to construct the ReacFoam genome-wide pathway overview, is provided under license by Carrot Search, Inc. Images and analyses generated on the Reactome website using FoamTree software are free to use with no restriction. For local installations of the Reactome, User must either: i) use the free, fully functional demo ver
-sion of the FoamTree software included with Reactome, which adds a promotional logo to one of the cells of the visualization; or ii) obtain their own license from Carrot Search directly. 
- What is Reactome ? News Team Scientific Advisory Board Funding Editorial Calendar Release Calendar Statistics Our Logo License Agreement Privacy Notice Disclaimer Digital Preservation Contact us Content 
+=== https://www.wikipathways.org/about.html
+=== https://geneontology.org/docs/go-citation-policy/
+ GO citation policy and license 
+ GO citation policy and license | Gene Ontology Resource 
+{"@context":"https://schema.org","@type":"WebPage","dateModified":"2026-11-18T20:18:18-08:00","datePublished":"2026-11-18T20:18:18-08:00","description":"GO citation policy and license","headline":"GO citation policy and license","url":"http://geneontology.org/docs/go-citation-policy/"} 
+ About the GO Who we are Collaborations Annotation contributors Scientific literature GO citation policy and license 
+ GO citation policy and license 
+ License 
+ Gene Ontology Consortium data and data products are licensed under the Creative Commons Attribution 4.0 Unported License . A human-readable version and explanation is available at the Creative Commons website . For information about how to properly credit data use, please review the Creative Commons FAQ or contact the GO Helpdesk. 
+ According to the terms of GO’s CC BY 4.0 license , those using our data publicly or redistributing it must provide: 
+ “identification of the creator(s) of the Licensed Material and any others designated to receive attribution, in any reasonable manner requested by the Licensor (including by pseudonym if designated);” 
+ “a notice that refers to this Public License;” 
+ “a URI or hyperlink to the Licensed Material to the extent reasonably practicable;” 
+ For example, if you are offering downloads containing GO data, have a data licensing page in your application, or refer to licensed data in your documentation, an appropriate notice may be: 
+ Gene Ontology data from the 2024-01-17 release ( DOI:10.5281/zenodo.10536401 ) is made available under the terms of the CC BY 4.0 license . 
+ Creative Commons Recommended Practices for Attribution 
+ Creative Commons FAQ 
+ GOC software and tools are under their own licenses; please see their respective homepages for further details. 
+ If you intend to use the logo on your website, please include a link to the GO home page, https://geneontology.org. Please contact the GO Helpdesk if you need a larger or higher resolution version. The logo is subject to our use and license. 
