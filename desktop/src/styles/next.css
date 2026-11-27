@@ -187,3 +187,11 @@
 .de-paths .row-between .mono { white-space: nowrap; flex: none; }
 .de-paths .row-between b { min-width: 0; }
 .acr-stack .fig-canvas { height: 640px; }
+
+/* Interactions */
+.int-tbl td { vertical-align: middle; }
+.int-ev { display: flex; gap: 3px; }
+.int-ev span { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--color-accent-default); color: #fff; font-family: var(--font-mono); }
+.int-ev .ev-textmining { background: #8a7f70; }
+.int-ev .ev-coexpression { background: #2a6fa8; }
+.int-ev .ev-databases { background: #5a7f4a; }

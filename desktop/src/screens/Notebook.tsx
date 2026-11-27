@@ -123,7 +123,7 @@ export function Notebook({ p, say, onOpenAnalysis }: { p: ProjectSummary; say: (
                   </header>
                   {n.changed_since && (
                     <div className="stale"><TriangleAlert size={15} /><span>{t("nb.changedBody")}</span>
-                      <button className="btn sm" onClick={() => onOpenAnalysis(n.body.kind === "survival" || n.body.kind === "correlation" || n.body.kind === "de" || n.body.kind === "across" || n.body.kind === "immune" ? n.body.kind : "expression", n.body.gene)}>{t("nb.open")}</button></div>
+                      <button className="btn sm" onClick={() => onOpenAnalysis(n.body.kind === "survival" || n.body.kind === "correlation" || n.body.kind === "de" || n.body.kind === "across" || n.body.kind === "immune" || n.body.kind === "interactions" ? n.body.kind : "expression", n.body.gene)}>{t("nb.open")}</button></div>
                   )}
                   {n.kind === "text" ? <p className="nb-text">{n.body.text}</p> : (
                     <>

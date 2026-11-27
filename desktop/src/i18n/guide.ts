@@ -4,9 +4,9 @@
 export type Pair = [string, string];
 export type Alt = { figure: Pair; verdict: "ok" | "avoid"; why: Pair };
 export type Recipe = {
-  id: "tn" | "stage" | "survival" | "correlation" | "across" | "immune" | "pathways" | "bench";
+  id: "tn" | "stage" | "survival" | "correlation" | "across" | "immune" | "interactions" | "pathways" | "bench";
   question: Pair; figure: Pair; test: Pair; why: Pair; read: Pair; caution: Pair; alts: Alt[];
-  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | "across" | "immune" | null;
+  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | "across" | "immune" | "interactions" | null;
   keywords: RegExp;
 };
 
@@ -103,6 +103,18 @@ export const RECIPES: Recipe[] = [
     caution: ["Scores are relative amounts between tumours, not cell counts, and bulk RNA cannot say which cells make your gene. Confirm with single-cell data or staining.", "评分是肿瘤之间的相对多少，并非细胞计数；组织 RNA 也无法说明基因由哪种细胞表达。请用单细胞数据或染色验证。"],
     alts: [{ figure: ["Stacked bars of cell fractions per patient", "每位患者的细胞比例堆叠柱图"], verdict: "avoid", why: ["Needs a deconvolution method and reference with its own licence and assumptions, and the bars hide the link to your gene.", "需要带有自身许可和假设的反卷积方法与参考矩阵，且柱图看不出与基因的关系。"] }],
     keywords: /immun|t ?cell|macrophage|infiltrat|lymphocyte|nk cell|免疫|浸润|巨噬|淋巴细胞|T 细胞/i,
+  },
+  {
+    id: "interactions", action: "interactions",
+    question: ["Which proteins does my protein work with, and what does it look like?", "我的蛋白与哪些蛋白一起工作？它的结构是什么样的？"],
+    figure: ["Partner network from STRING, coloured by co-expression in your tumours; protein map with domains and AlphaFold confidence", "STRING 相互作用网络，按你的肿瘤中的共表达着色；带结构域和 AlphaFold 可信度的蛋白示意图"],
+    test: ["STRING combined score (≥ 0.4) for the links; Spearman with Benjamini–Hochberg for co-expression in the cohort", "相互作用用 STRING 综合评分（≥ 0.4）；队列中的共表达用 Spearman 并做 Benjamini–Hochberg 校正"],
+    why: ["STRING gathers experiments, curated pathways and text mining in one score, and checking the partners in your own tumours shows which links are visible in your disease.",
+      "STRING 把实验、通路数据库和文献挖掘合成一个评分；再在你自己的肿瘤中检查这些伙伴，可看出哪些联系在你研究的疾病中可见。"],
+    read: ["Prefer partners with experimental or database evidence; a coloured node means the two RNAs move together in your tumours.", "优先看有实验或数据库证据的伙伴；节点着色表示两者的 RNA 在你的肿瘤中一起变化。"],
+    caution: ["A STRING link is not proof of direct binding, and co-expression is not interaction. Text-mining-only links can come from papers that merely mention both genes.", "STRING 联系不等于直接结合，共表达也不等于相互作用。仅来自文献挖掘的联系可能只是论文同时提到两个基因。"],
+    alts: [{ figure: ["A hairball of hundreds of proteins", "包含数百个蛋白的“毛线团”网络"], verdict: "avoid", why: ["Too dense to read; keep the top partners of one gene.", "太密无法阅读；只保留一个基因的主要伙伴。"] }],
+    keywords: /interact|partner|binding|complex|network|string|structure|domain|alphafold|相互作用|结合|复合物|网络|结构|结构域/i,
   },
   {
     id: "pathways", action: "de",

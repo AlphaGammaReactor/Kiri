@@ -31,11 +31,11 @@ export type CorrelationResult = {
 };
 export type ErrorResult = { kind: string; gene: string; error: string; [k: string]: unknown };
 export type DataVersion = { cohort: string; projects: string[]; source: string; units: string; built: string };
-export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "correlation" | "de" | "signature" | "across" | "immune";
+export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "correlation" | "de" | "signature" | "across" | "immune" | "interactions";
 export type RunParams = { kind: Kind; gene: string; gene2?: string; set_id?: string; members?: string[]; check_only?: boolean; cut?: "median" | "quartile" | "optimal"; adjust?: ("age" | "stage")[]; paired?: boolean; replace?: string;
   compare?: "tn" | "gene" | "group"; group_a?: string | null; group_b?: string | null; lfc?: number; q?: number; library?: PathwayLibrary; normal?: "tcga" | "tcga_gtex" };
 export type Headline = { p_report?: number | null; error?: string | null; hr?: number | null; p?: number | null; rho?: number | null; n?: number | null; worst?: "pass" | "caution" | "problem" | null };
-export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | DEResult | AcrossResult | ImmuneResult | ErrorResult> = {
+export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | DEResult | AcrossResult | ImmuneResult | InteractionsResult | ErrorResult> = {
   id: string; kind: Kind; params: RunParams & { projects: string[] }; result: R; data_versions: DataVersion;
   created_at: string; updated_at: string; saved?: boolean;
 };
@@ -63,6 +63,16 @@ export type ImmuneCell = { id: string; name: string; zh: string; markers: string
 export type ImmuneResult = {
   kind: "immune"; gene: string; n: number; rows: ImmuneCell[]; pos: string[]; neg: string[]; top: string | null; overall_rho: number | null;
   points: { x: number[]; cells: Record<string, number[]> }; checks: Check[]; data_version: DataVersion; citation: string;
+};
+export type Partner = { gene: string; score: number; experiments: number; databases: number; textmining: number; coexpression: number;
+  neighborhood: number; fusion: number; cooccurrence: number; rho?: number | null; lo?: number; hi?: number; p?: number; p_adj?: number };
+export type InteractionsResult = {
+  kind: "interactions"; gene: string; partners: Partner[]; edges: [string, string, number][];
+  protein: { accession: string; name: string; length: number; locations: string[]; features: { kind: string; start: number; end: number; label: string }[] } | null;
+  alphafold: { id: string; version: number | string; mean: number } | null; plddt: number[];
+  bands: { very_high: number; confident: number; low: number; very_low: number } | null;
+  n: number; together: string[]; opposite: string[]; strong: number; experimental: string[]; string_version: string | null; fetched: string;
+  checks: Check[]; citations: Record<string, string>; data_version: DataVersion;
 };
 export type PathwayInfo = { id: PathwayLibrary; available: boolean; version?: string; licence?: string; citation?: string; source?: string; n?: number };
 export type OwnCohort = { id: string; name: string; n: number; values: number; survival: boolean; groups: string[]; units: string };

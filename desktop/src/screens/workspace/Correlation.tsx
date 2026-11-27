@@ -17,18 +17,18 @@ const FIGT = {
 };
 const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? "")).replace(/= </g, "<");
 
-export function Correlation({ p, figLang, onFigLang, say, onLater, onGuide }: {
-  p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void;
+export function Correlation({ p, figLang, onFigLang, say, onLater, onGuide, initial }: {
+  p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void; initial?: string[];
 }) {
   const { t } = useT();
   const a = useAnalysis(["correlation"]);
   const r = a.current?.kind === "correlation" && !(a.current.result as { error?: string }).error ? (a.current.result as CorrelationResult) : null;
   const targets = p.project.targets.length ? p.project.targets : ["TP53"];
   const defaults = targets.length > 1 ? [targets[0], targets[1]] : [targets[0], targets[0] === "TP53" ? "MDM2" : "GAPDH"];
-  const [g1, setG1] = useState(defaults[0]);
-  const [g2, setG2] = useState(defaults[1]);
+  const [g1, setG1] = useState(initial?.[0] ?? defaults[0]);
+  const [g2, setG2] = useState(initial?.[1] ?? defaults[1]);
   const [synced, setSynced] = useState<string | null>(null);
-  if (a.current && synced !== a.current.id) { setSynced(a.current.id); setG1(a.current.params.gene); setG2(a.current.params.gene2 ?? ""); }
+  if (a.current && synced !== a.current.id) { setSynced(a.current.id); if (!initial || synced) { setG1(a.current.params.gene); setG2(a.current.params.gene2 ?? ""); } }
   const svgRef = useRef<SVGSVGElement>(null);
   const projects = a.cohort?.projects ?? p.project.datasets;
   const ok = !!g1.trim() && !!g2.trim() && g1.trim().toUpperCase() !== g2.trim().toUpperCase();

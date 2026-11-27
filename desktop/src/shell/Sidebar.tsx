@@ -8,7 +8,7 @@ import type { StringKey } from "../i18n/strings";
 import type { EngineState } from "../lib/engine";
 import { APP_VERSION } from "../lib/platform";
 
-export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation" | "import" | "de" | "signature" | "across" | "immune";
+export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation" | "import" | "de" | "signature" | "across" | "immune" | "interactions";
 
 const Item = ({ icon, label, active, disabled, onClick, title }: { icon: ReactNode; label: string; active?: boolean; disabled?: boolean; onClick?: () => void; title?: string }) => (
   <button className="nav-item" aria-current={active ? "page" : undefined} disabled={disabled} onClick={onClick} title={title}>
@@ -28,7 +28,7 @@ export function Sidebar({ screen, onNav, engine, projectOpen, onLater }: { scree
     ["nav.correlation", <ChartLine {...ic} />, "correlation"],
     ["nav.signature", <Layers {...ic} />, "signature"],
     ["nav.de", <ChartArea {...ic} />, "de"],
-    ["nav.interactions", <Share2 {...ic} />],
+    ["nav.interactions", <Share2 {...ic} />, "interactions"],
     ["nav.immune", <Shield {...ic} />, "immune"],
     ["nav.bench", <FlaskConical {...ic} />],
     ["nav.optional", <SquarePlus {...ic} />],

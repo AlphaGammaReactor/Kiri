@@ -17,7 +17,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app.analyses import across, correlation, de, expression, immune, pathways, survival
+from app.analyses import across, correlation, de, expression, immune, interactions, pathways, survival
 from app.analyses.genesets import GENESETS
 from app.cohorts import packs
 from app.cohorts.store import Cohort, CohortUnavailable, cohort_for, load_slice, slice_for
@@ -40,7 +40,7 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "de", "signature", "across", "immune"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "de", "signature", "across", "immune", "interactions"]
     gene: str = ""
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal"] = "median"
@@ -177,11 +177,28 @@ def analysis_rows(aid: str):
             c = signature_cohort(projects, params["gene"], params.get("set_id", "uprmt_markers"), params.get("members") or [], _data_dir())
         elif r[0] == "immune":
             c = immune_cohort(projects, params["gene"], _data_dir())
+        elif r[0] == "interactions":
+            c = inter_cohort(projects, params["gene"], _data_dir())
         else:
             c = cohort_for(projects, genes, _data_dir())
+        if r[0] == "interactions":
+            return interactions.table(c, params["gene"], _data_dir()) | {"units": c.units if c else "", "data_version": c.data_version() if c else {}}
         return rows_for(c, r[0], params) | {"units": c.units, "data_version": c.data_version()}
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
+
+
+def inter_cohort(projects: list[str], gene: str, data_dir: Path) -> Cohort | None:
+    """For the co-expression part: the downloaded cohort, else the bundled slice, else none (the partners
+    and protein map still show)."""
+    if projects and all(packs.is_ready(data_dir, p) for p in projects):
+        return packs.open_packs(projects, data_dir)
+    name = slice_for(projects) if projects else None
+    if name:
+        c = load_slice(name)
+        if c.has(gene):
+            return c
+    return None
 
 
 def immune_cohort(projects: list[str], gene: str, data_dir: Path) -> Cohort:
@@ -236,9 +253,12 @@ def run(body: RunBody):
             c = signature_cohort(projects, gene, body.set_id, body.members, _data_dir())
         elif body.kind == "immune":
             c = immune_cohort(projects, gene, _data_dir())
+        elif body.kind == "interactions":
+            interactions.data(gene, _data_dir())  # fetch (or read the cache) first: needs_internet comes from here
+            c = inter_cohort(projects, gene, _data_dir())
         else:
             c = cohort_for(projects, wanted, _data_dir())
-        for g in wanted:
+        for g in ([] if body.kind == "interactions" else wanted):
             if not c.has(g):
                 raise CohortUnavailable("gene_not_in_cohort", gene=g, cohort=c.name)
         with _run_lock:
@@ -256,6 +276,8 @@ def run(body: RunBody):
                 result.pop("rows", None)
             elif body.kind == "immune":
                 result = immune.run(c, gene)
+            elif body.kind == "interactions":
+                result = interactions.run(c, gene, _data_dir())
             elif body.kind == "signature":
                 from app.kiri.signature_api import run_signature
 
@@ -278,7 +300,7 @@ def run(body: RunBody):
         params.pop("members", None)
     elif body.set_id != "custom":
         params["members"] = []
-    return _store(op, body, params, result, c.data_version())
+    return _store(op, body, params, result, c.data_version() if c is not None else result.get("data_version", {}))
 
 
 def _store(op, body, params: dict, result: dict, dv: dict):
