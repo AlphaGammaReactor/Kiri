@@ -152,7 +152,7 @@ export function DE({ p, figLang, onFigLang, say, onLater, onGuide, onGene }: {
   ].filter(Boolean).join(" ") : "";
 
   const figure = body ? <div className="fig-state">{body}</div> : r && (
-    <>
+    <div className="de-stack">
       {stale && <OutOfDate onRun={run} />}
       <FigureCard svgRef={svgRef} fileName={title} chartName={t("de.chart")} why={t("de.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only} analysis={a.current}
         caption={caption}
@@ -180,14 +180,14 @@ export function DE({ p, figLang, onFigLang, say, onLater, onGuide, onGene }: {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 
   const explain = r ? (
     <>
       <div className="tiles">
         <div className="tile"><span className="eyebrow">{t("de.tile.up", { g: label(la) })}</span><b className="de-up">{r.n_up}</b><span className="mono small">{t("de.tile.of", { n: r.n_tested.toLocaleString() })}</span></div>
-        <div className="tile"><span className="eyebrow">{t("de.tile.up", { g: label(lb) })}</span><b className="de-down">{r.n_down}</b><span className="mono small">{t("de.tile.low", { n: r.n_low.toLocaleString() })}</span></div>
+        <div className="tile"><span className="eyebrow">{t("de.tile.up", { g: label(lb) })}</span><b className="de-down">{r.n_down}</b>{r.n_low > 0 && <span className="mono small">{t("de.tile.low", { n: r.n_low.toLocaleString() })}</span>}</div>
       </div>
       <div className="side-card shows">
         <span className="eyebrow">{t("ws.whatShows")}</span><span className="small muted">{t("ws.fromNumbers")}</span>

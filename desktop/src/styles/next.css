@@ -181,3 +181,5 @@
 .de-col:first-child .de-bar span { background: #c8641a; }
 .de-licence { margin: 0 2px; }
 @media (max-width: 1100px) { .de-two { grid-template-columns: 1fr; } }
+.de-stack { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; margin: 0 -4px; padding: 0 4px; }
+.de-stack .fig-canvas { flex: none; height: 470px; }
