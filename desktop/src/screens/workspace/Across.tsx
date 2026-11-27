@@ -101,7 +101,7 @@ export function Across({ p, figLang, onFigLang, say, onLater, onGuide, onMode, i
   ].filter(Boolean).join(" ") : "";
 
   const figure = body ? <div className="fig-state">{body}</div> : r && (
-    <div className="de-stack">
+    <div className="de-stack acr-stack">
       {stale && <OutOfDate onRun={run} />}
       <FigureCard svgRef={svgRef} fileName={title} chartName={t("acr.chart")} why={t("acr.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only} analysis={a.current}
         caption={caption}

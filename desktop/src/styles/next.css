@@ -186,3 +186,4 @@
 .de-paths .row-between { gap: 8px; align-items: baseline; }
 .de-paths .row-between .mono { white-space: nowrap; flex: none; }
 .de-paths .row-between b { min-width: 0; }
+.acr-stack .fig-canvas { height: 640px; }

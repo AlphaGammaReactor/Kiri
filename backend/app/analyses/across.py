@@ -175,6 +175,19 @@ def _pts(v: np.ndarray, rng) -> list[float]:
     return [round(float(x), 3) for x in v]
 
 
+def _group(t: str, cc: str) -> str | None:
+    """Tumour = primary tumour (solid or blood-derived, as LAML is); normal = tissue next to a tumour.
+    Recurrent, post-treatment and metastatic samples are left out, except for melanoma, where
+    most TCGA samples are metastases."""
+    if "normal" in t:
+        return "normal"
+    if cc == "SKCM" and ("tumor" in t or "metastatic" in t):
+        return "tumour"
+    if t.startswith("primary"):
+        return "tumour"
+    return None
+
+
 def run(gene: str, data_dir: Path, normal: str = "tcga_gtex") -> dict:
     ph = phenotype(data_dir)
     y = gene_values(data_dir, gene, ph["samples"])
@@ -189,10 +202,8 @@ def run(gene: str, data_dir: Path, normal: str = "tcga_gtex") -> dict:
         if not idx:
             unmatched += 1
             continue
-        tum = np.array([y[i] for i in idx if "tumor" in types[i] and "normal" not in types[i] and "metastatic" not in types[i]])
-        if cc == "SKCM":  # most TCGA melanomas are metastases; use every tumour sample
-            tum = np.array([y[i] for i in idx if "normal" not in types[i]])
-        tn = np.array([y[i] for i in idx if "normal" in types[i]])
+        tum = np.array([y[i] for i in idx if _group(types[i], cc) == "tumour"])
+        tn = np.array([y[i] for i in idx if _group(types[i], cc) == "normal"])
         g = GTEX.get(cc)
         gt = np.array([y[i] for i in range(len(y)) if study[i] == "GTEX" and g and site[i] == g]) if normal == "tcga_gtex" else np.array([])
         nor = np.concatenate([tn, gt]) if len(gt) else tn
@@ -236,7 +247,9 @@ def rows(gene: str, data_dir: Path, normal: str = "tcga_gtex") -> dict:
             continue
         st, t, c, site = (ph.get("study") or [""])[i], (ph.get("type") or [""])[i], ph["code"][i], (ph.get("site") or [None])[i]
         if c:
-            out.append([s, "TCGA", c, "normal" if "normal" in (t or "").lower() else "tumour", clean(y[i])])
+            grp = _group((t or "").lower(), c)
+            if grp:
+                out.append([s, "TCGA", c, grp, clean(y[i])])
         elif (st or "").upper() == "GTEX" and site in sites:
             out.append([s, "GTEx", site, "normal", clean(y[i])])
     return {"columns": ["sample", "study", "cancer_or_tissue", "group", f"{gene}_log2_TPM_plus_1"], "rows": out,

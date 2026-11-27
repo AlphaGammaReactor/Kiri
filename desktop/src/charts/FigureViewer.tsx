@@ -8,6 +8,7 @@ import { useT } from "../i18n";
 const STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const MAX_FIT = 2.5; // a figure fills the card, but text never grows past 2.5× its print size
 const PAD = 16;
+const TALL = 1.2;
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 export function FigureViewer({ children }: { children: ReactNode }) {
@@ -30,7 +31,9 @@ export function FigureViewer({ children }: { children: ReactNode }) {
   const measureFit = useCallback(() => {
     const el = scroller.current, n = natural();
     if (!el || !n) return 1;
-    const s = Math.min((el.clientWidth - PAD * 2) / n.w, (el.clientHeight - PAD * 2) / n.h, MAX_FIT);
+    const byW = (el.clientWidth - PAD * 2) / n.w;
+    // A tall figure (one row per cancer, say) fits the width and scrolls, so its text stays readable.
+    const s = n.h / n.w > TALL ? Math.min(byW, 1.5) : Math.min(byW, (el.clientHeight - PAD * 2) / n.h, MAX_FIT);
     return Math.max(0.1, s);
   }, []);
 

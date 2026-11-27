@@ -1,7 +1,15 @@
 """Expression across cancers, with the Xena hub replaced by a small stand-in (synthetic test fixture)."""
 
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
+
+
+@pytest.fixture(autouse=True)
+def _no_bundle(monkeypatch, tmp_path):
+    """Ignore the bundled sample-gene data so the stand-in hub is what gets read."""
+    from app.analyses import across
+    monkeypatch.setattr(across, "BUNDLED", tmp_path / "no-bundle")
 
 
 class FakeXena:
@@ -86,3 +94,15 @@ def test_across_offline(tmp_path, monkeypatch):
         assert e.code == "needs_internet"
     else:
         raise AssertionError("expected needs_internet")
+
+
+def test_across_bundle_offline(tmp_path):
+    """The bundled sample genes work with no network, and leukaemia (blood-derived) tumours count."""
+    from pathlib import Path
+    from app.analyses import across
+    across.BUNDLED = Path(across.__file__).resolve().parents[1] / "cohorts" / "samples" / "across"
+    if not (across.BUNDLED / "phenotype.json.gz").exists():
+        pytest.skip("bundle not built")
+    r = across.run("TP53", tmp_path, "tcga_gtex")
+    laml = next(x for x in r["rows"] if x["code"] == "LAML")
+    assert laml["tumour"]["n"] > 100 and r["n_tested"] >= 20
