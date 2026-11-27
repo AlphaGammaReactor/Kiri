@@ -176,7 +176,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
             }} />
           )}
           {screen === "new" && <NewProject key={newTpl} initialTemplate={newTpl} onCancel={() => setScreen("home")} onCreate={create} notYet={notYet} />}
-          {screen === "overview" && proj.project && <Overview key={`o-${proj.project.path}`} p={proj.project} say={say}
+          {screen === "overview" && proj.project && <Overview key={`o-${proj.project.path}`} p={proj.project} say={say} figLang={settings.figureLang}
             onOpen={(o) => { if (o.kind === "survival") openGene("survival", o.gene ?? ""); else if (o.kind === "correlation") setScreen("correlation"); else openGene("expression", o.gene ?? ""); }}
             onNotebook={() => setScreen("notebook")} onGuide={(q) => openGuide(q)} onRefresh={proj.refresh} />}
           {screen === "survival" && proj.project && <Survival key={`s-${proj.project.path}-${survGene}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "survival")} initialGene={survGene} />}

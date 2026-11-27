@@ -365,6 +365,7 @@ class SummaryItem(BaseModel):
     summary: str = ""
     analysis_id: Optional[str] = None
     checks: list = Field(default_factory=list)
+    svg: Optional[str] = Field(default=None, max_length=5_000_000)  # figure drawn by the app from the saved result
 
 
 class SummaryBody(BaseModel):
@@ -374,6 +375,9 @@ class SummaryBody(BaseModel):
     intro: list[str] = Field(default_factory=list)  # translated lines under the title
     items: list[SummaryItem] = Field(default_factory=list)
     labels: dict = Field(default_factory=dict)
+    one_page: bool = False  # PDF only: A4 landscape, the first four items as panels
+    byline: str = ""
+    footer: str = ""
 
 
 @router.post("/summary/export")
@@ -396,12 +400,20 @@ def export_summary(body: SummaryBody):
         b = n["body"]
         if b.get("analysis_id") and b.get("svg"):
             figs[b["analysis_id"]] = b["svg"]
+    if body.one_page and body.format == "pdf":
+        panels = [{"svg": it.svg or figs.get(it.analysis_id or ""), "summary": it.summary, "title": it.title,
+                   "worst": report.worst(it.checks)} for it in body.items[:4]]
+        data = report.one_page_pdf(body.title, body.byline, panels, body.footer, body.labels)
+        tmp = p.with_name(f".{p.name}.{uuid.uuid4().hex[:8]}.tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, p)
+        return {"path": str(p), "bytes": len(data), "entries": len(panels)}
     when = {r[0]: r[1] for r in op.con.execute("SELECT id, updated_at FROM analyses")}
     entries = []
     for it in body.items:
         entries.append({"kind": "result", "created_at": when.get(it.analysis_id or "", now()),
                         "body": {"title": it.title, "summary": it.summary, "checks": it.checks,
-                                 "svg": figs.get(it.analysis_id or "")}})
+                                 "svg": it.svg or figs.get(it.analysis_id or "")}})
     data = report.build(body.format, body.title, op.project(), entries, body.labels, intro=body.intro)
     tmp = p.with_name(f".{p.name}.{uuid.uuid4().hex[:8]}.tmp")
     tmp.write_bytes(data)

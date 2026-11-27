@@ -245,3 +245,115 @@ def _pdf(title: str, project: dict, notes: list, L: dict, intro: list[str]) -> b
     SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm,
                       title=title).build(story)
     return buf.getvalue()
+
+
+# ── One-page summary: A4 landscape, four panels, figure text at no less than 7 pt ──
+PAGE_W, PAGE_H = 842.0, 595.0  # A4 landscape in points
+MIN_PT = 7.0
+DOT = {"pass": "#2f6b4f", "caution": "#b26a1a", "problem": "#b23a2e", "info": "#8a847b"}
+
+
+def worst(checks: list) -> str:
+    s = {c.get("status") for c in checks}
+    return "problem" if "problem" in s else "caution" if "caution" in s else "pass"
+
+
+def _min_font(svg: str, min_px: float) -> str:
+    """Raise every font size so that, once the figure is scaled onto the page, no text is under MIN_PT."""
+    def up(m: re.Match) -> str:
+        return f'{m.group(1)}{max(float(m.group(2)), min_px):.2f}'
+    svg = re.sub(r'(font-size=")([0-9.]+)', up, svg)
+    return re.sub(r"(font-size:\s*)([0-9.]+)", up, svg)
+
+
+def _svg_size(svg: str) -> tuple[float, float]:
+    vb = re.search(r'viewBox="[-0-9.]+ [-0-9.]+ ([0-9.]+) ([0-9.]+)"', svg)
+    if vb:
+        return float(vb.group(1)), float(vb.group(2))
+    w, h = re.search(r'width="([0-9.]+)', svg), re.search(r'height="([0-9.]+)', svg)
+    return (float(w.group(1)) if w else 500.0), (float(h.group(1)) if h else 400.0)
+
+
+def one_page_pdf(title: str, byline: str, panels: list[dict], footer: str, labels: dict) -> bytes:
+    """Title, byline and reliability key; a 2 × 2 grid of figures, each with a one-line reading and its
+    reliability dot; a footer that points to the notebook for methods. Panels beyond four are left out
+    (the app lists them as notebook-only)."""
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.pdfgen import canvas
+    from reportlab.platypus import Paragraph
+
+    L = DEFAULT_LABELS | {k: v for k, v in labels.items() if isinstance(v, str)}
+    cjk = _cjk_font()
+    has = lambda s: bool(_CJK.search(s or ""))  # noqa: E731
+    sans = lambda s: cjk if has(s) else "Helvetica"  # noqa: E731
+    e = html.escape
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(PAGE_W, PAGE_H))
+    c.setTitle(title)
+    c.setAuthor("Kiri")
+    M = 24.0
+    ink, muted = "#1f1c18", "#57514a"
+
+    # Header
+    c.setFillColor(ink)
+    c.setFont(cjk if has(title) else "Times-Bold", 17)
+    c.drawString(M, PAGE_H - 36, title[:110])
+    c.setFillColor(muted)
+    c.setFont(cjk if has(byline) else "Courier", 7.5)
+    c.drawString(M, PAGE_H - 52, byline[:170])
+    x = PAGE_W - M
+    for k in ("problem", "caution", "pass"):
+        lab = L[k]
+        c.setFont(sans(lab), 7.5)
+        w = c.stringWidth(lab, sans(lab), 7.5)
+        x -= w
+        c.setFillColor(muted)
+        c.drawString(x, PAGE_H - 52, lab)
+        c.setFillColor(DOT[k])
+        c.circle(x - 6, PAGE_H - 49.5, 3, stroke=0, fill=1)
+        x -= 18
+
+    # Grid
+    top, bottom, gap_x, gap_y, cap_h = PAGE_H - 64, 40.0, 24.0, 12.0, 24.0
+    col_w = (PAGE_W - 2 * M - gap_x) / 2
+    row_h = (top - bottom - gap_y) / 2
+    fig_h = row_h - cap_h
+    cap_style = {f: ParagraphStyle(f, fontName=f, fontSize=7.5, leading=9.5, textColor=ink) for f in ("Helvetica", cjk)}
+    for i, p in enumerate(panels[:4]):
+        px = M + (i % 2) * (col_w + gap_x)
+        py = top - (i // 2) * (row_h + gap_y)  # top edge of the panel
+        svg = (p.get("svg") or "").split("?>", 1)[-1]
+        if svg:
+            w, h = _svg_size(svg)
+            s = min(col_w / w, fig_h / h)
+            try:
+                d = svg_drawing(_min_font(svg, MIN_PT / s))
+                if d is not None:
+                    d.scale(s, s)
+                    dw, dh = w * s, h * s
+                    from reportlab.graphics import renderPDF
+
+                    renderPDF.draw(d, c, px + (col_w - dw) / 2, py - dh)
+                    fig_bottom = py - dh
+                else:
+                    fig_bottom = py - fig_h
+            except Exception:  # noqa: BLE001 - a figure that cannot be drawn leaves its reading in place
+                fig_bottom = py - fig_h
+        else:
+            fig_bottom = py - fig_h
+        text = p.get("summary") or p.get("title") or ""
+        c.setFillColor(DOT.get(p.get("worst") or "pass", DOT["pass"]))
+        c.circle(px + 3.5, fig_bottom - 9.5, 3.5, stroke=0, fill=1)
+        para = Paragraph(e(text), cap_style[sans(text)])
+        _, ph = para.wrap(col_w - 14, cap_h)
+        para.drawOn(c, px + 14, fig_bottom - 4 - ph)
+
+    # Footer
+    c.setFillColor(muted)
+    para = Paragraph(e(footer), ParagraphStyle("f", fontName=sans(footer), fontSize=7, leading=9, textColor=muted))
+    _, ph = para.wrap(PAGE_W - 2 * M, 30)
+    para.drawOn(c, M, 16)
+    c.showPage()
+    c.save()
+    return buf.getvalue()

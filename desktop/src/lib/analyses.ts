@@ -69,7 +69,7 @@ export const analyses = {
   deleteNote: (id: string) => call(`/notebook/${id}`, "DELETE"),
   exportReport: (b: { path: string; format: "pdf" | "html" | "docx"; title: string; labels: Record<string, string> }) =>
     call<{ path: string; entries: number }>("/notebook/export", "POST", b),
-  exportSummary: (b: { path: string; format: "pdf" | "html" | "docx"; title: string; intro: string[]; items: { analysis_id: string; title: string; summary: string; checks: unknown[] }[]; labels: Record<string, string> }) =>
+  exportSummary: (b: { path: string; format: "pdf" | "html" | "docx"; title: string; intro: string[]; items: { analysis_id: string; title: string; summary: string; checks: unknown[]; svg?: string }[]; labels: Record<string, string>; one_page?: boolean; byline?: string; footer?: string }) =>
     call<{ path: string; entries: number }>("/summary/export", "POST", b),
   exportFile: (path: string, data: Uint8Array) => {
     let s = "";

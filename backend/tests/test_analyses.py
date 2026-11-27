@@ -175,6 +175,18 @@ def test_api_runs_and_stores_in_the_kiri_file(tmp_path, monkeypatch):
     r = cl.post("/api/v1/kiri/summary/export", json={"path": str(tmp_path / "s.html"), "format": "html", "title": "P",
                                                       "items": [{"title": "Survival · G", "analysis_id": rec["id"]}]})
     assert "生存 KM" in (tmp_path / "s.html").read_text()  # the notebook figure for that analysis
+    big = '<svg xmlns="http://www.w3.org/2000/svg" width="520" height="400" viewBox="0 0 520 400"><text x="5" y="20" font-size="10">KM 生存</text></svg>'
+    r = cl.post("/api/v1/kiri/summary/export", json={"path": str(tmp_path / "one.pdf"), "format": "pdf", "title": "PARL", "one_page": True,
+                                                      "byline": "27 Nov 2026 · TEST · Kiri", "footer": "Methods in the notebook.",
+                                                      "items": [{"title": f"P{i}", "summary": "Higher in tumour.", "svg": big,
+                                                                 "checks": [{"status": "caution"}]} for i in range(6)]})
+    assert r.status_code == 200 and r.json()["entries"] == 4, r.text
+    raw = (tmp_path / "one.pdf").read_bytes()
+    assert raw.count(b"/Type /Page\n") + raw.count(b"/Type /Page ") + raw.count(b"/Type /Page/") >= 1
+    assert b"/MediaBox [ 0 0 842 595 ]" in raw and raw.count(b"/MediaBox") == 1  # one A4 landscape page
+    from app.kiri.report import _min_font
+
+    assert 'font-size="14.00"' in _min_font('<text font-size="10">', 14) and 'font-size="16.00"' in _min_font('<text font-size="16">', 7)
     r = cl.post("/api/v1/kiri/export/pdf", json={"path": str(tmp_path / "fig.pdf"), "svg": svg})
     assert r.status_code == 200, r.text
     assert (tmp_path / "fig.pdf").read_bytes()[:4] == b"%PDF"

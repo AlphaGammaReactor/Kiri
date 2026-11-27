@@ -151,7 +151,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
 
 function medianText(m: number | null, t: ReturnType<typeof useT>["t"]) { return m == null ? t("surv.notReached") : t("surv.months", { m: fmt(m, 1) }); }
 
-function plainSurvival(r: SurvivalResult, cox: { hr: number; lo: number; hi: number }, p: number | null, n: number, t: ReturnType<typeof useT>["t"]) {
+export function plainSurvival(r: SurvivalResult, cox: { hr: number; lo: number; hi: number }, p: number | null, n: number, t: ReturnType<typeof useT>["t"]) {
   const v = { g: r.gene, hr: fmt(cox.hr), lo: fmt(cox.lo), hi: fmt(cox.hi), p: fmtP(p), n };
   if (p != null && p < 0.05) return t(cox.hr > 1 ? "surv.plain.shorter" : "surv.plain.longer", v);
   return t("surv.plain.none", v);

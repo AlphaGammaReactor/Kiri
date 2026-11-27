@@ -12,7 +12,7 @@ import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
 type Mode = "tn" | "stage";
-const STAGE_COLORS: Record<string, string> = { I: "#7a9a5a", II: "#2a6fa8", III: "#c8641a", IV: "#a3392b" };
+export const STAGE_COLORS: Record<string, string> = { I: "#7a9a5a", II: "#2a6fa8", III: "#c8641a", IV: "#a3392b" };
 
 export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSurvival, initialGene }: {
   p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void; onSurvival: (gene: string) => void; initialGene?: string;
@@ -177,7 +177,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
     figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
 }
 
-function plainExpression(r: ExpressionResult, t: ReturnType<typeof useT>["t"]) {
+export function plainExpression(r: ExpressionResult, t: ReturnType<typeof useT>["t"]) {
   if (r.kind === "expression_stage") return t(r.test.p < 0.05 ? "expr.plain.stage" : "expr.plain.stageNone", { g: r.gene, p: fmtP(r.test.p) });
   const [tu, no] = r.groups;
   const v = { g: r.gene, a: fmt(tu.median), b: fmt(no.median), p: fmtP(r.test.p) };

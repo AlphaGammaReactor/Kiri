@@ -12,6 +12,8 @@ import { APP_VERSION } from "../lib/platform";
 import { Dialog } from "../shell/Dialog";
 import { cohortLabel } from "./workspace/useAnalysis";
 import { svgDataUrl } from "../charts/figure";
+import { panelFor } from "../charts/panels";
+import type { FigLang } from "../charts/figStrings";
 
 const TPL: Record<string, StringKey> = {
   blank: "home.tpl.blank", one_gene: "np.tpl.one", two_gene: "home.tpl.two", own_table: "np.tpl.table", course: "home.tpl.course",
@@ -24,7 +26,8 @@ const KIND_ICON: Record<string, typeof ChartSpline> = {
   survival: ChartSpline, expression_tn: SlidersHorizontal, expression_stage: BarChart3, correlation: ChartScatter,
 };
 
-export function Overview({ p, say, onOpen, onNotebook, onGuide, onRefresh }: {
+export function Overview({ p, say, onOpen, onNotebook, onGuide, onRefresh, figLang = "en" }: {
+  figLang?: FigLang;
   p: ProjectSummary; say: (s: string) => void; onOpen: (t: OpenTarget) => void; onNotebook: () => void;
   onGuide: (q?: string) => void; onRefresh: () => void;
 }) {
@@ -227,38 +230,47 @@ export function Overview({ p, say, onOpen, onNotebook, onGuide, onRefresh }: {
           </ul>
         </Dialog>
       )}
-      {summary && <SummaryDialog p={p} rows={(rows ?? []).filter((r) => !r.headline.error)} inNotebook={inNotebook} kindName={kindName} stat={stat} genesOf={genesOf}
+      {summary && <SummaryDialog p={p} rows={(rows ?? []).filter((r) => !r.headline.error)} kindName={kindName} genesOf={genesOf} figLang={figLang}
         onClose={() => setSummary(false)} say={say} />}
     </div>
   );
 }
 
-function SummaryDialog({ p, rows, inNotebook, kindName, stat, genesOf, onClose, say }: {
-  p: ProjectSummary; rows: Row[]; inNotebook: Set<string>; kindName: (k: string) => string; stat: (r: Row) => string; genesOf: (r: Row) => string;
+function SummaryDialog({ p, rows, kindName, genesOf, figLang, onClose, say }: {
+  p: ProjectSummary; rows: Row[]; kindName: (k: string) => string; genesOf: (r: Row) => string; figLang: FigLang;
   onClose: () => void; say: (s: string) => void;
 }) {
   const { t, lang } = useT();
   const [fmtSel, setFmt] = useState<"pdf" | "html" | "docx">("pdf");
   const [busyNow, setBusy] = useState(false);
+  const [onPage, setOnPage] = useState<string[]>(() => defaultPanels(rows, p.project.targets));
   const pr = p.project;
-  const withFig = rows.filter((r) => inNotebook.has(r.id)).length;
+  const one = fmtSel === "pdf";
+  const toggle = (id: string) => setOnPage((s) => s.includes(id) ? s.filter((x) => x !== id) : s.length < 4 ? [...s, id] : s);
   const go = async () => {
     const path = await pickExportPath(t("ov.sum.title"), `${pr.name} – ${t("ov.sum.title")}`, fmtSel);
     if (!path) return;
     setBusy(true);
-    const full = await Promise.all(rows.map((r) => analyses.get(r.id).catch(() => null)));
+    const chosen = one ? onPage.map((id) => rows.find((r) => r.id === id)!).filter(Boolean) : rows;
+    const full = await Promise.all(chosen.map((r) => analyses.get(r.id).catch(() => null)));
     const dv = full.find((a) => a?.data_versions)?.data_versions;
-    const items = rows.map((r, i) => ({
-      analysis_id: r.id, title: `${kindName(r.kind)} · ${genesOf(r)}`, summary: stat(r),
-      checks: ((full[i]?.result as { checks?: unknown[] } | undefined)?.checks) ?? [],
-    }));
+    const items = chosen.map((r, i) => {
+      const panel = full[i] ? panelFor(full[i]!, figLang, t) : null;
+      return { analysis_id: r.id, title: `${kindName(r.kind)} · ${genesOf(r)}`, summary: panel?.summary ?? "", checks: panel?.checks ?? [], svg: panel?.svg };
+    });
+    const date = new Date().toLocaleDateString(lang === "en" ? "en-GB" : "zh-CN", { day: "numeric", month: "short", year: "numeric" });
+    const cohort = cohortLabel(dv?.projects ?? pr.datasets);
+    const byline = [date, dv ? `${cohort} (${dv.source.split(" ")[0]} ${dv.built})` : cohort, `Kiri ${APP_VERSION}`].join(" · ");
+    const n = (k: string) => items.reduce((s, it) => s + it.checks.filter((c) => c.status === k).length, 0);
+    const rest = rows.filter((r) => !onPage.includes(r.id)).map((r) => `${kindName(r.kind)} · ${genesOf(r)}`);
+    const footer = [t("ov.sum.footer", { c: n("caution"), p: n("problem") }), rest.length ? t("ov.sum.alsoIn", { l: rest.join("; ") }) : ""].filter(Boolean).join(" ");
     const intro = [
       t("ov.sum.targets", { t: pr.targets.join(", ") || "–", c: pr.cancers.join(", ") || "–" }),
       dv ? t("ov.sum.data", { d: `${dv.source} · ${dv.units} · ${dv.built}` }) : "",
-      t("ov.sum.made", { v: APP_VERSION, d: new Date().toLocaleDateString(lang === "en" ? "en-GB" : "zh-CN") }),
+      t("ov.sum.made", { v: APP_VERSION, d: date }),
     ];
     try {
-      const r = await analyses.exportSummary({ path, format: fmtSel, title: pr.question || pr.name, intro, items,
+      const r = await analyses.exportSummary({ path, format: fmtSel, title: pr.question || pr.name, intro, items, one_page: one, byline, footer,
         labels: { question: t("nb.l.question"), reliability: t("ws.reliability"), pass: t("nb.l.pass"), caution: t("nb.l.caution"), problem: t("nb.l.problem"), generated: t("nb.l.generated") } });
       say(t("ov.sum.done", { p: r.path })); onClose();
       if (fmtSel === "docx") progress.mark("word");
@@ -267,19 +279,43 @@ function SummaryDialog({ p, rows, inNotebook, kindName, stat, genesOf, onClose, 
   };
   return (
     <Dialog title={t("ov.sum.title")} onClose={onClose}
-      footer={<><button className="btn ghost" onClick={onClose}>{t("file.cancel")}</button><button className="btn primary" onClick={go} disabled={busyNow || !rows.length}>{t("ov.sum.go")}</button></>}>
-      <p>{rows.length ? t("ov.sum.body") : t("ov.sum.none")}</p>
+      footer={<><button className="btn ghost" onClick={onClose}>{t("file.cancel")}</button><button className="btn primary" onClick={go} disabled={busyNow || !rows.length || (one && !onPage.length)}>{t("ov.sum.go")}</button></>}>
+      <p>{!rows.length ? t("ov.sum.none") : one ? t("ov.sum.bodyPage") : t("ov.sum.bodyFull")}</p>
       {rows.length > 0 && (<>
-        <ul className="ov-panel-list">
-          {rows.map((r) => <li key={r.id}><b>{kindName(r.kind)} · {genesOf(r)}</b> <span className="mono muted">{stat(r)}</span>{inNotebook.has(r.id) && <NotebookPen size={12} style={{ marginLeft: 6 }} />}</li>)}
-        </ul>
-        {withFig < rows.length && <p className="small muted">{t("ov.sum.figures", { n: withFig, m: rows.length })}</p>}
         <div className="row-gap">
-          <button className={`option ${fmtSel === "pdf" ? "on" : ""}`} onClick={() => setFmt("pdf")}><b>{t("nb.f.pdf")}</b></button>
-          <button className={`option ${fmtSel === "docx" ? "on" : ""}`} onClick={() => setFmt("docx")}><b>{t("nb.f.word")}</b></button>
-          <button className={`option ${fmtSel === "html" ? "on" : ""}`} onClick={() => setFmt("html")}><b>{t("nb.f.html")}</b></button>
+          <button className={`option ${fmtSel === "pdf" ? "on" : ""}`} onClick={() => setFmt("pdf")}><b>{t("ov.sum.f.page")}</b></button>
+          <button className={`option ${fmtSel === "docx" ? "on" : ""}`} onClick={() => setFmt("docx")}><b>{t("ov.sum.f.word")}</b></button>
+          <button className={`option ${fmtSel === "html" ? "on" : ""}`} onClick={() => setFmt("html")}><b>{t("ov.sum.f.html")}</b></button>
         </div>
+        {one ? (<>
+          <div className="eyebrow sum-pick-head">{t("ov.sum.pick", { n: onPage.length })}</div>
+          <ul className="sum-pick">
+            {rows.map((r) => {
+              const on = onPage.includes(r.id);
+              return <li key={r.id}><label className={on ? "on" : ""}>
+                <input type="checkbox" checked={on} disabled={!on && onPage.length >= 4} onChange={() => toggle(r.id)} />
+                <b>{kindName(r.kind)} · {genesOf(r)}</b>
+                <span className="small muted">{on ? t("ov.sum.panel", { n: onPage.indexOf(r.id) + 1 }) : t("ov.sum.nbOnly")}</span>
+              </label></li>;
+            })}
+          </ul>
+        </>) : (
+          <ul className="ov-panel-list">{rows.map((r) => <li key={r.id}><b>{kindName(r.kind)} · {genesOf(r)}</b></li>)}</ul>
+        )}
       </>)}
     </Dialog>
   );
+}
+
+// Four panels by default: one of each kind in reading order (expression, survival, stage, correlation), then the rest.
+const PANEL_ORDER = ["expression_tn", "survival", "expression_stage", "correlation"];
+function defaultPanels(rows: Row[], targets: string[]) {
+  const pick: string[] = [];
+  const first = (targets[0] ?? "").toUpperCase();
+  for (const k of PANEL_ORDER) {
+    const r = rows.find((x) => x.kind === k && x.params.gene === first && !pick.includes(x.id)) ?? rows.find((x) => x.kind === k && !pick.includes(x.id));
+    if (r) pick.push(r.id);
+  }
+  for (const r of rows) if (pick.length < 4 && !pick.includes(r.id)) pick.push(r.id);
+  return pick.slice(0, 4);
 }
