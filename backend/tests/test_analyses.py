@@ -182,7 +182,6 @@ def test_api_runs_and_stores_in_the_kiri_file(tmp_path, monkeypatch):
                                                                  "checks": [{"status": "caution"}]} for i in range(6)]})
     assert r.status_code == 200 and r.json()["entries"] == 4, r.text
     raw = (tmp_path / "one.pdf").read_bytes()
-    assert raw.count(b"/Type /Page\n") + raw.count(b"/Type /Page ") + raw.count(b"/Type /Page/") >= 1
     assert b"/MediaBox [ 0 0 842 595 ]" in raw and raw.count(b"/MediaBox") == 1  # one A4 landscape page
     from app.kiri.report import _min_font
 

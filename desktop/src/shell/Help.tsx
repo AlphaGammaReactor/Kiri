@@ -11,7 +11,7 @@ import { pickExportPath } from "../lib/files";
 import { analyses } from "../lib/analyses";
 import { APP_VERSION } from "../lib/platform";
 
-export function ActivityPanel({ onClose, update, onRestart, engineReady }: { onClose: () => void; update: UpdateState; onRestart: () => void; engineReady: boolean }) {
+export function ActivityPanel({ onClose, update, onRestart, onRetryUpdate, engineReady }: { onClose: () => void; update: UpdateState; onRestart: () => void; onRetryUpdate?: () => void; engineReady: boolean }) {
   const { t, lang } = useT();
   const jobs = useJobs();
   const [store, setStore] = useState<Storage | null>(null);
@@ -54,6 +54,12 @@ export function ActivityPanel({ onClose, update, onRestart, engineReady }: { onC
         <div className="act-item"><span className="act-ic"><RefreshCw size={16} /></span><div className="grow"><b>{update.kind === "downloading" ? t("update.downloading", { p: update.percent == null ? "" : `${update.percent}%` }) : t("update.available", { v: (update as { version: string }).version })}</b>
           <div className="small muted">{update.kind === "ready" ? t("act.update.sub") : ""}</div></div>
           {update.kind === "ready" && <button className="btn sm" onClick={onRestart}>{t("update.restart")}</button>}</div>
+      )}
+      {update.kind === "error" && update.reason !== "offline" && update.reason !== "other" && (
+        <div className="act-item"><span className="act-ic bad"><CircleAlert size={16} /></span><div className="grow">
+          <b>{update.reason === "signature" ? t("upd.sigShort") : t("upd.dl.failed")}</b>
+          <div className="small muted">{update.reason === "signature" ? t("upd.sig.body", { v: APP_VERSION }) : t("upd.dl.failedSub")}</div></div>
+          {update.reason === "download" && onRetryUpdate && <button className="btn sm" onClick={onRetryUpdate}>{t("upd.dl.retry")}</button>}</div>
       )}
       {finished.length > 0 && <div className="eyebrow" style={{ marginTop: 10 }}>{t("act.finished")}</div>}
       {finished.map((j) => (

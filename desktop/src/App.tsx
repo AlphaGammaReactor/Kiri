@@ -3,6 +3,7 @@ import { LangProvider, systemLang, useT, type Lang } from "./i18n";
 import { TitleBar } from "./shell/TitleBar";
 import { Sidebar, type Screen } from "./shell/Sidebar";
 import { UpdateBanner } from "./shell/UpdateBanner";
+import { WhatsNewDialog, UpdatingScreen, SignatureBanner, UpdatedToast, WEBSITE } from "./shell/UpdateFlow";
 import { Dialog } from "./shell/Dialog";
 import { Home } from "./screens/Home";
 import { Settings } from "./screens/Settings";
@@ -24,7 +25,10 @@ import { SamplePicker } from "./shell/SamplePicker";
 import { ActivityPanel, HelpMenu, ReportProblem, Shortcuts } from "./shell/Help";
 import { useSettings } from "./lib/settings";
 import { useEngine } from "./lib/engine";
-import { useUpdater } from "./lib/updater";
+import { useUpdater, PREVIEW_NOTES } from "./lib/updater";
+import { useBusy } from "./lib/busy";
+import { persistNow } from "./lib/settings";
+import { APP_VERSION as KIRI_VERSION } from "./lib/platform";
 import { useProject } from "./lib/project";
 import { api, type RecentItem, type TemplateId } from "./lib/api";
 import { listenForFiles, pickKiriToOpen, pickKiriToSave } from "./lib/files";
@@ -91,6 +95,48 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
   const say = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
   const notYet = () => say(t("common.notYet"));
   const ready = engine.status === "ready";
+
+  // ── Updates (design page 23) ──
+  const [whatsNew, setWhatsNew] = useState<null | "before" | "after">(null);
+  const [updated, setUpdated] = useState<null | { version: string; reopened: boolean; notes?: string }>(null);
+  const [updFile, setUpdFile] = useState<string | null>(null);
+  const updFileRef = useRef(false);
+  const busyNow = useBusy();
+  const restartToUpdate = () => updater.restart(async () => {
+    setUpdFile(proj.project?.file_name ?? null);
+    updFileRef.current = !!proj.project;
+    // Remember where the person was and the notes, write it to disk, then close the project so it is saved.
+    const notes = updater.state.kind === "ready" ? updater.state.notes : undefined;
+    await persistNow({ resume: { path: proj.project?.path ?? null, screen, from: KIRI_VERSION, notes } });
+    // The engine closes the file (saved and released) while the screen stays as it was behind the steps.
+    if (proj.project) await api.close().catch(() => {});
+  }).then((r) => {
+    if (r === "busy") say(t("update.busy"));
+    // If installing failed, Kiri keeps running: open the project again.
+    else if (updFileRef.current && proj.project) proj.open(proj.project.path);
+  });
+  // A refused signature shows the red banner once per version.
+  const sigVersion = updater.state.kind === "error" && updater.state.reason === "signature" ? (updater.state.version ?? "?") : null;
+  const [sigHidden, setSigHidden] = useState(false);
+  const showSig = !!sigVersion && !sigHidden && settings.sigWarned !== sigVersion;
+  const hideSig = () => { setSigHidden(true); if (sigVersion) update({ sigWarned: sigVersion }); };
+  const copyWebsite = () => { navigator.clipboard?.writeText(WEBSITE).catch(() => {}); say(t("upd.sig.copied", { u: WEBSITE })); };
+  // After a restart into a new version: reopen the project and screen, and say so.
+  const backDone = useRef(false);
+  useEffect(() => {
+    if (backDone.current || !ready) return;
+    backDone.current = true;
+    if (import.meta.env.DEV && new URLSearchParams(location.search).get("update") === "updated") { setUpdated({ version: KIRI_VERSION, reopened: true, notes: PREVIEW_NOTES }); return; }
+    const r = settings.resume;
+    if (settings.lastVersion !== KIRI_VERSION) update({ lastVersion: KIRI_VERSION, resume: null });
+    else if (r) update({ resume: null });
+    if (!settings.lastVersion || settings.lastVersion === KIRI_VERSION) return;
+    (async () => {
+      let reopened = false;
+      if (r?.path) { const ok = await proj.open(r.path); if (ok) { reopened = true; loadRecent(); setScreen((r.screen as Screen) || "overview"); } }
+      if (settings.whatsNew) setUpdated({ version: KIRI_VERSION, reopened, notes: r?.notes });
+    })();
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadRecent = useCallback(() => { if (ready) api.recent().then(setRecent).catch(() => {}); }, [ready]);
   useEffect(loadRecent, [loadRecent]);
@@ -161,9 +207,12 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
         fileMenu={proj.project && inProject && !proj.project.read_only ? { onVersion: () => setVersionDialog(true), onCopy: saveCopy, onClose: closeProject } : proj.project && inProject ? { onVersion: notYet, onCopy: saveCopy, onClose: closeProject } : null}
         onLang={(l) => update({ lang: l })} onLevel={(l) => update({ level: l })}
         onSettings={() => setScreen("settings")} onHelp={() => setOverlay((o) => (o === "help" ? null : "help"))} onActivity={() => setOverlay((o) => (o === "activity" ? null : "activity"))} onSearch={() => setOverlay("palette")}
-        activityDot={updater.state.kind === "ready"}
+        activityDot={updater.state.kind === "ready" || updater.state.kind === "downloading" || (updater.state.kind === "error" && updater.state.reason === "download")}
       />
-      <div><UpdateBanner state={updater.state} onRestart={updater.restart} /></div>
+      <div>
+        {showSig && <SignatureBanner onReport={() => setOverlay("report")} onWebsite={copyWebsite} onClose={hideSig} />}
+        <UpdateBanner state={updater.state} onRestart={restartToUpdate} onWhatsNew={() => setWhatsNew("before")} />
+      </div>
       <div className="body">
         <Sidebar screen={screen} onNav={setScreen} engine={engine} projectOpen={!!proj.project} onLater={notYet} />
         <main className="main">
@@ -186,7 +235,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
           {screen === "data" && proj.project && <Data key={`d-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} />}
           {screen === "glossary" && <Glossary key={term} initial={term} />}
           {screen === "guide" && <Guide key={guideAt.n} initialQuery={guideAt.q} initialId={guideAt.id} projectOpen={!!proj.project} onAction={guideAction} onSample={openSample} />}
-          {screen === "settings" && <Settings s={settings} update={update} engineReady={ready} />}
+          {screen === "settings" && <Settings s={settings} update={update} engineReady={ready} updater={updater.state} onCheck={updater.check} onWhatsNew={() => setWhatsNew(updater.state.kind === "ready" ? "before" : "after")} />}
           {screen === "about" && <About update={updater.state} onCheck={updater.check} engine={engine} project={proj.project} />}
         </main>
       </div>
@@ -197,12 +246,17 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
         projectOpen: !!proj.project, go: setScreen, openGene, glossary: (id) => { setTerm(id); setScreen("glossary"); },
         lang: (l) => update({ lang: l }), shortcuts: () => setOverlay("shortcuts"), report: () => setOverlay("report"),
       }} />}
-      {overlay === "activity" && <ActivityPanel onClose={closeOverlay} update={updater.state} onRestart={updater.restart} engineReady={ready} />}
+      {overlay === "activity" && <ActivityPanel onClose={closeOverlay} update={updater.state} onRestart={restartToUpdate} onRetryUpdate={updater.check} engineReady={ready} />}
       {overlay === "help" && <HelpMenu onClose={closeOverlay} go={(k) => { if (k === "glossary") { setTerm(undefined); setScreen("glossary"); } else if (k === "about") setScreen("about"); else setOverlay(k); }} />}
       {overlay === "shortcuts" && <Shortcuts onClose={closeOverlay} />}
       {overlay === "report" && <ReportProblem onClose={closeOverlay} screen={screen} level={settings.level} say={say} />}
       {picking && <SamplePicker ready={ready} onPick={pickSample} onClose={() => setPicking(false)} />}
       {toast && <div className="toast" role="status">{toast}</div>}
+      {updated && !toast && <UpdatedToast version={updated.version} reopened={updated.reopened} onWhatsNew={() => setWhatsNew("after")} onClose={() => setUpdated(null)} />}
+      {whatsNew === "before" && updater.state.kind === "ready" && <WhatsNewDialog version={updater.state.version} notes={updater.state.notes} bytes={updater.state.bytes}
+        fileName={proj.project?.file_name} busy={busyNow} onRestart={() => { setWhatsNew(null); restartToUpdate(); }} onClose={() => setWhatsNew(null)} />}
+      {whatsNew === "after" && <WhatsNewDialog version={KIRI_VERSION} notes={updated?.notes} onClose={() => { setWhatsNew(null); setUpdated(null); }} />}
+      {updater.state.kind === "installing" && <UpdatingScreen state={updater.state} fileName={proj.project?.file_name ?? updFile} />}
     </div>
   );
 }

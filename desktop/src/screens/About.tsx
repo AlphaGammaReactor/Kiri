@@ -34,7 +34,7 @@ export function About({ update, onCheck, engine, project }: { update: UpdateStat
     case "checking": badge = <span className="badge">{t("update.checking")}</span>; break;
     case "downloading": badge = <span className="badge">{t("update.downloading", { p: update.percent == null ? "" : update.percent + "%" })}</span>; break;
     case "ready": case "installing": badge = <span className="badge warn">● {t("update.available", { v: update.version })}</span>; break;
-    case "error": badge = <span className="badge warn" title={update.message}>● {t("update.error")}</span>; break;
+    case "error": badge = <span className="badge warn" title={update.message}>● {update.reason === "signature" ? t("upd.sigShort") : update.reason === "download" ? t("upd.dl.failed") : t("update.error")}</span>; break;
     case "unsupported": badge = <span className="badge">{t("update.devBuild")}</span>; break;
     default: badge = update.checkedAt ? <span className="badge ok">● {t("update.upToDate")}</span> : <span className="badge">{t("update.notChecked")}</span>;
   }

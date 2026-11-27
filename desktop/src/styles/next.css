@@ -82,3 +82,31 @@
 .sum-pick label { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer; font-size: 13px; }
 .sum-pick label.on { border-color: var(--color-accent); background: var(--color-accent-soft, transparent); }
 .sum-pick label .small { margin-left: auto; }
+
+/* Updates (design page 23) */
+.banner.bad { background: var(--color-status-danger-subtle); color: var(--color-status-danger); align-items: center; }
+.banner.bad .small { color: var(--color-text-secondary); }
+.banner.bad .btn:not(.ghost) { background: var(--color-bg-surface); color: var(--color-text-primary); }
+.upd-notes { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; }
+.upd-safe { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 8px; background: var(--color-accent-subtle); color: var(--color-text-secondary); font-size: 12.5px; }
+.upd-safe svg { color: var(--color-accent-text); flex: none; margin-top: 1px; }
+.upd-screen { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(30, 26, 20, 0.28); }
+.upd-card { width: 340px; background: var(--color-bg-raised); border-radius: 14px; padding: 22px 24px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18); }
+.upd-k { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--color-accent-default); color: var(--color-text-on-accent); font-family: var(--font-serif, serif); font-size: 18px; }
+.upd-step { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; font-size: 13px; color: var(--color-text-muted); }
+.upd-step.done, .upd-step.now { color: var(--color-text-primary); }
+.upd-dot { width: 18px; height: 18px; border-radius: 50%; flex: none; display: grid; place-items: center; border: 1.5px solid var(--color-border-default); margin-top: 1px; }
+.upd-step.done .upd-dot { background: var(--color-accent-subtle); border-color: transparent; color: var(--color-accent-text); }
+.upd-step.now .upd-dot { border-color: var(--color-accent-default); color: var(--color-accent-text); }
+.progress.indeterminate span { width: 40%; animation: upd-slide 1.4s ease-in-out infinite; }
+@keyframes upd-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+[data-motion="reduce"] .progress.indeterminate span { animation: none; width: 70%; }
+.upd-toast { display: flex; align-items: center; gap: 10px; }
+.upd-toast .link { color: inherit; text-decoration: underline; font-weight: 600; }
+.upd-toast .icon-btn { color: inherit; width: 22px; height: 22px; }
+.switch-row { display: inline-flex; align-items: center; gap: 8px; }
+.set-version { display: grid; gap: 6px; justify-items: start; min-width: 240px; }
+.set-note { display: flex; gap: 10px; margin-top: 16px; padding: 12px 14px; border-radius: 10px; background: var(--color-bg-sunken); font-size: 13px; }
+.set-note svg { color: var(--color-accent-text); flex: none; margin-top: 2px; }
+.set-note p { margin: 2px 0 0; color: var(--color-text-secondary); }
+.act-item .btn { white-space: nowrap; }

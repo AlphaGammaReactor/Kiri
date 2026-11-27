@@ -4,10 +4,14 @@ import { system, fmtBytes, type Storage } from "../lib/system";
 import { isTauri } from "../lib/platform";
 import { useT, type Lang } from "../i18n";
 import type { Settings as S } from "../lib/settings";
+import type { UpdateState } from "../lib/updater";
+import { APP_VERSION } from "../lib/platform";
 
-export function Settings({ s, update, engineReady }: { s: S; update: (p: Partial<S>) => void; engineReady: boolean }) {
+export function Settings({ s, update, engineReady, updater, onCheck, onWhatsNew }: {
+  s: S; update: (p: Partial<S>) => void; engineReady: boolean; updater?: UpdateState; onCheck?: () => void; onWhatsNew?: () => void;
+}) {
   const { t, lang } = useT();
-  const [group, setGroup] = useState<"general" | "data" | "access" | "privacy">("general");
+  const [group, setGroup] = useState<"general" | "data" | "access" | "privacy">(new URLSearchParams(location.search).get("settings") === "privacy" ? "privacy" : "general");
   const [store, setStore] = useState<Storage | null>(null);
   useEffect(() => { if (engineReady && group === "data") system.storage().then(setStore).catch(() => {}); }, [engineReady, group]);
   return (
@@ -71,11 +75,20 @@ export function Settings({ s, update, engineReady }: { s: S; update: (p: Partial
           </>
         ) : (
           <>
-            <h2 className="panel-title">{t("settings.privacy")}</h2>
-            <Row title={t("settings.autoUpdate")} help={t("settings.autoUpdate.help")}>
-              <label className="switch"><input type="checkbox" checked={s.autoUpdate} onChange={(e) => update({ autoUpdate: e.target.checked })} /><span /></label>
+            <div className="row-between"><h2 className="panel-title">{t("settings.privacy")}</h2>
+              <button className="btn ghost" style={{ color: "var(--color-text-primary)" }} onClick={() => update({ autoUpdate: true, whatsNew: true })}>{t("settings.reset")}</button></div>
+            <Row title={t("set.upd.auto")} help={t("set.upd.auto.help")}>
+              <span className="switch-row"><label className="switch"><input type="checkbox" checked={s.autoUpdate} onChange={(e) => update({ autoUpdate: e.target.checked })} /><span /></label>
+                <span className="small">{s.autoUpdate ? t("set.upd.on") : t("set.upd.off")}</span></span>
             </Row>
-            <Row title={t("settings.telemetry")} help={t("settings.telemetry.help")}><span /></Row>
+            <Row title={t("set.upd.version")} help="">
+              <VersionBox u={updater} onCheck={onCheck} onWhatsNew={onWhatsNew} />
+            </Row>
+            <Row title={t("set.upd.after")} help={t("set.upd.after.help")}>
+              <span className="switch-row"><label className="switch"><input type="checkbox" checked={s.whatsNew} onChange={(e) => update({ whatsNew: e.target.checked })} /><span /></label>
+                <span className="small">{s.whatsNew ? t("set.upd.on") : t("set.upd.off")}</span></span>
+            </Row>
+            <div className="set-note"><ShieldCheck size={16} /><div><b>{t("set.upd.sends")}</b><p className="small">{t("set.upd.sends.body")}</p></div></div>
           </>
         )}
       </section>
@@ -89,3 +102,31 @@ const Row = ({ title, help, children }: { title: string; help: string; children:
     {children}
   </div>
 );
+
+function VersionBox({ u, onCheck, onWhatsNew }: { u?: UpdateState; onCheck?: () => void; onWhatsNew?: () => void }) {
+  const { t, lang } = useT();
+  const time = (d?: Date) => d ? d.toLocaleTimeString(lang === "en" ? "en-GB" : "zh-CN", { hour: "2-digit", minute: "2-digit" }) : "";
+  let badge: React.ReactNode, line = "";
+  switch (u?.kind) {
+    case "checking": badge = <span className="badge">{t("update.checking")}</span>; break;
+    case "downloading": badge = <span className="badge">{t("update.downloading", { p: u.percent == null ? "" : `${u.percent}%` })}</span>; break;
+    case "ready": case "installing": badge = <span className="badge warn">● {t("update.available", { v: u.version })}</span>; break;
+    case "error":
+      badge = <span className="badge warn" title={u.message}>● {u.reason === "signature" ? t("upd.sigShort") : u.reason === "download" ? t("upd.dl.failed") : t("upd.offline")}</span>;
+      line = u.reason === "offline" || u.reason === "other" ? t("upd.offlineSub") : t("set.upd.checked", { t: time(u.checkedAt) });
+      break;
+    case "idle": badge = u.checkedAt ? <span className="badge ok">● {t("update.upToDate")}</span> : <span className="badge">{t("update.notChecked")}</span>;
+      line = u.checkedAt ? t("set.upd.checked", { t: time(u.checkedAt) }) : ""; break;
+    default: badge = <span className="badge">{t("update.devBuild")}</span>;
+  }
+  return (
+    <div className="set-version">
+      <div className="row-gap"><b>Kiri {APP_VERSION}</b>{badge}</div>
+      {line && <div className="mono small muted">{line}</div>}
+      <div className="row-gap">
+        <button className="btn" disabled={!onCheck || u?.kind === "unsupported" || u?.kind === "checking" || u?.kind === "downloading"} onClick={onCheck}>{t("update.checkNow")}</button>
+        {onWhatsNew && <button className="link" onClick={onWhatsNew}>{u?.kind === "ready" ? t("set.upd.whatsNewIn", { v: u.version }) : t("set.upd.whatsNewIn", { v: APP_VERSION })}</button>}
+      </div>
+    </div>
+  );
+}

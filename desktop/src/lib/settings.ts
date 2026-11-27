@@ -15,8 +15,13 @@ export type Settings = {
   textSize: "normal" | "large";
   reduceMotion: boolean;
   progress: string[]; // getting-started steps done (lib/progress.ts)
+  whatsNew: boolean; // show a short note after Kiri updates itself
+  lastVersion: string | null; // the version that last ran, to notice an update
+  resume: Resume | null; // where to go back to after restarting to update
+  sigWarned: string | null; // the version whose signature failure was already shown (shown once)
 };
-const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true, firstRunDone: false, purpose: null, familiarity: null, textSize: "normal", reduceMotion: false, progress: [] };
+export type Resume = { path: string | null; screen: string; from: string; notes?: string };
+const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true, firstRunDone: false, purpose: null, familiarity: null, textSize: "normal", reduceMotion: false, progress: [], whatsNew: true, lastVersion: null, resume: null, sigWarned: null };
 
 type StoreLike = { get<T>(k: string): Promise<T | undefined>; set(k: string, v: unknown): Promise<void>; save(): Promise<void> };
 let storePromise: Promise<StoreLike | null> | null = null;
@@ -48,4 +53,13 @@ export function useSettings() {
     });
   }, []);
   return { settings: s, update, loaded };
+}
+
+/** Write settings to disk now (before a restart), not on the store's autosave timer. */
+export async function persistNow(patch: Partial<Settings>) {
+  const st = await store();
+  if (!st) return;
+  const cur = (await st.get<Partial<Settings>>("settings")) ?? {};
+  await st.set("settings", { ...DEFAULTS, ...cur, ...patch });
+  await st.save();
 }
