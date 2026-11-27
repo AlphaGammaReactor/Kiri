@@ -143,7 +143,7 @@ export function DE({ p, figLang, onFigLang, say, onLater, onGuide, onGene }: {
   } else if (!r) body = a.loaded ? <EmptyState title={t("de.empty.title")} body={t(own ? "de.empty.bodyOwn" : "de.empty.body")} onRun={own && groups.length < 2 ? undefined : run} onGuide={onGuide} /> : null;
 
   const pCut = r ? Math.min(...r.volcano.filter((x) => x[3]).map((x) => x[2]), Infinity) : null;
-  const caption = r ? t("de.caption", { a: label(la), b: label(lb), c: cohortLabel(r.data_version.projects), g: r.n_tested.toLocaleString(), l: r.thresholds.lfc, q: r.thresholds.q }) : "";
+  const caption = r ? t("de.caption", { a: label(la), b: label(lb), c: own ? own.name : cohortLabel(r.data_version.projects), g: r.n_tested.toLocaleString(), l: r.thresholds.lfc, q: r.thresholds.q }) : "";
   const topUp = r?.enrichment.up[0], topDown = r?.enrichment.down[0];
   const plain = r ? [
     t(r.n_up + r.n_down ? "de.plain" : "de.plainNone", { u: r.n_up, d: r.n_down, a: label(la), b: label(lb), g: r.n_tested.toLocaleString(), q: r.thresholds.q }),
@@ -157,7 +157,7 @@ export function DE({ p, figLang, onFigLang, say, onLater, onGuide, onGene }: {
       <FigureCard svgRef={svgRef} fileName={title} chartName={t("de.chart")} why={t("de.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only} analysis={a.current}
         caption={caption}
         notebookBody={() => ({ analysis_id: a.current?.id, kind: "de", title, summary: plain, checks: r.checks, meta: `${r.data_version.source} · ${r.data_version.built}` })}>
-        <Volcano ref={svgRef} points={r.volcano} lfc={r.thresholds.lfc} pCut={Number.isFinite(pCut) ? pCut : null} highlight={targets}
+        <Volcano ref={svgRef} points={r.volcano} lfc={r.thresholds.lfc} pCut={Number.isFinite(pCut) ? pCut : null} highlight={own ? [] : targets}
           labels={{ x: fill(F.x, { a: la, b: lb }), y: F.y, up: fill(F.up, { a: la, n: r.n_up }), down: fill(F.down, { b: lb, n: r.n_down }), stat: fill(F.stat, { q: r.thresholds.q, l: r.thresholds.lfc }) }} />
       </FigureCard>
       <div className="card de-results">

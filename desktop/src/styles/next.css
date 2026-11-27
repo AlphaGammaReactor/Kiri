@@ -183,3 +183,6 @@
 @media (max-width: 1100px) { .de-two { grid-template-columns: 1fr; } }
 .de-stack { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; margin: 0 -4px; padding: 0 4px; }
 .de-stack .fig-canvas { flex: none; height: 470px; }
+.de-paths .row-between { gap: 8px; align-items: baseline; }
+.de-paths .row-between .mono { white-space: nowrap; flex: none; }
+.de-paths .row-between b { min-width: 0; }

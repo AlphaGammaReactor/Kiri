@@ -444,6 +444,7 @@ export const enNext = {
   "errw.de_few_genes.what": "Your table has too few value columns for differential expression.",
   "errw.de_few_genes.why": "DE and pathway enrichment look across the whole transcriptome; your table has {n} values (at least {min} needed).",
   "errw.de_few_genes.todo": "Use Expression to compare your groups one value at a time, or import a table with every gene.",
+  "rel.data.deOwn": "{n} value columns tested on the values as imported. {source}.",
 } as const;
 
 export const zhNext: Record<keyof typeof enNext, string> = {
@@ -889,4 +890,5 @@ export const zhNext: Record<keyof typeof enNext, string> = {
   "errw.de_few_genes.what": "你的表格数值列太少，无法做差异表达。",
   "errw.de_few_genes.why": "差异表达和通路富集需要覆盖整个转录组；你的表格只有 {n} 个数值（至少需要 {min} 个）。",
   "errw.de_few_genes.todo": "可用“表达”逐个比较你的分组，或导入包含全部基因的表格。",
+  "rel.data.deOwn": "按导入的数值检验了 {n} 个数值列。{source}。",
 };

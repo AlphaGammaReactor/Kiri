@@ -118,7 +118,7 @@ def run(c: Cohort, compare: str = "tn", gene: str | None = None, group_a: str | 
 
     n_up, n_down = int(up.sum()), int(down.sum())
     checks = [
-        check("data", "info", "data.de", n=len(tested), low=int((~keep).sum()), cut=LOW_EXPR, source=c.source),
+        check("data", "info", "data.deOwn" if getattr(c, "own", False) else "data.de", n=len(tested), low=int((~keep).sum()), cut=LOW_EXPR, source=c.source),
         check("enough", "caution" if min(na, nb) < CAUTION_GROUP else "pass", "enough.de", a=la, b=lb, na=na, nb=nb, min=CAUTION_GROUP),
         check("assumptions", "caution" if compare == "tn" else "info",
               "assume.deNormal" if compare == "tn" else "assume.deGene" if compare == "gene" else "assume.deWelch", g=gene or ""),
