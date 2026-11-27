@@ -14,6 +14,8 @@ const notes = NOTES[`../../release-notes/v${APP_VERSION}.md`] ?? "";
 type Tab = "about" | "checked" | "new" | "licences" | "privacy";
 
 // References for the data Kiri uses. Shown for the open project's cohorts.
+const MSIGDB = "Liberzon A, et al. The Molecular Signatures Database Hallmark Gene Set Collection. Cell Syst. 2015;1(6):417–425. (MSigDB Hallmark 2024.1, CC BY 4.0)";
+const REACTOME = "Milacic M, et al. The Reactome Pathway Knowledgebase 2024. Nucleic Acids Res. 2024;52(D1):D672–D678. (Reactome data, CC0)";
 const XENA = "Goldman MJ, et al. Visualizing and interpreting cancer genomics data via the Xena platform. Nat Biotechnol. 2020;38:675–678.";
 const GDC = "Grossman RL, et al. Toward a shared vision for cancer genomic data. N Engl J Med. 2016;375:1109–1112.";
 const TCGA: Record<string, string> = {
@@ -40,7 +42,7 @@ export function About({ update, onCheck, engine, project }: { update: UpdateStat
   }
   const checkedAt = update.kind === "idle" ? update.checkedAt : update.kind === "error" ? update.checkedAt : undefined;
   const ds = (project?.project.datasets ?? []).filter((d) => d.startsWith("TCGA-"));
-  const refs = [...new Set(ds.map((d) => TCGA[d]).filter(Boolean)), GDC, XENA];
+  const refs = [...new Set(ds.map((d) => TCGA[d]).filter(Boolean)), GDC, XENA, MSIGDB, REACTOME];
   const CopyBtn = ({ k, s }: { k: string; s: string }) => (
     <button className="icon-btn" aria-label={t("about.copy")} onClick={() => copy(k, s)}>{copied === k ? <Check size={15} /> : <Copy size={15} />}</button>
   );
@@ -96,7 +98,7 @@ export function About({ update, onCheck, engine, project }: { update: UpdateStat
             <h2 className="panel-title">{t("about.nav.licences")}</h2>
             <p style={{ maxWidth: 640, color: "var(--color-text-secondary)" }}>{t("about.licences.body")}</p>
             <table className="tbl" style={{ maxWidth: 640 }}><tbody>
-              {[["Tauri", "MIT / Apache-2.0"], ["React", "MIT"], ["Python", "PSF"], ["FastAPI", "MIT"], ["NumPy", "BSD-3-Clause"], ["pandas", "BSD-3-Clause"], ["SciPy", "BSD-3-Clause"], ["lifelines", "MIT"], ["ReportLab", "BSD"], ["svglib", "LGPL-3.0"], ["Lucide icons", "ISC"]].map(([a, b]) => <tr key={a}><td>{a}</td><td className="mono small">{b}</td></tr>)}
+              {[["Tauri", "MIT / Apache-2.0"], ["React", "MIT"], ["Python", "PSF"], ["FastAPI", "MIT"], ["NumPy", "BSD-3-Clause"], ["pandas", "BSD-3-Clause"], ["SciPy", "BSD-3-Clause"], ["lifelines", "MIT"], ["ReportLab", "BSD"], ["svglib", "LGPL-3.0"], ["Lucide icons", "ISC"], ["MSigDB Hallmark gene sets 2024.1 (Broad Institute)", "CC BY 4.0"], ["Reactome pathways", "CC0 1.0"], ["HGNC gene symbols", "CC0 1.0"]].map(([a, b]) => <tr key={a}><td>{a}</td><td className="mono small">{b}</td></tr>)}
             </tbody></table>
             <p className="small muted">{t("about.licences.data")}</p>
           </>
