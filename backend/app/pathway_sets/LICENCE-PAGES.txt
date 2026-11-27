@@ -1,0 +1,21 @@
+=== https://www.gsea-msigdb.org/gsea/msigdb/license_terms_list.jsp
+} h1 {font-size:22px;} h2 {font-size:16px;} h3 {font-size:14px;} p {font-size:12px;} a {color:black;} .line {height:1px;background-color:#525D76;border:none;} HTTP Status 404 – Not Found Type Status Report Message JSP file [&#47;msigdb&#47;license_terms_list.jsp] not found Description The origin server did not find a current representation for the target resource or is not willing to disclose that one exists. Apache Tomcat/10.1.62 
+=== https://docs.gsea-msigdb.org/#MSigDB/MSigDB_License/
+=== https://reactome.org/license
+	 License Agreement - Reactome Pathway Database 
+ What is Reactome ? News Team Scientific Advisory Board Funding Editorial Calendar Release Calendar Statistics Our Logo License Agreement Privacy Notice Disclaimer Digital Preservation Contact us Content 
+ What is Reactome ? News Team Scientific Advisory Board Funding Editorial Calendar Release Calendar Statistics Our Logo License Agreement Privacy Notice Disclaimer Digital Preservation Contact us Content 
+					License Agreement				 
+ What is Reactome ? News Team Scientific Advisory Board Funding Editorial Calendar Release Calendar Statistics Our Logo License Agreement Privacy Notice Disclaimer Digital Preservation Contact us 
+				License Agreement			 
+		 This License Agreement (the “Agreement”) governs the use of the Reactome database and its contents, including all data, graphics, software, and other materials associated therewith. By accessing and/or using Reactome, you (the “User”) agree to be bound
+ 1. Applicable Open-Source Licenses.  User agrees that the content on Reactome is governed by various open-source licenses and agrees to adhere to applicable license terms as follows: 
+ a)  Pathway Illustrations, Icon Library, Art, and Branding Materials . This Reactome content is licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0) . User may copy, modify, and distribute these materials, provided that appropriate credit is given, a link to the license is included, and any modifications made by User are clearly indicated. For information on how to properly credit
+ data use, please review the Creative Commons FAQ or contact the This email address is being protected from spambots. You need JavaScript enabled to view it. 
+ b)  Software and Code : Except for software using dependencies with copyleft licenses (e.g., GPL-3) that require derivative works to use the same license, and except for FoamTree software, which is subject to a Special License as further described in Section 2 a) below, all Reactome software is licensed under the Apache License 2.0 . Individual repositories are marked with the appropriate licensing requirements, and User must ensure their intended use is complia
+nt with the relevant license, as applicable. 
+ c)  Data : All data in the Reactome database and files derived from that data are licensed under the Creative Commons Public Domain Dedication (CC0) . User may copy, modify, and distribute these data, even for commercial purposes, without asking for permission. Attribution is encouraged but not required. 
+ 2. Special Licenses.  Notwithstanding the Applicable Open-Source Licenses set out in Section 1 above, User agrees to the application of Special Licenses to certain Reactome content as follows: 
+ a)  FoamTree (Voronoi Treemaps) : The FoamTree software, used to construct the ReacFoam genome-wide pathway overview, is provided under license by Carrot Search, Inc. Images and analyses generated on the Reactome website using FoamTree software are free to use with no restriction. For local installations of the Reactome, User must either: i) use the free, fully functional demo ver
+sion of the FoamTree software included with Reactome, which adds a promotional logo to one of the cells of the visualization; or ii) obtain their own license from Carrot Search directly. 
+ What is Reactome ? News Team Scientific Advisory Board Funding Editorial Calendar Release Calendar Statistics Our Logo License Agreement Privacy Notice Disclaimer Digital Preservation Contact us Content 
