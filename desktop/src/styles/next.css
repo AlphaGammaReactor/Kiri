@@ -281,3 +281,13 @@
 .btn > svg { flex: none; }
 .btn .btn-kbd { flex: none; font: 500 10.5px var(--font-mono); letter-spacing: .02em; padding: 1px 6px; border-radius: 4px; border: 0; background: color-mix(in srgb, currentColor 12%, transparent); color: inherit; opacity: .8; }
 .run-btn { flex: 1; justify-content: space-between; gap: 10px; }
+
+/* Card grids, app-wide (Figma page 10, "Card grids · equal height, actions on one line"): every card in a
+   row is as tall as the tallest, and its bottom group (progress, buttons) sits on one line along the bottom. */
+.tut-grid, .tpl-grid, .templates, .fr-cards, .stat-row, .left-off-grid { align-items: stretch; }
+.tut-card { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+.tut-card p { min-height: 0; }
+.tut-card .progress { margin-top: auto; }
+.tut-card > .row-gap:last-child { min-height: 34px; }
+.fr-cards > *, .templates > *, .tpl-grid > *, .stat-row > * { height: 100%; }
+.fr-cards > .option { justify-content: flex-start; }
