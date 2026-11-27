@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Search, TriangleAlert, X } from "lucide-react";
+import { Check, ChevronDown, CloudDownload, Search, TriangleAlert, X } from "lucide-react";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
 import { api, type Cancer, type GeneCheck, type GeneHit, type TemplateId } from "../lib/api";
@@ -59,6 +59,16 @@ export function NewProject({ initialTemplate, onCancel, onCreate, notYet }: {
     setChips((cs) => cs.map((c) => (c.text === from ? { text: to, check: { input: to, status: "ok", symbol: to } } : c)));
   const targets = chips.filter((c) => c.check?.status === "ok").map((c) => c.check!.symbol!);
   const datasets = cancers.map((c) => `TCGA-${c}`);
+  // Which genes need a cohort download for the chosen cancer types (the sample data covers only a few).
+  const [avail, setAvail] = useState<Awaited<ReturnType<typeof api.geneAvailability>> | null>(null);
+  const targetKey = targets.join(",") + "|" + cancers.join(",");
+  useEffect(() => {
+    if (!targets.length || !cancers.length) { setAvail(null); return; }
+    let live = true;
+    api.geneAvailability(targets, cancers).then((r) => live && setAvail(r)).catch(() => live && setAvail(null));
+    return () => { live = false; };
+  }, [targetKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const needDownload = avail ? targets.filter((g) => avail.items[g.toUpperCase()] === "download") : [];
 
   return (
     <div className="np">
@@ -109,6 +119,12 @@ export function NewProject({ initialTemplate, onCancel, onCreate, notYet }: {
                     <div key={c} className="data-row"><span className="box on"><Check size={12} strokeWidth={3} /></span><span>TCGA-{c} · GDC</span>
                       <span className="mono muted" style={{ marginLeft: "auto", fontSize: 11.5 }}>{t("np.data.tcga")}</span></div>
                   ))}
+                </div>
+              )}
+              {avail && (
+                <div className={`avail ${needDownload.length ? "warn" : "ok"}`} role="status">
+                  {needDownload.length ? <CloudDownload size={15} /> : <Check size={15} />}
+                  <span>{!needDownload.length ? t("np.avail.ok") : !avail.sample ? t("np.avail.all") : t("np.avail.some", { g: needDownload.join(", ") })}</span>
                 </div>
               )}
               <div className="note ok" style={{ justifyContent: "space-between", alignItems: "center" }}>

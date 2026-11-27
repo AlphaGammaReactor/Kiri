@@ -491,3 +491,7 @@ body.has-fig-full::after { content: ""; position: fixed; inset: 0; z-index: 59; 
 .suggest.info { background: var(--color-bg-sunken); color: var(--color-text-secondary); padding: 6px 12px; font-size: 12.5px; }
 .sel select { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
 .fig-stage { padding-bottom: 50px; }
+.avail { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-radius: var(--radius-md); font-size: 12.5px; line-height: 1.45; }
+.avail svg { flex: none; margin-top: 1px; }
+.avail.warn { background: var(--color-status-warning-subtle); }
+.avail.ok { background: var(--color-accent-subtle); color: var(--color-accent-text); }

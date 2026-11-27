@@ -118,3 +118,13 @@ def test_gene_search_typeahead():
     par = [r["symbol"] for r in genes.search("PAR")]
     assert "PARL" in par and "JTB" in par[:4] and len(par) == 8
     assert genes.search("") == [] and genes.search("zzzzqq") == []
+
+
+def test_gene_availability_reports_sample_coverage():
+    from app.kiri.api import gene_availability
+
+    r = gene_availability("PARL,PARN", "COAD,READ")
+    assert r["sample"] == "TCGA-COADREAD"
+    assert r["items"]["PARL"] == "offline" and r["items"]["PARN"] == "download"
+    # No bundled sample covers COAD alone: everything needs the full cohort.
+    assert gene_availability("PARL", "COAD")["items"] == {"PARL": "download"}
