@@ -1,4 +1,5 @@
 // Expression workspace: tumour against normal tissue, or across stages (page 13 of the design).
+import { ProteinCard } from "./ProteinCard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { useT } from "../../i18n";
@@ -208,6 +209,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
         <p className="plain">{plainExpression(r, t)}</p>
         <p className="small">{r.kind === "expression_tn" ? t("expr.note.tn") : r.kind === "expression_mut" ? t("expr.note.mut") : r.kind === "expression_cn" ? t("expr.note.cn") : r.kind === "expression_subtype" ? t("expr.note.subtype") : r.kind === "expression_group" ? t("expr.note.group") : t("expr.note.stage")}</p>
       </div>
+      {r.protein && <ProteinCard pr={r.protein} r={r} />}
       <Method title={r.kind === "expression_stage" || r.kind === "expression_cn" || r.kind === "expression_subtype" || (r.kind === "expression_group" && r.groups.length > 2) ? t("expr.method.stage") : r.test.name === "wilcoxon_signed_rank" ? t("expr.method.sr") : t("expr.method.rs")}
         body={r.kind === "expression_stage" ? t("expr.method.stage.body") : t("expr.method.tn.body")} cite="scipy · Mann & Whitney 1947 · Kruskal & Wallis 1952" />
       <div className="side-card next">

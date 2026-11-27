@@ -386,6 +386,12 @@ def run(body: RunBody):
                 result = run_signature(c, gene, body.set_id, body.members, _data_dir())
             else:
                 result = expression.by_stage(c, gene)
+        if body.kind.startswith("expression") and isinstance(result, dict) and not result.get("error"):
+            from app.analyses import hpa
+
+            prof = hpa.profile(gene, projects)
+            if prof:
+                result["protein"] = prof
         # A gene the data keep under another HGNC name (older symbol or alias): say which name was used.
         renamed = {}
         checks = [(g, None) for g in wanted] + ([(mut_gene, c._mut_has)] if mut_gene and c.mutations else []) + ([(cn_gene, c._cn_has)] if cn_gene else [])

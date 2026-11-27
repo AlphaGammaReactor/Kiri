@@ -23,6 +23,7 @@ export type ExpressionResult = {
   pairwise?: { a: string; b: string; p: number; p_adj: number }[];
   per_project?: { project: string; tumour: Group; normal: Group; p: number | null; p_adj: number | null }[];
   excluded: number; matched_cases?: number; checks: Check[]; data_version: DataVersion; error?: undefined;
+  protein?: import("../screens/workspace/ProteinCard").ProteinProfile;
 };
 export type CorrelationResult = {
   kind: "correlation"; gene: string; gene2: string; units: string; n: number; rho: number; rho_ci: [number, number]; p: number;

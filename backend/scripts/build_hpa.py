@@ -67,7 +67,7 @@ def main(out: str) -> None:
 
     c = table("cancer_cptac.tsv.zip")
     g, t = col(c, "Gene name", "gene"), col(c, "Cancer", "Tumor", "tumour")
-    fc, p = col(c, "log2", "fold"), col(c, "adjusted", "padj", "q")
+    fc, p = col(c, "logFC", "log2", "fold"), col(c, "pval_adj", "padj", "adjusted")
     cp = pd.DataFrame({"gene": c[g].astype(str), "cancer": c[t].astype(str),
                        "log2fc": pd.to_numeric(c[fc], errors="coerce").round(3),
                        "padj": pd.to_numeric(c[p], errors="coerce")})
