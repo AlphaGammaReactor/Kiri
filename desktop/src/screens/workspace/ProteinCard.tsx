@@ -35,6 +35,7 @@ export function ProteinCard({ pr, r }: { pr: ProteinProfile; r: ExpressionResult
           {here ? <p className="small">{sig(here.padj) ? t("hpa.here", { g: pr.gene, c: here.cancer, w: word(here) }) : t("hpa.hereSame", { g: pr.gene, c: here.cancer })} <span className="mono muted">{fx(here.log2fc)} log2</span></p>
             : <p className="small muted">{t("hpa.notHere")}</p>}
           {agree && <p className="small">{agree}</p>}
+          {others.length > 0 && here && <p className="small muted">{t("hpa.others")}</p>}
           {others.length > 0 && <table className="mini"><tbody>
             {others.map((x) => <tr key={x.cancer}><td>{x.cancer}</td><td className="mono">{fx(x.log2fc)}</td><td className="mono muted">{sig(x.padj) ? "q<0.05" : "n.s."}</td></tr>)}
           </tbody></table>}

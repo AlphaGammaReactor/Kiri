@@ -317,3 +317,4 @@
 .hpa-card .hpa-block { margin-top: 10px; }
 .hpa-card .hpa-block p { margin: 2px 0 0; }
 .hpa-card .mini { margin-top: 4px; }
+.hpa-card .mini td.mono { white-space: nowrap; padding-left: 10px; text-align: right; vertical-align: top; }
