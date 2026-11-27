@@ -16,7 +16,7 @@ import pandas as pd
 from app.analyses.common import clean
 
 DIR = Path(__file__).resolve().parent.parent / "cohorts" / "samples"
-TYPES = ["genetic_association", "somatic_mutation", "known_drug", "affected_pathway", "rna_expression", "literature", "animal_model"]
+TYPES = ["genetic_association", "somatic_mutation", "known_drug", "clinical", "affected_pathway", "rna_expression", "literature", "genetic_literature", "animal_model"]
 CITE = "Open Targets Platform (CC0 1.0). Buniello A, et al. Nucleic Acids Res. 2025;53:D1467-D1475."
 
 

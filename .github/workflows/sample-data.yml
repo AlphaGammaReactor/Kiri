@@ -47,7 +47,7 @@ jobs:
           git add backend/app/cohorts/samples
           git diff --cached --quiet && exit 0
           git commit -m "Sample project data: TCGA slices built by CI"
-          git push
+          git pull --rebase origin claude/project-thread-2tc0ep && git push
 
   pack:
     name: Full cohort download works (as the app does it)

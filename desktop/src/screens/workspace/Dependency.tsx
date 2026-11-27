@@ -132,7 +132,7 @@ export function plainDependency(r: DependencyResult, t: ReturnType<typeof useT>[
     ? `${s} ${t("dep.plain.top", { l: linLabel(top.lineage, zh), m: fmt(top.median) })}` : s;
 }
 
-const OT_TYPES = ["somatic_mutation", "genetic_association", "known_drug", "affected_pathway", "rna_expression", "literature", "animal_model"] as const;
+const OT_TYPES = ["somatic_mutation", "genetic_association", "known_drug", "clinical", "affected_pathway", "rna_expression", "literature", "genetic_literature", "animal_model"] as const;
 
 /** Open Targets: how strongly the gene is linked to the project's cancer, and by which kinds of evidence. */
 function OpenTargetsCard({ ot, gene }: { ot: NonNullable<DependencyResult["opentargets"]>; gene: string }) {
