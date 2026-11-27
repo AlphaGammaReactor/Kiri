@@ -13,7 +13,7 @@ import { CHECK_TITLE, fmtVars, isMac } from "./workspace/Frame";
 const tagsOf = (s: string) => [...new Set((s.match(/#[\p{L}\p{N}_-]+/gu) ?? []).map((x) => x.toLowerCase()))];
 const dayKey = (ts: string) => ts.slice(0, 10);
 
-export function Notebook({ p, say, onOpenAnalysis, onLater }: { p: ProjectSummary; say: (s: string) => void; onOpenAnalysis: (kind: string, gene?: string) => void; onLater: () => void }) {
+export function Notebook({ p, say, onOpenAnalysis }: { p: ProjectSummary; say: (s: string) => void; onOpenAnalysis: (kind: string, gene?: string) => void; onLater: () => void }) {
   const { t, lang } = useT();
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [q, setQ] = useState("");
@@ -144,7 +144,7 @@ export function Notebook({ p, say, onOpenAnalysis, onLater }: { p: ProjectSummar
         </section>
       </div>
       {quick && <QuickNote onClose={() => setQuick(false)} onSaved={() => { setQuick(false); load(); }} />}
-      {exporting && <ExportDialog title={p.project.name} count={all.length} onClose={() => setExporting(false)} say={say} onLater={onLater} />}
+      {exporting && <ExportDialog title={p.project.name} count={all.length} onClose={() => setExporting(false)} say={say} />}
     </div>
   );
 }
@@ -180,9 +180,9 @@ function QuickNote({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
   );
 }
 
-function ExportDialog({ title, count, onClose, say, onLater }: { title: string; count: number; onClose: () => void; say: (s: string) => void; onLater: () => void }) {
+function ExportDialog({ title, count, onClose, say }: { title: string; count: number; onClose: () => void; say: (s: string) => void }) {
   const { t } = useT();
-  const [format, setFormat] = useState<"pdf" | "html">("pdf");
+  const [format, setFormat] = useState<"pdf" | "html" | "docx">("docx");
   const [name, setName] = useState(title);
   const [busy, setBusy] = useState(false);
   const go = async () => {
@@ -202,10 +202,9 @@ function ExportDialog({ title, count, onClose, say, onLater }: { title: string; 
     <Dialog title={t("nb.export.title")} onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>{t("file.cancel")}</button><button className="btn primary" onClick={go} disabled={busy}>{t("nb.export.go")}</button></>}>
       <p>{t("nb.export.body", { n: count })}</p>
       <div className="fr-cards three">
-        {([["pdf", "nb.f.pdf", "nb.f.pdf.sub"], ["html", "nb.f.html", "nb.f.html.sub"]] as const).map(([v, l, s]) => (
+        {([["docx", "nb.f.word", "nb.f.word.ready"], ["pdf", "nb.f.pdf", "nb.f.pdf.sub"], ["html", "nb.f.html", "nb.f.html.sub"]] as const).map(([v, l, s]) => (
           <button key={v} className={`option ${format === v ? "on" : ""}`} style={{ flexDirection: "column", alignItems: "flex-start" }} onClick={() => setFormat(v)}><b>{t(l)}</b><span className="small muted">{t(s)}</span></button>
         ))}
-        <button className="option" style={{ flexDirection: "column", alignItems: "flex-start", opacity: 0.6 }} onClick={onLater}><b>{t("nb.f.word")}</b><span className="small muted">{t("nb.f.word.sub")}</span></button>
       </div>
       <label className="field"><span>{t("nb.export.name")}</span><input className="text" value={name} onChange={(e) => setName(e.target.value)} /></label>
     </Dialog>

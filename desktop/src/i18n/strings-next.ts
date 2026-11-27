@@ -98,6 +98,7 @@ export const enNext = {
   "repro.saveCode": "Save the script",
   "repro.saveBoth": "Save script and data",
   "repro.savedBoth": "Saved the script and its data table in {p}",
+  "nb.f.word.ready": "Keeps editing in Word or WPS; figures at print resolution",
 } as const;
 
 export const zhNext: Record<keyof typeof enNext, string> = {
@@ -197,4 +198,5 @@ export const zhNext: Record<keyof typeof enNext, string> = {
   "repro.saveCode": "保存脚本",
   "repro.saveBoth": "保存脚本和数据",
   "repro.savedBoth": "脚本和数据表已保存在 {p}",
+  "nb.f.word.ready": "可在 Word 或 WPS 中继续编辑；图为打印分辨率",
 };

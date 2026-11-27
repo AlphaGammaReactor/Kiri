@@ -9,10 +9,10 @@ hidden = (
     collect_submodules("app")
     + collect_submodules("uvicorn")
     + collect_submodules("aiosqlite")
-    + ["sqlalchemy.dialects.sqlite.aiosqlite"]
+    + ["sqlalchemy.dialects.sqlite.aiosqlite", "rlPyCairo"]
 )
 datas = [(os.path.join(BACKEND, "app", "core", "gate_page.html"), "app/core")]
-for pkg in ("gseapy", "lifelines", "reportlab", "svglib", "pydeseq2"):
+for pkg in ("gseapy", "lifelines", "reportlab", "svglib", "pydeseq2", "docx"):
     datas += collect_data_files(pkg)
 # Any data files inside the app package itself (json, txt, html, csv)
 for root, _dirs, files in os.walk(os.path.join(BACKEND, "app")):

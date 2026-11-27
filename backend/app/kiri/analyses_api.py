@@ -237,24 +237,15 @@ def export_pdf(body: PdfBody):
     import os
 
     from reportlab.graphics import renderPDF
-    from svglib.svglib import svg2rlg
 
     p = Path(body.path).expanduser()
     if p.suffix.lower() != ".pdf" or not p.is_absolute():
         return JSONResponse(status_code=400, content={"error": "bad_export_path"})
     if not p.parent.is_dir():
         return JSONResponse(status_code=400, content={"error": "folder_missing"})
-    from app.kiri.report import _cjk_font
+    from app.kiri.report import svg_drawing
 
-    svg = body.svg.split("?>", 1)[-1]
-    # svglib cannot pick fonts per glyph: figures with Chinese text are drawn with the CJK font.
-    if any("\u2e80" <= ch <= "\u9fff" for ch in svg):
-        font = _cjk_font()
-        import re
-
-        svg = re.sub(r'font-family="[^"]*"', f'font-family="{font}"', svg)
-        svg = re.sub(r"font-family:[^;\"]*", f"font-family:{font}", svg)
-    d = svg2rlg(io.BytesIO(svg.encode("utf-8")))
+    d = svg_drawing(body.svg)
     if d is None:
         return JSONResponse(status_code=400, content={"error": "bad_svg"})
     buf = io.BytesIO()
@@ -329,7 +320,7 @@ def delete_note(nid: str):
 
 class ReportBody(BaseModel):
     path: str
-    format: Literal["pdf", "html"]
+    format: Literal["pdf", "html", "docx"]
     title: str
     ids: Optional[list[str]] = None  # entries to include (default: all)
     labels: dict = Field(default_factory=dict)  # translated headings from the app
@@ -366,7 +357,7 @@ class SummaryItem(BaseModel):
 
 class SummaryBody(BaseModel):
     path: str
-    format: Literal["pdf", "html"]
+    format: Literal["pdf", "html", "docx"]
     title: str
     intro: list[str] = Field(default_factory=list)  # translated lines under the title
     items: list[SummaryItem] = Field(default_factory=list)

@@ -33,7 +33,94 @@ def _checks_line(checks: list, L: dict) -> str:
 def build(fmt: str, title: str, project: dict, notes: list, labels: dict, intro: list[str] | None = None) -> bytes:
     L = DEFAULT_LABELS | {k: v for k, v in labels.items() if isinstance(v, str)}
     intro = [x for x in (intro or []) if isinstance(x, str) and x.strip()]
+    if fmt == "docx":
+        return _docx(title, project, notes, L, intro)
     return _pdf(title, project, notes, L, intro) if fmt == "pdf" else _html(title, project, notes, L, intro)
+
+
+def _flatten_opacity(svg: str) -> str:
+    """Bitmap rendering ignores fill-opacity, so blend translucent fills with the white background."""
+    def tag(m: re.Match) -> str:
+        t = m.group(0)
+        op = re.search(r'fill-opacity="([0-9.]+)"', t)
+        col = re.search(r'fill="#([0-9a-fA-F]{6})"', t)
+        if not (op and col):
+            return t
+        a = float(op.group(1))
+        rgb = [int(col.group(1)[i:i + 2], 16) for i in (0, 2, 4)]
+        mixed = "".join(f"{round(255 - (255 - c) * a):02x}" for c in rgb)
+        return t.replace(col.group(0), f'fill="#{mixed}"').replace(op.group(0), "")
+    return re.sub(r"<[^>]+>", tag, svg)
+
+
+def svg_drawing(svg: str, bitmap: bool = False):
+    """An app SVG as a ReportLab drawing. svglib cannot pick fonts per glyph, so a figure
+    with Chinese text is drawn entirely in the CJK font."""
+    from svglib.svglib import svg2rlg
+
+    svg = svg.split("?>", 1)[-1]
+    if bitmap:
+        svg = _flatten_opacity(svg)
+    if _CJK.search(svg):
+        font = _cjk_font()
+        svg = re.sub(r'font-family="[^"]*"', f'font-family="{font}"', svg)
+        svg = re.sub(r"font-family:[^;\"]*", f"font-family:{font}", svg)
+    return svg2rlg(io.BytesIO(svg.encode("utf-8")))
+
+
+def _docx(title: str, project: dict, notes: list, L: dict, intro: list[str]) -> bytes:
+    """A Word document students can keep editing: headings, figures as 300 dpi pictures, captions."""
+    from docx import Document
+    from docx.oxml.ns import qn
+    from docx.shared import Inches, Pt, RGBColor
+    from reportlab.graphics import renderPM
+
+    doc = Document()
+    st = doc.styles["Normal"]
+    st.font.name = "Calibri"
+    st.font.size = Pt(10.5)
+    st.element.rPr.rFonts.set(qn("w:eastAsia"), "PingFang SC")  # Chinese text in Word on Mac; Word substitutes elsewhere
+    grey = RGBColor(0x57, 0x51, 0x4A)
+
+    def meta(text: str):
+        r = doc.add_paragraph().add_run(text)
+        r.font.size = Pt(9)
+        r.font.color.rgb = grey
+
+    doc.add_heading(title, level=0)
+    if project.get("question") and project["question"].strip() != title.strip():
+        meta(f"{L['question']}: {project['question']}")
+    for x in intro:
+        meta(x)
+    fig = 0
+    for n in notes:
+        b = n["body"]
+        doc.add_heading(b.get("title") or (L["note"] if n["kind"] == "text" else ""), level=2)
+        meta(_when(n["created_at"]))
+        if b.get("svg"):
+            fig += 1
+            try:
+                d = svg_drawing(b["svg"], bitmap=True)
+                if d is not None:
+                    png = renderPM.drawToString(d, fmt="PNG", dpi=300)
+                    doc.add_picture(io.BytesIO(png), width=Inches(min(6.3, d.width / 72)))
+            except Exception:  # noqa: BLE001 - a figure that cannot be drawn is left out, the text stays
+                pass
+        if b.get("caption"):
+            p = doc.add_paragraph()
+            r = p.add_run(_renumber(b["caption"], fig))
+            r.font.size = Pt(9)
+            r.italic = True
+        for key in ("summary", "text"):
+            if b.get(key):
+                doc.add_paragraph(b[key])
+        if b.get("checks"):
+            meta(_checks_line(b["checks"], L))
+    meta(L["generated"])
+    buf = io.BytesIO()
+    doc.core_properties.title = title
+    doc.save(buf)
+    return buf.getvalue()
 
 
 def _html(title: str, project: dict, notes: list, L: dict, intro: list[str]) -> bytes:
@@ -107,7 +194,6 @@ def _pdf(title: str, project: dict, notes: list, L: dict, intro: list[str]) -> b
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer
-    from svglib.svglib import svg2rlg
 
     cjk = _cjk_font()
     st = {}
@@ -138,7 +224,7 @@ def _pdf(title: str, project: dict, notes: list, L: dict, intro: list[str]) -> b
         if b.get("svg"):
             fig += 1
             try:
-                d = svg2rlg(io.BytesIO(b["svg"].encode("utf-8")))
+                d = svg_drawing(b["svg"])
                 if d is not None:
                     scale = min(1.0, width / d.width)
                     d.width, d.height = d.width * scale, d.height * scale

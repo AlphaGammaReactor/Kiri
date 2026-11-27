@@ -62,9 +62,9 @@ export const analyses = {
   notes: () => call<Note[]>("/notebook"),
   patchNote: (id: string, p: { pinned?: boolean; text?: string }) => call(`/notebook/${id}`, "PATCH", p),
   deleteNote: (id: string) => call(`/notebook/${id}`, "DELETE"),
-  exportReport: (b: { path: string; format: "pdf" | "html"; title: string; labels: Record<string, string> }) =>
+  exportReport: (b: { path: string; format: "pdf" | "html" | "docx"; title: string; labels: Record<string, string> }) =>
     call<{ path: string; entries: number }>("/notebook/export", "POST", b),
-  exportSummary: (b: { path: string; format: "pdf" | "html"; title: string; intro: string[]; items: { analysis_id: string; title: string; summary: string; checks: unknown[] }[]; labels: Record<string, string> }) =>
+  exportSummary: (b: { path: string; format: "pdf" | "html" | "docx"; title: string; intro: string[]; items: { analysis_id: string; title: string; summary: string; checks: unknown[] }[]; labels: Record<string, string> }) =>
     call<{ path: string; entries: number }>("/summary/export", "POST", b),
   exportFile: (path: string, data: Uint8Array) => {
     let s = "";

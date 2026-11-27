@@ -237,7 +237,7 @@ function SummaryDialog({ p, rows, inNotebook, kindName, stat, genesOf, onClose, 
   onClose: () => void; say: (s: string) => void;
 }) {
   const { t, lang } = useT();
-  const [fmtSel, setFmt] = useState<"pdf" | "html">("pdf");
+  const [fmtSel, setFmt] = useState<"pdf" | "html" | "docx">("pdf");
   const [busyNow, setBusy] = useState(false);
   const pr = p.project;
   const withFig = rows.filter((r) => inNotebook.has(r.id)).length;
@@ -274,6 +274,7 @@ function SummaryDialog({ p, rows, inNotebook, kindName, stat, genesOf, onClose, 
         {withFig < rows.length && <p className="small muted">{t("ov.sum.figures", { n: withFig, m: rows.length })}</p>}
         <div className="row-gap">
           <button className={`option ${fmtSel === "pdf" ? "on" : ""}`} onClick={() => setFmt("pdf")}><b>{t("nb.f.pdf")}</b></button>
+          <button className={`option ${fmtSel === "docx" ? "on" : ""}`} onClick={() => setFmt("docx")}><b>{t("nb.f.word")}</b></button>
           <button className={`option ${fmtSel === "html" ? "on" : ""}`} onClick={() => setFmt("html")}><b>{t("nb.f.html")}</b></button>
         </div>
       </>)}

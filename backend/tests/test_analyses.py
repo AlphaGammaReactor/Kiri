@@ -130,12 +130,16 @@ def test_api_runs_and_stores_in_the_kiri_file(tmp_path, monkeypatch):
     assert len(notes) == 2 and notes[0]["changed_since"] is False
     nid = notes[1]["id"]
     assert cl.patch(f"/api/v1/kiri/notebook/{nid}", json={"pinned": True}).status_code == 200
-    for fmt in ("pdf", "html"):
+    for fmt in ("pdf", "html", "docx"):
         r = cl.post("/api/v1/kiri/notebook/export", json={"path": str(tmp_path / f"report.{fmt}"), "format": fmt, "title": "PARL 报告"})
         assert r.status_code == 200, r.text
         assert r.json()["entries"] == 2
     assert (tmp_path / "report.pdf").read_bytes()[:4] == b"%PDF"
     assert "生存 KM" in (tmp_path / "report.html").read_text()
+    import docx
+
+    d = docx.Document(str(tmp_path / "report.docx"))
+    assert len(d.inline_shapes) == 1 and any("测试" in p.text for p in d.paragraphs)
     assert cl.delete(f"/api/v1/kiri/notebook/{nid}").status_code == 200
     # Rows behind the analysis, re-check without saving, summary and figure PDF
     rows = cl.get(f"/api/v1/kiri/analyses/{rec['id']}/rows").json()
