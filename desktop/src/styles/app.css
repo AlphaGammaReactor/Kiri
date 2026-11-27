@@ -446,3 +446,48 @@ textarea.text.area { width: 100%; height: auto; min-height: 110px; resize: verti
 .check-row { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border-default); font-size: 13.5px; max-width: 720px; }
 .notes { max-width: 720px; font-size: 13.5px; line-height: 1.55; }
 .notes p { margin: 8px 0; }
+
+/* ── First-round feedback: gene type-ahead, cancer picker, figure viewer ── */
+.chip-input { border: 1px solid var(--color-border-strong); }
+.chip-input:focus-within { border-color: var(--color-accent-default); box-shadow: 0 0 0 2px var(--color-accent-subtle); }
+.field .help { margin-top: 2px; line-height: 1.45; }
+.field .suggest { margin-top: 2px; }
+.gene-box { position: relative; }
+.gene-menu { left: 0; right: 0; top: calc(100% + 4px); max-height: 320px; overflow: auto; }
+.gene-menu button.hi { background: var(--color-bg-sunken); }
+.gene-hit { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.gene-hit b { min-width: 74px; font-weight: 600; font-size: 12.5px; }
+.gene-name { color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-note { padding: 8px 10px; font-size: 12.5px; }
+.picker-btn { height: auto; min-height: 36px; padding: 4px 10px; cursor: pointer; gap: 8px; }
+.picker-btn.open { border-color: var(--color-accent-default); box-shadow: 0 0 0 2px var(--color-accent-subtle); }
+.picker-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.picker-chips .gene { font-family: var(--font-sans); font-weight: 400; gap: 6px; }
+.picker-chips .gene .mono { font-weight: 600; }
+.cancer-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cancer-row { display: flex; align-items: center; gap: 10px; }
+.menu-search { display: flex; align-items: center; gap: 8px; padding: 4px 10px 8px; margin-bottom: 4px; border-bottom: 1px solid var(--color-border-default); color: var(--color-text-secondary); }
+.menu-search input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; font-size: 13.5px; height: 28px; color: var(--color-text-primary); }
+.menu-foot { display: flex; justify-content: space-between; align-items: center; padding: 8px 6px 4px; margin-top: 4px; border-top: 1px solid var(--color-border-default); font-size: 12.5px; }
+.menu .menu-foot button { width: auto; display: inline-flex; padding: 0 12px; }
+.ws-genes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.ws-genes .chip { height: 24px; padding: 0 8px; font: 500 11.5px var(--font-mono); }
+.fig-viewer { position: relative; display: block; overflow: hidden; border-radius: var(--radius-md); }
+.fig-scroll { position: absolute; inset: 0; overflow: auto; }
+.fig-scroll.pannable { cursor: grab; }
+.fig-scroll.pannable:active { cursor: grabbing; }
+.fig-stage { min-width: 100%; min-height: 100%; width: max-content; display: grid; place-items: center; padding: 16px; box-sizing: border-box; }
+.fig-viewer svg { max-width: none; display: block; box-shadow: 0 0 0 1px var(--color-border-default); border-radius: 2px; }
+.fig-zoom { position: absolute; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); box-shadow: 0 2px 8px rgba(30, 28, 24, .08); opacity: .82; transition: opacity .15s; }
+.fig-viewer:hover .fig-zoom, .fig-zoom:focus-within { opacity: 1; }
+.zbtn { height: 26px; min-width: 26px; display: grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--color-text-secondary); padding: 0 4px; }
+.zbtn:hover { background: var(--color-bg-sunken); color: var(--color-text-primary); }
+.zbtn.on { color: var(--color-accent-text); background: var(--color-accent-subtle); }
+.zpct { min-width: 48px; font-size: 11.5px; }
+.zsep { width: 1px; height: 16px; background: var(--color-border-default); margin: 0 3px; }
+.ws-fig.fig-full { position: fixed; inset: 16px; z-index: 60; box-shadow: 0 12px 48px rgba(30, 28, 24, .28); }
+body.has-fig-full::after { content: ""; position: fixed; inset: 0; z-index: 59; background: rgba(30, 28, 24, .35); }
+.field > .help { font-weight: 400; font-size: 12px; color: var(--color-text-secondary); }
+.suggest.info { background: var(--color-bg-sunken); color: var(--color-text-secondary); padding: 6px 12px; font-size: 12.5px; }
+.sel select { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+.fig-stage { padding-bottom: 50px; }

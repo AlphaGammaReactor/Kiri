@@ -104,3 +104,17 @@ def test_gene_check():
     assert r["status"] == "alias" and r["symbol"] == "KLHL2" and "MAVS" in r["suggestions"]
     assert "PARL" in genes.check("PARLL")["suggestions"]
     assert genes.check("p53")["symbol"] == "TP53"
+
+
+def test_gene_search_typeahead():
+    first = lambda q: genes.search(q)[0]  # noqa: E731
+    assert first("mavs")["symbol"] == "MAVS" and first("mavs")["match"] == "symbol"
+    # An exact other name resolves to the approved gene and says which name matched.
+    assert first("p53") == {"symbol": "TP53", "name": "tumor protein p53", "match": "alias", "via": "p53"}
+    assert first("HER2")["symbol"] == "ERBB2"
+    # Prefix symbols lead, but an exact alias is kept within the first four rows.
+    mav = [r["symbol"] for r in genes.search("mav")]
+    assert mav[0] == "MAVS" and "KLHL2" in mav[:4]
+    par = [r["symbol"] for r in genes.search("PAR")]
+    assert "PARL" in par and "JTB" in par[:4] and len(par) == 8
+    assert genes.search("") == [] and genes.search("zzzzqq") == []

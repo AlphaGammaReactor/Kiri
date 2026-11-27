@@ -6,6 +6,7 @@ import type { StringKey } from "../../i18n/strings";
 import { analyses, fmt, fmtP, type Check as CheckT } from "../../lib/analyses";
 import { copyPng, pngBytes, svgText } from "../../charts/figure";
 import { pickExportPath } from "../../lib/files";
+import { FigureViewer } from "../../charts/FigureViewer";
 
 export const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 export const runKeys = isMac ? "⌘ Enter" : "Ctrl Enter";
@@ -124,7 +125,7 @@ export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang,
         </div>
         <span className="badge ok sm fig-check"><ShieldCheck size={13} />{t("fig.checkPassed")}</span>
       </div>
-      <div className="fig-canvas">{children}</div>
+      <FigureViewer>{children}</FigureViewer>
       <div className="fig-foot">
         <p className="caption">{caption}</p>
         <label className="sel small-sel">
