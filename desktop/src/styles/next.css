@@ -245,3 +245,14 @@
 .tour-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--color-border-strong, #d4cbb8); }
 .tour-dots i.on { background: var(--color-accent-text); }
 @media (prefers-reduced-motion: reduce) { .tour-ring, .tour-card { transition: none; } }
+
+/* ── Mascot (concept art in test builds; hidden in Expert mode) ── */
+.mascot { display: inline-flex; }
+.mascot-img { display: block; border-radius: 18px; background: #faf4e4; object-fit: cover; user-select: none; }
+.mascot-say { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; }
+.mascot-bubble { position: relative; margin: 0; padding: 10px 14px; max-width: 460px; background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: 14px; font-size: 13.5px; line-height: 1.45; color: var(--color-text-primary); }
+.mascot-bubble::before { content: ""; position: absolute; left: -7px; top: 50%; width: 12px; height: 12px; background: inherit; border-left: 1px solid var(--color-border-default); border-bottom: 1px solid var(--color-border-default); transform: translateY(-50%) rotate(45deg); }
+.state .mascot { margin-bottom: 4px; }
+.state .state-title .spin { margin-right: 6px; vertical-align: -3px; }
+.state.left .mascot { margin-bottom: 0; }
+:root[data-level="expert"] .mascot { display: none; }

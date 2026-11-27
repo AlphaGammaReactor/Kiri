@@ -868,6 +868,8 @@ export const enNext = {
   "tut.own.5.b": "When nothing is flagged, import. Kiri checks every value as it reads them.",
   "tut.own.6.t": "Analyse it",
   "tut.own.6.b": "Your table now works in the same screens as TCGA data: groups, survival and correlation.",
+  "mascot.hello": "Hi, I'm Kiri. I made this app so students can do real analyses for free. Pick a language and we'll start.",
+  "mascot.allDone": "All six done. You know your way around Kiri now.",
 } as const;
 
 export const zhNext: Record<keyof typeof enNext, string> = {
@@ -1737,4 +1739,6 @@ export const zhNext: Record<keyof typeof enNext, string> = {
   "tut.own.5.b": "没有标出问题时即可导入。Kiri 会在读取时检查每一个数值。",
   "tut.own.6.t": "开始分析",
   "tut.own.6.b": "你的表格现在可以在与 TCGA 数据相同的界面中使用：分组、生存和相关性。",
+  "mascot.hello": "你好，我是 Kiri。我做这个软件，是为了让学生免费做真正的分析。选一种语言，我们就开始吧。",
+  "mascot.allDone": "六项全部完成。你已经熟悉 Kiri 了。",
 };

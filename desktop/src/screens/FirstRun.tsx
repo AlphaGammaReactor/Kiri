@@ -2,6 +2,7 @@ import type React from "react";
 import { useState } from "react";
 import { BookOpen, Check, Compass, FileText, FlaskConical, Globe, Image, Info, Play, Search, Upload } from "lucide-react";
 import { useT, type Lang } from "../i18n";
+import { Mascot } from "../shell/Mascot";
 import type { Settings } from "../lib/settings";
 
 type Door = "sample" | "gene" | "file" | "own" | "home";
@@ -29,6 +30,7 @@ export function FirstRun({ s, update, onDone, systemLang }: {
 
       {step === 0 && (
         <div className="fr-body">
+          <Mascot pose="wave" size={84} say={t("mascot.hello")} />
           <h1 className="fr-title">{t("fr.lang.title")}</h1>
           <p className="fr-sub">{t("fr.lang.sub")}</p>
           <div className="fr-cards three">

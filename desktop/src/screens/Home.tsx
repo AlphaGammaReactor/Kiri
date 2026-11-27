@@ -1,7 +1,8 @@
 import type React from "react";
-import { Check, Compass, Search, Folder, FileText, Activity, Table2, BookOpen, Play, TriangleAlert, MoreHorizontal } from "lucide-react";
+import { Check, Compass, Search, FileText, Activity, Table2, BookOpen, Play, TriangleAlert, MoreHorizontal } from "lucide-react";
 import type { RecentItem, TemplateId } from "../lib/api";
 import { useT } from "../i18n";
+import { Mascot } from "../shell/Mascot";
 import type { StringKey } from "../i18n/strings";
 
 export type HomeActions = {
@@ -69,7 +70,7 @@ export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
             </div>
             {recent.length === 0 ? (
             <div className="empty">
-              <Folder size={26} strokeWidth={1.5} color="var(--color-text-secondary)" />
+              <Mascot pose="curious" size={104} />
               <div className="empty-title">{t("home.empty.title")}</div>
               <p>{t("home.empty.body")}</p>
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
@@ -117,6 +118,7 @@ export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
           <section className="card">
             <div className="row-between"><span className="eyebrow">{t("home.getting")}</span><span className="mono muted">{done} / 6</span></div>
             <div className="progress"><span style={{ width: `${Math.max(2, (done / 6) * 100)}%` }} /></div>
+            {done >= 6 && <Mascot pose="proud" size={64} say={t("mascot.allDone")} />}
             <ul className="checklist">
               {checks.map((c, i) => <li key={c} className={a.progress.includes(CHECK_KEY[i]) ? "done" : ""}><span className="box">{a.progress.includes(CHECK_KEY[i]) && <Check size={11} strokeWidth={3} />}</span>{t(c)}</li>)}
             </ul>

@@ -182,7 +182,8 @@ export function Bench({ p, figLang, onFigLang, say, onLater, onGuide }: {
     </>
   ) : (
     <>
-      <Method title={t("bench.method.q")} body={t("bench.method.qb")} cite="Livak & Schmittgen 2001" />
+      <Method title={t(mode === "qpcr" ? "bench.method.q" : "bench.method.v")} body={t(mode === "qpcr" ? "bench.method.qb" : "bench.method.vb")}
+        cite={mode === "qpcr" ? "Livak & Schmittgen 2001 · Welch 1947/1951 · Holm 1979" : "Welch 1947/1951 · Holm 1979 · scipy"} />
       <div className="side-empty">{t("bench.side.empty")}</div>
     </>
   );

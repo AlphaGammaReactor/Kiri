@@ -114,6 +114,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
 
   const say = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
   const notYet = () => say(t("common.notYet"));
+  useEffect(() => { document.documentElement.dataset.level = settings.level; }, [settings.level]);
   const [tour, setTour] = useState<{ id: TutId; step: number } | null>(null);
   const tourStep = (n: number) => {
     if (!tour) return;

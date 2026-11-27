@@ -9,6 +9,7 @@ import { copyPng, pngBytes, svgText } from "../../charts/figure";
 import { pickExportPath } from "../../lib/files";
 import { progress } from "../../lib/progress";
 import { FigureViewer } from "../../charts/FigureViewer";
+import { Mascot } from "../../shell/Mascot";
 import { addToBoard } from "../../charts/board";
 
 export const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
@@ -255,8 +256,8 @@ export function LoadingState({ steps }: { steps: string[] }) {
   useEffect(() => { timer.current = window.setInterval(() => setI((x) => Math.min(steps.length - 1, x + 1)), 900); return () => clearInterval(timer.current); }, [steps.length]);
   return (
     <div className="state">
-      <Loader2 size={26} className="spin" />
-      <div className="state-title">{t("ws.running")}</div>
+      <Mascot pose="thinking" size={88} />
+      <div className="state-title"><Loader2 size={18} className="spin" />{t("ws.running")}</div>
       <ul className="steps">{steps.map((s, k) => <li key={s} className={k < i ? "done" : k === i ? "now" : ""}>{k < i ? <Check size={13} /> : <span className="dotx" />}{s}</li>)}</ul>
       <p className="small muted">{t("ws.keepWorking")}</p>
     </div>
@@ -267,6 +268,7 @@ export function ErrorState({ what, why, todo, code, actions }: { what: string; w
   const { t } = useT();
   return (
     <div className="state left">
+      {code !== "needs_internet" && <Mascot pose="oops" size={80} />}
       {code === "needs_internet"
         ? <div className="state-title"><WifiOff size={20} style={{ color: "var(--color-status-warning, #b7791f)" }} />{t("err.ws.offline")}</div>
         : <div className="state-title"><CircleX size={20} style={{ color: "var(--color-status-danger)" }} />{t("err.ws.title")}</div>}
@@ -293,7 +295,7 @@ export function DownloadState({ project, state, onDownload }: { project: string;
         <div style={{ width: 320 }}><div className="progress"><span style={{ width: `${pct}%` }} /></div><div className="small muted mono">{t("dl.progress", { pct, mb: Math.round((state.done ?? 0) / 1e6) })}</div></div>
       ) : (
         <>
-          {state?.state === "failed" && <p className="warn-text">{t("dl.failed")}</p>}
+          {state?.state === "failed" && <><Mascot pose="oops" size={80} /><p className="warn-text">{t("dl.failed")}</p></>}
           <button className="btn primary" onClick={onDownload}>{state?.state === "failed" ? <RotateCcw size={15} /> : <CloudDownload size={15} />}{state?.state === "failed" ? t("dl.retry") : t("dl.start")}</button>
         </>
       )}

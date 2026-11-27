@@ -1,6 +1,6 @@
 // Notebook: the project's lab record. Kiri adds figures here; the person adds notes (page 17 of the design).
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Image as ImageIcon, FileText, Pin, MoreHorizontal, ShieldCheck, TriangleAlert, NotebookPen, Trash2 } from "lucide-react";
+import { Search, Image as ImageIcon, FileText, Pin, MoreHorizontal, ShieldCheck, TriangleAlert, Trash2 } from "lucide-react";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
 import type { ProjectSummary } from "../lib/api";
@@ -9,6 +9,7 @@ import { pickExportPath } from "../lib/files";
 import { progress } from "../lib/progress";
 import { Dialog } from "../shell/Dialog";
 import { svgDataUrl } from "../charts/figure";
+import { Mascot } from "../shell/Mascot";
 import { CHECK_TITLE, fmtVars, isMac } from "./workspace/Frame";
 
 const tagsOf = (s: string) => [...new Set((s.match(/#[\p{L}\p{N}_-]+/gu) ?? []).map((x) => x.toLowerCase()))];
@@ -93,7 +94,7 @@ export function Notebook({ p, say, onOpenAnalysis }: { p: ProjectSummary; say: (
         <section className="nb-list">
           {notes && !all.length && (
             <div className="card state-card"><div className="state">
-              <div className="state-icon"><NotebookPen size={22} /></div>
+              <Mascot pose="curious" size={104} />
               <div className="state-title">{t("nb.empty.title")}</div>
               <p>{t("nb.empty.body")}</p>
               <div className="row-gap"><button className="btn primary" onClick={() => onOpenAnalysis("survival")}>{t("nb.empty.run")}</button><button className="btn" onClick={() => setQuick(true)} disabled={p.read_only}>{t("nb.quick")}</button></div>
