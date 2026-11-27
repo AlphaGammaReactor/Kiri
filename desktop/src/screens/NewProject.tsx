@@ -136,7 +136,10 @@ export function NewProject({ initialTemplate, onCancel, onCreate, notYet }: {
           )}
           <div className="np-foot">
             <button className="btn ghost" onClick={() => (step === 1 ? onCancel() : setStep(1))}>{step === 1 ? t("np.cancel") : t("fr.back")}</button>
-            {step === 1 ? <button className="btn primary" onClick={() => setStep(2)}>{t("np.next")}</button>
+            {step === 1 && template === "own_table"
+              // Your own table brings its genes and samples, so there are no targets or cancers to pick first.
+              ? <button className="btn primary" onClick={() => onCreate({ name: name.trim() || "Untitled", question, template, targets: [], cancers: [], datasets: [], standard_panel: false })}>{t("np.nextTable")}</button>
+              : step === 1 ? <button className="btn primary" onClick={() => setStep(2)}>{t("np.next")}</button>
               : <button className="btn primary" disabled={chips.some((c) => !c.check)}
                   onClick={() => onCreate({ name: name.trim() || targets.join("–") || "Untitled", question, template, targets, cancers, datasets, standard_panel: panel })}>{t("np.create")}</button>}
           </div>

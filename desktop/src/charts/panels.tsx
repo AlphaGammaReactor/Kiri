@@ -9,7 +9,7 @@ import { Scatter } from "./Scatter";
 import { FIG } from "./figure";
 import { figText, fillFig, stars, type FigLang } from "./figStrings";
 import { plainSurvival } from "../screens/workspace/Survival";
-import { plainExpression, STAGE_COLORS } from "../screens/workspace/Expression";
+import { GROUP_COLORS, plainExpression, STAGE_COLORS } from "../screens/workspace/Expression";
 
 type T = (k: StringKey, v?: Record<string, string | number>) => string;
 export type Panel = { svg: string; summary: string; checks: Check[] };
@@ -53,7 +53,13 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
     const r = a.result as ExpressionResult;
     let groups: Group[], brackets: { a: string; b: string; text: string }[] = [];
     let colors = (k: string) => (k.endsWith("normal") ? FIG.normal : FIG.tumour), label = (k: string) => k, stat: string;
-    if (r.kind === "expression_stage") {
+    if (r.kind === "expression_group") {
+      groups = r.groups;
+      const idx = Object.fromEntries(r.groups.map((g, i) => [g.key, i]));
+      colors = (k) => GROUP_COLORS[(idx[k] ?? 0) % GROUP_COLORS.length];
+      brackets = r.groups.length === 2 ? [{ a: r.groups[0].key, b: r.groups[1].key, text: stars(r.test.p) }] : [];
+      stat = fillFig(r.groups.length === 2 ? F.rankSum : F.kw, { p: fmtP(r.test.p) });
+    } else if (r.kind === "expression_stage") {
       groups = r.groups; colors = (k) => STAGE_COLORS[k] ?? FIG.ink; label = (k) => `${F.stage} ${k}`;
       stat = fillFig(F.kw, { p: fmtP(r.test.p) });
     } else {
@@ -69,7 +75,7 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
       }
       stat = r.test.name === "wilcoxon_signed_rank" ? fillFig(F.signedRank, { p: fmtP(r.test.p), n: r.test.n_pairs ?? 0 }) : fillFig(F.rankSum, { p: fmtP(r.test.p) });
     }
-    el = <BoxPoints groups={groups} colors={colors} showPoints labels={{ yTitle: `${r.gene} ${F.expr}`, group: label, stat, brackets }} />;
+    el = <BoxPoints groups={groups} colors={colors} showPoints labels={{ yTitle: r.kind === "expression_group" ? r.gene : `${r.gene} ${F.expr}`, group: label, stat, brackets }} />;
     summary = plainExpression(r, t);
   }
   const svg = renderToStaticMarkup(el).replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ');

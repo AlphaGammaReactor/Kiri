@@ -367,7 +367,10 @@ def commit(body: CommitBody):
     datasets = [d for d in pr.get("datasets", []) if not d.startswith("own:")] + [f"own:{ds_id}"]
     patch = {"datasets": datasets}
     if not pr.get("targets"):
-        patch["targets"] = [meta["labels"].get(k, k) for k in list(data["values"])[:5]] if orientation == "samples_in_rows" else []
+        # Gene-like column names first (TP53, MDM2), then other measurements such as age.
+        labels = [meta["labels"].get(k, k) for k in data["values"]]
+        labels.sort(key=lambda x: 0 if GENE_RE.match(x) and x == x.upper() else 1)
+        patch["targets"] = labels[:5] if orientation == "samples_in_rows" else []
     op.update_project(patch)
     op.con.commit()
     try:

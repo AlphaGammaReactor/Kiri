@@ -1,4 +1,5 @@
 // State shared by the analysis workspaces: the stored result, running, errors, and cohort downloads.
+import { ownNames } from "../../lib/owndata";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../lib/api";
 import { analyses, type Analysis, type CohortStatus, type Kind, type RunParams } from "../../lib/analyses";
@@ -18,7 +19,9 @@ export function useAnalysis(kinds: Kind[]) {
   const [cohort, setCohort] = useState<CohortStatus | null>(null);
   const poll = useRef<number>(0);
 
-  const refreshCohort = useCallback(() => analyses.cohort().then(setCohort).catch(() => {}), []);
+  // Remember the imported table's name so badges and pickers show it rather than its id.
+  const keep = useCallback((c: CohortStatus) => { if (c.own) ownNames.set(c.own.id, c.own.name); setCohort(c); }, []);
+  const refreshCohort = useCallback(() => analyses.cohort().then(keep).catch(() => {}), [keep]);
 
   useEffect(() => {
     let stop = false;
@@ -66,7 +69,7 @@ export function useAnalysis(kinds: Kind[]) {
     poll.current = window.setInterval(async () => {
       const c = await analyses.cohort().catch(() => null);
       if (!c) return;
-      setCohort(c);
+      keep(c);
       const states = projects.map((p) => c.packs[p]);
       if (states.every((s) => s?.ready)) { clearInterval(poll.current); setPhase({ kind: "idle" }); }
       if (states.some((s) => s?.state === "failed")) clearInterval(poll.current);
@@ -79,6 +82,7 @@ export function useAnalysis(kinds: Kind[]) {
 /** A short label for the cohort: "TCGA-COAD + READ". */
 export function cohortLabel(projects: string[]) {
   if (!projects.length) return "–";
+  if (projects[0].startsWith("own:")) return ownNames.get(projects[0]) ?? projects[0].slice(4);
   const [first, ...rest] = projects;
   return [first, ...rest.map((p) => p.replace("TCGA-", ""))].join(" + ");
 }

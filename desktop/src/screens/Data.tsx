@@ -1,6 +1,8 @@
 // Data manager (design page 19, frame 13): the cohorts this project uses, downloads and the data folder.
 import { useCallback, useEffect, useState } from "react";
-import { CloudDownload, FolderOpen, Info, RotateCcw, Trash2 } from "lucide-react";
+import { CloudDownload, FolderOpen, Info, RotateCcw, Trash2, Upload } from "lucide-react";
+import { owndata } from "../lib/owndata";
+import { useDatasets } from "./Import";
 import { useT } from "../i18n";
 import type { ProjectSummary } from "../lib/api";
 import { analyses, type CohortStatus } from "../lib/analyses";
@@ -9,12 +11,13 @@ import { isTauri } from "../lib/platform";
 
 type Tab = "project" | "cache" | "mine";
 
-export function Data({ p, say, onLater }: { p: ProjectSummary; say: (s: string) => void; onLater: () => void }) {
+export function Data({ p, say, onImport }: { p: ProjectSummary; say: (s: string) => void; onLater: () => void; onImport: () => void }) {
   const { t } = useT();
   const [tab, setTab] = useState<Tab>("project");
   const [cohort, setCohort] = useState<CohortStatus | null>(null);
   const [store, setStore] = useState<Storage | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const mine = useDatasets();
 
   const load = useCallback(() => {
     analyses.cohort().then(setCohort).catch(() => {});
@@ -46,7 +49,7 @@ export function Data({ p, say, onLater }: { p: ProjectSummary; say: (s: string) 
           <h1 className="page ws-title">{t("nav.data")}</h1>
         </div>
         <div className="ws-actions">
-          <button className="btn" onClick={onLater}>{t("data.import")}</button>
+          <button className="btn primary" disabled={p.read_only} onClick={onImport}><Upload size={14} />{t("data.import")}</button>
         </div>
       </div>
       <div className="tabs line" role="tablist">
@@ -133,10 +136,32 @@ export function Data({ p, say, onLater }: { p: ProjectSummary; say: (s: string) 
       )}
 
       {tab === "mine" && (
-        <div className="card state-card"><div className="state">
-          <div className="state-title">{t("data.mine.title")}</div>
-          <p>{t("data.mine.body")}</p>
-        </div></div>
+        <>
+          <div className="card table-card">
+            <table className="tbl">
+              <thead><tr><th>{t("data.mine.col.name")}</th><th>{t("data.mine.col.rows")}</th><th>{t("data.mine.col.values")}</th><th>{t("data.mine.col.when")}</th><th /></tr></thead>
+              <tbody>
+                {(mine.list ?? []).length === 0 && <tr><td colSpan={5} className="muted">{mine.list ? t("data.mine.empty") : "…"}</td></tr>}
+                {(mine.list ?? []).map((d) => (
+                  <tr key={d.id}>
+                    <td><b>{d.name}</b><div className="small muted">{d.file_name} · {d.units}{d.in_use ? ` · ${t("data.mine.inUse")}` : ""}</div></td>
+                    <td className="mono">{d.n_samples}</td>
+                    <td className="mono">{d.n_values}</td>
+                    <td className="mono small">{(d.imported_at ?? "").slice(0, 16).replace("T", " ")}</td>
+                    <td style={{ textAlign: "right" }}>
+                      {confirm === d.id
+                        ? <span className="row-gap"><span className="small">{t("data.remove.sure")}</span>
+                            <button className="btn sm" onClick={async () => { setConfirm(null); await owndata.remove(d.id).catch(() => {}); say(t("data.mine.deleted", { n: d.name })); mine.reload(); }}>{t("nb.delete")}</button>
+                            <button className="btn ghost sm" onClick={() => setConfirm(null)}>{t("file.cancel")}</button></span>
+                        : <button className="icon-btn" aria-label={t("nb.delete")} disabled={p.read_only} onClick={() => setConfirm(d.id)}><Trash2 size={15} /></button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="note-banner"><Info size={16} /><div><b>{t("data.mine.title")}</b><div className="small">{t("data.mine.body")}</div></div></div>
+        </>
       )}
     </div>
   );

@@ -43,9 +43,9 @@ export function Correlation({ p, figLang, onFigLang, say, onLater, onGuide }: {
 
   const badges = (
     <>
-      <span className="badge ok">● {cohortLabel(projects)} · GDC</span>
+      <span className="badge ok">● {cohortLabel(projects)} · {a.cohort?.own ? t("ws.ownSource") : "GDC"}</span>
       {r && <span className="badge">● {t("corr.badge.n", { n: r.n })}</span>}
-      {r && <span className="badge ok">● {t("corr.badge.tumour")}</span>}
+      {r && !a.cohort?.own && <span className="badge ok">● {t("corr.badge.tumour")}</span>}
     </>
   );
 

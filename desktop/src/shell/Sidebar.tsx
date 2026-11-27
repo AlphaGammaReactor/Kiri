@@ -8,7 +8,7 @@ import type { StringKey } from "../i18n/strings";
 import type { EngineState } from "../lib/engine";
 import { APP_VERSION } from "../lib/platform";
 
-export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation";
+export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation" | "import";
 
 const Item = ({ icon, label, active, disabled, onClick, title }: { icon: ReactNode; label: string; active?: boolean; disabled?: boolean; onClick?: () => void; title?: string }) => (
   <button className="nav-item" aria-current={active ? "page" : undefined} disabled={disabled} onClick={onClick} title={title}>

@@ -1,5 +1,5 @@
 // Survival workspace: Kaplan–Meier, log-rank, Cox (page 13 and the seven states on page 15 of the design).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { useT } from "../../i18n";
 import type { ProjectSummary } from "../../lib/api";
@@ -32,16 +32,19 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
   }
   const svgRef = useRef<SVGSVGElement>(null);
   const projects = a.cohort?.projects ?? p.project.datasets;
-  const run = useCallback(() => a.run({ kind: "survival", gene, cut, adjust }), [a, gene, cut, adjust]);
+  // Your own table has no age or stage columns, so the model is never adjusted.
+  const own = a.cohort?.own;
+  const adj = useMemo(() => (own ? [] : adjust), [own, adjust]);
+  const run = useCallback(() => a.run({ kind: "survival", gene, cut, adjust: adj }), [a, gene, cut, adj]);
   useRunShortcut(run, a.phase.kind !== "running" && !!gene.trim());
   // Arriving from "Is this gene linked to survival?": run it straight away unless it is already the stored result.
   const asked = useRef(false);
   useEffect(() => {
     if (!initialGene || asked.current || !a.loaded) return;
     asked.current = true;
-    if (a.current?.params.gene !== initialGene.toUpperCase()) a.run({ kind: "survival", gene: initialGene, cut, adjust });
+    if (a.current?.params.gene !== initialGene.toUpperCase()) a.run({ kind: "survival", gene: initialGene, cut, adjust: adj });
   }, [a.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
-  const stale = !!r && !!saved && (saved.gene !== gene.trim().toUpperCase() || saved.cut !== cut || [...(saved.adjust ?? [])].sort().join() !== [...adjust].sort().join());
+  const stale = !!r && !!saved && (saved.gene !== gene.trim().toUpperCase() || saved.cut !== cut || [...(saved.adjust ?? [])].sort().join() !== [...adj].sort().join());
   const F = figText[figLang];
 
   const cox = r ? (r.cox_adjusted ?? r.cox) : null;
@@ -53,7 +56,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
   const title = t("surv.title", { g: r?.gene ?? (gene.trim().toUpperCase() || "…") });
   const badges = (
     <>
-      <span className="badge ok">● {cohortLabel(projects)} · GDC</span>
+      <span className="badge ok">● {cohortLabel(projects)} · {own ? t("ws.ownSource") : "GDC"}</span>
       {r && <span className="badge">● {t("surv.badge.n", { n, e: events })}</span>}
       {r && <span className="badge ok">● {cutText(r.cut)}</span>}
     </>
@@ -86,14 +89,14 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
         ]} />
         <p className="help">{t(`surv.cut.${cut}.help` as const)}</p>
       </Param>
-      <Param label={t("surv.adjust")} help={t("surv.adjust.help")}>
+      {!own && <Param label={t("surv.adjust")} help={t("surv.adjust.help")}>
         <div className="row-gap">
           {(["age", "stage"] as const).map((k) => (
             <button key={k} className={`chip ${adjust.includes(k) ? "on" : ""}`} aria-pressed={adjust.includes(k)}
               onClick={() => setAdjust((x) => x.includes(k) ? x.filter((y) => y !== k) : [...x, k])}>{t(`surv.adj.${k}` as const)}</button>
           ))}
         </div>
-      </Param>
+      </Param>}
       {r && r.counts.no_survival + r.counts.no_expression > 0 && (
         <div className="excluded"><CircleAlert size={14} /><span>{t("surv.excluded", { n: r.counts.no_survival + r.counts.no_expression })}</span></div>
       )}
@@ -112,7 +115,8 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
     body = <ErrorState {...e} code={a.phase.code} actions={<>
       {a.phase.code === "gene_not_in_cohort" && <button className="btn primary" onClick={() => a.download(projects)}>{t("dl.start")}</button>}
       <button className="btn" onClick={run}>{t("err.ws.retry")}</button></>} />;
-  } else if (!r) body = a.loaded ? <EmptyState title={t("surv.empty.title")} body={t("surv.empty.body")} onRun={() => { setGene(targets[0]); a.run({ kind: "survival", gene: targets[0], cut: "median", adjust: ["age", "stage"] }); }} onGuide={onGuide} /> : null;
+  } else if (own && !own.survival) body = <EmptyState title={t("surv.ownNoSurv.title")} body={t("surv.ownNoSurv.body")} onGuide={onGuide} />;
+  else if (!r) body = a.loaded ? <EmptyState title={t("surv.empty.title")} body={t("surv.empty.body")} onRun={() => { setGene(targets[0]); a.run({ kind: "survival", gene: targets[0], cut: "median", adjust: own ? [] : ["age", "stage"] }); }} onGuide={onGuide} /> : null;
 
   const figure = body ? <div className="fig-state">{body}</div> : r && (
     <>

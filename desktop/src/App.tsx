@@ -14,6 +14,9 @@ import { Overview } from "./screens/Overview";
 import { Survival } from "./screens/workspace/Survival";
 import { Expression } from "./screens/workspace/Expression";
 import { Correlation } from "./screens/workspace/Correlation";
+import { Import } from "./screens/Import";
+import { ownNames } from "./lib/owndata";
+import { analyses as kiriAnalyses } from "./lib/analyses";
 import { Notebook } from "./screens/Notebook";
 import { Data } from "./screens/Data";
 import { Glossary } from "./screens/Glossary";
@@ -96,6 +99,12 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
   const notYet = () => say(t("common.notYet"));
   const ready = engine.status === "ready";
 
+  // Names of imported tables, for cohort labels everywhere.
+  useEffect(() => {
+    if (!proj.project || !ready) return;
+    kiriAnalyses.cohort().then((c) => { if (c.own) ownNames.set(c.own.id, c.own.name); }).catch(() => {});
+  }, [proj.project, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Updates (design page 23) ──
   const [whatsNew, setWhatsNew] = useState<null | "before" | "after">(null);
   const [updated, setUpdated] = useState<null | { version: string; reopened: boolean; notes?: string }>(null);
@@ -170,7 +179,8 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
   const create = async (d: NewProjectData) => {
     const path = await pickKiriToSave(t("np.saveTitle"), d.name);
     if (!path) return;
-    opened(await proj.create({ ...d, path, language: lang }));
+    const ok = await proj.create({ ...d, path, language: lang });
+    if (ok && d.template === "own_table") { loadRecent(); setScreen("import"); } else opened(ok);
   };
   const saveCopy = async () => {
     if (!proj.project) return;
@@ -189,13 +199,13 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
           if (door === "sample") openSample();
           else if (door === "gene") startNew("one_gene");
           else if (door === "file") openDialog();
-          else if (door === "own") notYet();
+          else if (door === "own") startNew("own_table");
         }} />
       </div>
     );
   }
 
-  const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook" || screen === "data" || screen === "correlation";
+  const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook" || screen === "data" || screen === "correlation" || screen === "import";
   const openGene = (k: "survival" | "expression", g: string) => { if (k === "survival") setSurvGene(g); else setExpGene(g); setScreen(k); };
   const docName = proj.project && inProject ? proj.project.file_name
     : screen === "guide" ? t("nav.figureGuide") : screen === "home" ? t("home.title") : screen === "new" ? t("home.new") : screen === "settings" ? t("settings.title") : screen === "about" ? t("about.title") : screen === "glossary" ? t("gl.title") : "Kiri";
@@ -232,7 +242,10 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
           {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}-${expGene}`} initialGene={expGene} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "tn")} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
           {screen === "correlation" && proj.project && <Correlation key={`c-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "correlation")} />}
           {screen === "notebook" && proj.project && <Notebook key={`n-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onOpenAnalysis={(k, g) => { if (k === "survival") setSurvGene(g ?? ""); setScreen(k === "survival" ? "survival" : k === "correlation" ? "correlation" : "expression"); }} />}
-          {screen === "data" && proj.project && <Data key={`d-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} />}
+          {screen === "data" && proj.project && <Data key={`d-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onImport={() => setScreen("import")} />}
+          {screen === "import" && proj.project && <Import key={`i-${proj.project.path}`} p={proj.project} say={say} onCancel={() => setScreen("data")}
+            onDone={() => { proj.refresh(); setScreen("overview"); }}
+            onOpen={(k) => { proj.refresh(); if (k === "correlation") setScreen("correlation"); else openGene(k, ""); }} />}
           {screen === "glossary" && <Glossary key={term} initial={term} />}
           {screen === "guide" && <Guide key={guideAt.n} initialQuery={guideAt.q} initialId={guideAt.id} projectOpen={!!proj.project} onAction={guideAction} onSample={openSample} />}
           {screen === "settings" && <Settings s={settings} update={update} engineReady={ready} updater={updater.state} onCheck={updater.check} onWhatsNew={() => setWhatsNew(updater.state.kind === "ready" ? "before" : "after")} />}

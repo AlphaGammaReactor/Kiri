@@ -228,14 +228,14 @@ export function Method({ title, body, cite }: { title: string; body: string; cit
 }
 
 // ── States ──
-export function EmptyState({ title, body, onRun, onGuide }: { title: string; body: string; onRun: () => void; onGuide: () => void }) {
+export function EmptyState({ title, body, onRun, onGuide }: { title: string; body: string; onRun?: () => void; onGuide: () => void }) {
   const { t } = useT();
   return (
     <div className="state">
       <div className="state-icon"><Activity size={22} /></div>
       <div className="state-title">{title}</div>
       <p>{body}</p>
-      <div className="row-gap"><button className="btn primary" onClick={onRun}>{t("ws.runSample")}</button><button className="btn ghost" onClick={onGuide}>{t("ws.whichFigure")}</button></div>
+      <div className="row-gap">{onRun && <button className="btn primary" onClick={onRun}>{t("ws.runSample")}</button>}<button className="btn ghost" onClick={onGuide}>{t("ws.whichFigure")}</button></div>
     </div>
   );
 }
