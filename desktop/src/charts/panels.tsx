@@ -10,6 +10,7 @@ import { Volcano } from "./Volcano";
 import { FIG } from "./figure";
 import { figText, fillFig, stars, type FigLang } from "./figStrings";
 import { plainSurvival } from "../screens/workspace/Survival";
+import type { SignatureResult } from "../screens/workspace/Signature";
 import { GROUP_COLORS, plainExpression, STAGE_COLORS } from "../screens/workspace/Expression";
 
 type T = (k: StringKey, v?: Record<string, string | number>) => string;
@@ -60,6 +61,17 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
       n: fillFig(C.n, { n: r.n, r: fmt(r.pearson.r) }),
     }} />;
     summary = plainCorrelation(r, t);
+  } else if ((a.kind as string) === "signature") {
+    const r = a.result as unknown as SignatureResult;
+    const sn = figLang === "zh" ? r.set_name_zh : r.set_name;
+    const S = figLang === "zh"
+      ? { x: `${r.gene} 表达量，log2(TPM + 1)`, y: `${sn} 评分（z 分数均值）`, n: `n = ${r.n} 位患者 · 评分含 ${r.members.length} 个基因`, ci: "至" }
+      : { x: `${r.gene} expression, log2(TPM + 1)`, y: `${sn} score (mean z-score)`, n: `n = ${r.n} patients · ${r.members.length} genes in the score`, ci: "to" };
+    el = <Scatter points={r.points} line={r.line} labels={{ x: S.x, y: S.y, n: S.n,
+      stat: `Spearman ρ = ${fmt(r.rho)} (95% CI ${fmt(r.rho_ci[0])} ${S.ci} ${fmt(r.rho_ci[1])}) · p ${fmtP(r.p).startsWith("<") ? "" : "= "}${fmtP(r.p)}` }} />;
+    const st = Math.abs(r.rho) < 0.1 ? "negligible" : Math.abs(r.rho) < 0.3 ? "weak" : Math.abs(r.rho) < 0.5 ? "moderate" : "strong";
+    summary = t(r.p < 0.05 ? (r.rho > 0 ? "sig.plain.pos" : "sig.plain.neg") : "sig.plain.none",
+      { g: r.gene, s: sn, rho: fmt(r.rho), p: fmtP(r.p), n: r.n, str: t(`corr.s.${st}` as StringKey) });
   } else {
     const r = a.result as ExpressionResult;
     let groups: Group[], brackets: { a: string; b: string; text: string }[] = [];

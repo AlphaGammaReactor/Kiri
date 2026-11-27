@@ -17,6 +17,7 @@ import { Correlation } from "./screens/workspace/Correlation";
 import { Import } from "./screens/Import";
 import { ownNames } from "./lib/owndata";
 import { analyses as kiriAnalyses } from "./lib/analyses";
+import { Signature } from "./screens/workspace/Signature";
 import { Notebook } from "./screens/Notebook";
 import { Data } from "./screens/Data";
 import { DE } from "./screens/workspace/DE";
@@ -207,7 +208,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
     );
   }
 
-  const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook" || screen === "data" || screen === "correlation" || screen === "import" || screen === "de";
+  const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook" || screen === "data" || screen === "correlation" || screen === "import" || screen === "de" || screen === "signature";
   const openGene = (k: "survival" | "expression", g: string) => { if (k === "survival") setSurvGene(g); else setExpGene(g); setScreen(k); };
   const docName = proj.project && inProject ? proj.project.file_name
     : screen === "guide" ? t("nav.figureGuide") : screen === "home" ? t("home.title") : screen === "new" ? t("home.new") : screen === "settings" ? t("settings.title") : screen === "about" ? t("about.title") : screen === "glossary" ? t("gl.title") : "Kiri";
@@ -238,11 +239,12 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
           )}
           {screen === "new" && <NewProject key={newTpl} initialTemplate={newTpl} onCancel={() => setScreen("home")} onCreate={create} notYet={notYet} />}
           {screen === "overview" && proj.project && <Overview key={`o-${proj.project.path}`} p={proj.project} say={say} figLang={settings.figureLang}
-            onOpen={(o) => { if (o.kind === "survival") openGene("survival", o.gene ?? ""); else if (o.kind === "correlation") setScreen("correlation"); else openGene("expression", o.gene ?? ""); }}
+            onOpen={(o) => { if (o.kind === "survival") openGene("survival", o.gene ?? ""); else if (o.kind === "correlation") setScreen("correlation"); else if (o.kind === "signature") setScreen("signature"); else openGene("expression", o.gene ?? ""); }}
             onNotebook={() => setScreen("notebook")} onGuide={(q) => openGuide(q)} onRefresh={proj.refresh} />}
           {screen === "survival" && proj.project && <Survival key={`s-${proj.project.path}-${survGene}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "survival")} initialGene={survGene} />}
           {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}-${expGene}`} initialGene={expGene} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "tn")} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
           {screen === "correlation" && proj.project && <Correlation key={`c-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "correlation")} />}
+          {screen === "signature" && proj.project && <Signature key={`s-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide()} />}
           {screen === "de" && proj.project && <DE key={`de-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "pathways")} onGene={(g) => { setExpGene(g); setScreen("expression"); }} />}
           {screen === "notebook" && proj.project && <Notebook key={`n-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onOpenAnalysis={(k, g) => { if (k === "survival") setSurvGene(g ?? ""); setScreen(k === "survival" ? "survival" : k === "correlation" ? "correlation" : k === "de" ? "de" : "expression"); }} />}
           {screen === "data" && proj.project && <Data key={`d-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onImport={() => setScreen("import")} />}

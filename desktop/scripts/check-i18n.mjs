@@ -6,8 +6,9 @@ const parse = (src, name) => {
   const body = src.slice(start, src.indexOf("\n};", start) + 3);
   return new Map([...body.matchAll(/^\s+"([\w.]+)":\s*"(.*)",?$/gm)].map((m) => [m[1], m[2]]));
 };
-const base = read("strings.ts"), next = read("strings-next.ts");
-const en = new Map([...parse(base, "en"), ...parse(next, "enNext")]), zh = new Map([...parse(base, "zh"), ...parse(next, "zhNext")]);
+const base = read("strings.ts"), next = read("strings-next.ts"), sig = read("strings-uprmt.ts");
+const en = new Map([...parse(base, "en"), ...parse(next, "enNext"), ...parse(sig, "enSig")]);
+const zh = new Map([...parse(base, "zh"), ...parse(next, "zhNext"), ...parse(sig, "zhSig")]);
 const problems = [];
 for (const k of en.keys()) if (!zh.has(k)) problems.push(`missing in 中文: ${k}`);
 for (const k of zh.keys()) if (!en.has(k)) problems.push(`missing in English: ${k}`);

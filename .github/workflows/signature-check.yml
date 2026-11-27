@@ -1,0 +1,57 @@
+name: Gene set score on full cohorts
+
+# Downloads full TCGA cohorts the way the app does and runs the gene set score
+# (with enrichment and across cancers) for the PARL–UPRmt worked example, so the
+# numbers in the app's screenshots and docs come from real data.
+on:
+  push:
+    branches: [claude/project-thread-bdrb9s]
+    paths: ["backend/app/analyses/signature.py", "backend/app/analyses/genesets.py", ".github/workflows/signature-check.yml"]
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: sudo apt-get update -q && sudo apt-get install -y -q libcairo2-dev pkg-config
+      - working-directory: backend
+        run: uv sync --frozen
+      - name: Download cohorts and run
+        working-directory: backend
+        run: |
+          uv run python - <<'PY'
+          import base64, gzip, json, tempfile, time
+          from pathlib import Path
+          from app.cohorts import packs
+          from app.kiri.signature_api import run_signature
+          d = Path(tempfile.mkdtemp())
+          for p in ["TCGA-COAD", "TCGA-READ", "TCGA-BRCA", "TCGA-LUAD", "TCGA-LIHC", "TCGA-KIRC"]:
+              t = time.time()
+              try:
+                  packs.build_pack(d, p, lambda k, a, b: None)
+                  print(p, "ready in", round(time.time() - t), "s", flush=True)
+              except Exception as e:
+                  print(p, "FAILED", e, flush=True)
+          c = packs.open_packs(["TCGA-COAD", "TCGA-READ"], d)
+          for set_id in ["uprmt_markers", "uprmt"]:
+              r = run_signature(c, "PARL", set_id, [], d)
+              print("RESULT", set_id, "rho", r.get("rho"), "p", r.get("p"), "n", r.get("n"), "alpha", r.get("alpha"), "missing", r.get("missing"))
+              print("  per member", [(m["gene"], round(m["rho"], 3), m["p_adj"]) for m in r["per_member"]])
+              print("  controls", {k: (v["rho_partial"], v["p"]) for k, v in r["controls"].items()})
+              print("  groups", r["groups"]["test"], r["groups"]["rank_biserial"], "survival p", (r["survival"] or {}).get("logrank"))
+              for e in sorted(r["enrichment"]["results"], key=lambda x: -(x["nes"] or 0)):
+                  print("  GSEA", e["set"], e["size"], e["nes"], e["p"], e["p_adj"])
+              print("  top+", r["enrichment"]["top_pos"][:10]); print("  top-", r["enrichment"]["top_neg"][:10])
+              for row in r["across"]["rows"]:
+                  print("  ACROSS", row)
+              print("  checks", [(x["check"], x["status"], x["code"]) for x in r["checks"]])
+              blob = base64.b64encode(gzip.compress(json.dumps(r).encode())).decode()
+              print("BLOB", set_id, len(blob))
+              for i in range(0, len(blob), 3000):
+                  print(f"B|{set_id}|{i // 3000}|{blob[i:i + 3000]}")
+          from app.analyses.correlation import run as corr
+          print("PARL-ATF5 correlation full cohort:", {k: corr(c, "PARL", "ATF5")[k] for k in ("rho", "p", "n")})
+          PY

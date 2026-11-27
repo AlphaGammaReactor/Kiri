@@ -1,4 +1,5 @@
 import { enNext, zhNext } from "./strings-next";
+import { enSig, zhSig } from "./strings-uprmt";
 
 // Interface strings. Every key must exist in both languages: scripts/check-i18n.mjs fails the build otherwise.
 export const en = {
@@ -698,6 +699,7 @@ export const en = {
   "fig.exitFull": "Leave full screen (Esc)",
   "fig.zoomHint": "Pinch or {k}-scroll to zoom, drag to move",
   ...enNext,
+  ...enSig,
 } as const;
 
 export type StringKey = keyof typeof en;
@@ -1399,6 +1401,7 @@ export const zh: Record<StringKey, string> = {
   "fig.exitFull": "退出全屏（Esc）",
   "fig.zoomHint": "双指缩放或按住 {k} 滚动缩放，拖动可移动",
   ...zhNext,
+  ...zhSig,
 };
 
 // Technical terms. In Bilingual mode the Chinese term is followed by the English one.

@@ -94,6 +94,14 @@ SAMPLES = {
         "template": "one_gene", "targets": ["TP53"], "cancers": ["BRCA"],
         "datasets": ["TCGA-BRCA"], "standard_panel": True, "sample": True,
     },
+    "parl-atf5": {
+        "name": "PARL and the mitochondrial UPR",
+        "question": "Is PARL expression linked to the mitochondrial unfolded protein response (ATF5 and its targets) in colorectal cancer?",
+        "zh": {"name": "PARL 与线粒体未折叠蛋白反应", "question": "在结直肠癌中，PARL 的表达是否与线粒体未折叠蛋白反应（ATF5 及其靶基因）相关？"},
+        "template": "two_gene", "targets": ["PARL", "ATF5"], "cancers": ["COAD", "READ"],
+        "datasets": ["TCGA-COAD", "TCGA-READ"], "standard_panel": True, "sample": True,
+        "gene_set": "uprmt_markers",
+    },
 }
 SAMPLE = SAMPLES["parl-mavs"]  # kept for older callers
 
@@ -105,7 +113,7 @@ def samples(language: str = "en"):
     for sid, s in SAMPLES.items():
         loc = s["zh"] if language == "zh" else s
         out.append({"id": sid, "name": loc["name"], "question": loc["question"], "targets": s["targets"],
-                    "cancers": s["cancers"], "template": s["template"]})
+                    "cancers": s["cancers"], "template": s["template"], "gene_set": s.get("gene_set")})
     return {"items": out}
 
 
@@ -117,7 +125,7 @@ def sample(language: str = "en", id: str = "parl-mavs"):  # noqa: A002 - query n
     if id not in SAMPLES:
         return JSONResponse(status_code=404, content={"error": "unknown_sample"})
     spec = SAMPLES[id]
-    data = {k: v for k, v in spec.items() if k != "zh"}
+    data = {k: v for k, v in spec.items() if k not in ("zh", "gene_set")}
     if language == "zh":
         data |= spec["zh"]
     folder = Path(settings.KIRI_DATA_DIR) / "samples"

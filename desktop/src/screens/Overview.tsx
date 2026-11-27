@@ -1,6 +1,6 @@
 // Project overview: the question, what has been run, where you left off, and the one-page summary.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Compass, Lock, Search, ChartSpline, SlidersHorizontal, BarChart3, ChartScatter, NotebookPen, FileText, Play, Loader2, ChevronRight } from "lucide-react";
+import { Compass, Lock, Search, ChartSpline, SlidersHorizontal, BarChart3, ChartScatter, NotebookPen, FileText, Play, Loader2, ChevronRight, Layers } from "lucide-react";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
 import type { ProjectSummary } from "../lib/api";
@@ -23,7 +23,7 @@ type Row = Awaited<ReturnType<typeof analyses.list>>[number];
 export type OpenTarget = { kind: Kind | "correlation"; gene?: string };
 
 const KIND_ICON: Record<string, typeof ChartSpline> = {
-  survival: ChartSpline, expression_tn: SlidersHorizontal, expression_stage: BarChart3, correlation: ChartScatter,
+  survival: ChartSpline, expression_tn: SlidersHorizontal, expression_stage: BarChart3, correlation: ChartScatter, signature: Layers,
 };
 
 export function Overview({ p, say, onOpen, onNotebook, onGuide, onRefresh, figLang = "en" }: {
@@ -62,7 +62,7 @@ export function Overview({ p, say, onOpen, onNotebook, onGuide, onRefresh, figLa
     const h = r.headline;
     if (h.error) return t("ov.stat.failed");
     if (r.kind === "survival") return `${t("ov.stat.hr", { v: fmt(h.hr) })} · ${t("ov.stat.p", { v: fmtP(h.p_report) })}`;
-    if (r.kind === ("correlation" as Kind)) return `${t("ov.stat.rho", { v: fmt(h.rho) })} · ${t("ov.stat.p", { v: fmtP(h.p) })}`;
+    if (r.kind === ("correlation" as Kind) || r.kind === ("signature" as Kind)) return `${t("ov.stat.rho", { v: fmt(h.rho) })} · ${t("ov.stat.p", { v: fmtP(h.p) })}`;
     return t("ov.stat.p", { v: fmtP(h.p) });
   };
   const inNotebook = useMemo(() => new Set(notes.map((n) => n.body.analysis_id).filter(Boolean) as string[]), [notes]);
@@ -172,6 +172,7 @@ export function Overview({ p, say, onOpen, onNotebook, onGuide, onRefresh, figLa
                   <button onClick={() => { setMenu(false); onOpen({ kind: "expression_stage", gene: pr.targets[0] }); }}><span className="row-gap"><BarChart3 size={14} />{t("ov.new.stage")}</span></button>
                   <button onClick={() => { setMenu(false); onOpen({ kind: "survival", gene: pr.targets[0] }); }}><span className="row-gap"><ChartSpline size={14} />{t("ov.new.survival")}</span></button>
                   <button onClick={() => { setMenu(false); onOpen({ kind: "correlation" }); }}><span className="row-gap"><ChartScatter size={14} />{t("ov.new.correlation")}</span></button>
+                  <button onClick={() => { setMenu(false); onOpen({ kind: "signature" }); }}><span className="row-gap"><Layers size={14} />{t("ov.new.signature")}</span></button>
                 </div>
               )}
             </div>

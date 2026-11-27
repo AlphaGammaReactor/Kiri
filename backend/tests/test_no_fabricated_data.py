@@ -38,6 +38,7 @@ class TestSourceScan:
             "analyses/survival.py",           # bootstrap stability of the hazard ratio (seeded)
             "analyses/correlation.py",        # bootstrap stability of the sign of rho (seeded)
             "analyses/de.py",                 # thins the volcano plot to 4,000 real genes (seeded)
+            "analyses/signature.py",          # GSEA gene-set permutations and bootstrap of rho (seeded)
         }
         offenders = []
         for path in APP_DIR.rglob("*.py"):

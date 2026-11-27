@@ -1,0 +1,10 @@
+/* Gene set score workspace. */
+.sig-views { flex-wrap: wrap; margin: 0 0 10px; align-self: flex-start; }
+.sig-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.sig-chips .chip { height: 22px; padding: 0 7px; font-size: 11.5px; display: inline-flex; align-items: center; background: var(--color-bg-sunken); border-color: var(--color-border-default); }
+.sig-chips .chip.off { text-decoration: line-through; color: var(--color-text-muted); }
+textarea.sig-genes { width: 100%; resize: vertical; min-height: 64px; padding: 6px 8px; font-size: 12.5px; line-height: 1.5; }
+.sig-enr { display: flex; flex-direction: column; gap: 8px; }
+.sig-enr .tbl td, .sig-enr .tbl th { padding: 3px 6px; font-size: 12px; }
+.sig-enr .tbl tr.on td { font-weight: 600; background: var(--color-bg-sunken); }
+.tiles:has(.tile:nth-child(4)) { grid-template-columns: 1fr 1fr; }
