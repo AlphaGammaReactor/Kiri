@@ -19,6 +19,7 @@ import { ownNames } from "./lib/owndata";
 import { analyses as kiriAnalyses } from "./lib/analyses";
 import { Notebook } from "./screens/Notebook";
 import { Data } from "./screens/Data";
+import { DE } from "./screens/workspace/DE";
 import { Glossary } from "./screens/Glossary";
 import { Guide, type GuideAction } from "./screens/Guide";
 import type { Recipe } from "./i18n/guide";
@@ -67,6 +68,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
     const g = proj.project?.project.targets[0] ?? "";
     if (a === "survival") openGene("survival", g);
     else if (a === "correlation") setScreen("correlation");
+    else if (a === "de") setScreen("de");
     else openGene("expression", g);
   };
   // Getting-started checklist: remember each first step in the settings file.
@@ -205,7 +207,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
     );
   }
 
-  const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook" || screen === "data" || screen === "correlation" || screen === "import";
+  const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook" || screen === "data" || screen === "correlation" || screen === "import" || screen === "de";
   const openGene = (k: "survival" | "expression", g: string) => { if (k === "survival") setSurvGene(g); else setExpGene(g); setScreen(k); };
   const docName = proj.project && inProject ? proj.project.file_name
     : screen === "guide" ? t("nav.figureGuide") : screen === "home" ? t("home.title") : screen === "new" ? t("home.new") : screen === "settings" ? t("settings.title") : screen === "about" ? t("about.title") : screen === "glossary" ? t("gl.title") : "Kiri";
@@ -241,7 +243,8 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
           {screen === "survival" && proj.project && <Survival key={`s-${proj.project.path}-${survGene}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "survival")} initialGene={survGene} />}
           {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}-${expGene}`} initialGene={expGene} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "tn")} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
           {screen === "correlation" && proj.project && <Correlation key={`c-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "correlation")} />}
-          {screen === "notebook" && proj.project && <Notebook key={`n-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onOpenAnalysis={(k, g) => { if (k === "survival") setSurvGene(g ?? ""); setScreen(k === "survival" ? "survival" : k === "correlation" ? "correlation" : "expression"); }} />}
+          {screen === "de" && proj.project && <DE key={`de-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "pathways")} onGene={(g) => { setExpGene(g); setScreen("expression"); }} />}
+          {screen === "notebook" && proj.project && <Notebook key={`n-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onOpenAnalysis={(k, g) => { if (k === "survival") setSurvGene(g ?? ""); setScreen(k === "survival" ? "survival" : k === "correlation" ? "correlation" : k === "de" ? "de" : "expression"); }} />}
           {screen === "data" && proj.project && <Data key={`d-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onImport={() => setScreen("import")} />}
           {screen === "import" && proj.project && <Import key={`i-${proj.project.path}`} p={proj.project} say={say} onCancel={() => setScreen("data")}
             onDone={() => { proj.refresh(); setScreen("overview"); }}

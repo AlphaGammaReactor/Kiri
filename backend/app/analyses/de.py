@@ -118,17 +118,13 @@ def run(c: Cohort, compare: str = "tn", gene: str | None = None, group_a: str | 
 
     n_up, n_down = int(up.sum()), int(down.sum())
     checks = [
-        check("data.groupsDE", "caution" if min(na, nb) < CAUTION_GROUP else "pass", "groupsDE", a=la, b=lb, na=na, nb=nb),
-        check("multiple.bh", "info", "deBH", n=len(tested), q=q),
-        check("effect.lfc", "info", "lfc", lfc=lfc),
-        check("data.lowExpr", "info", "lowExpr", n=int((~keep).sum()), cut=LOW_EXPR),
+        check("data", "info", "data.de", n=len(tested), low=int((~keep).sum()), cut=LOW_EXPR, source=c.source),
+        check("enough", "caution" if min(na, nb) < CAUTION_GROUP else "pass", "enough.de", a=la, b=lb, na=na, nb=nb, min=CAUTION_GROUP),
+        check("assumptions", "caution" if compare == "tn" else "info",
+              "assume.deNormal" if compare == "tn" else "assume.deGene" if compare == "gene" else "assume.deWelch", g=gene or ""),
+        check("multiple", "pass", "multiple.de", n=len(tested), q=q),
+        check("effect", "info", "effect.de" if n_up + n_down else "effect.noDE", lfc=lfc, fold=round(2 ** lfc, 2)),
     ]
-    if compare == "tn":
-        checks.append(check("assume.deNormal", "caution", "deNormal"))
-    if compare == "gene":
-        checks.append(check("assume.deGene", "info", "deGene", g=gene))
-    if n_up + n_down == 0:
-        checks.append(check("result.noDE", "info", "noDE"))
 
     out = {**base, "n": [na, nb], "n_tested": len(tested), "n_low": int((~keep).sum()), "n_up": n_up, "n_down": n_down,
            "thresholds": {"lfc": lfc, "q": q}, "volcano": volcano, "top_up": [r for r in rows if r["dir"] == "up"][:30],

@@ -7,7 +7,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-DIR = Path(__file__).resolve().parent.parent / "data" / "pathways"
+DIR = Path(__file__).resolve().parent.parent / "pathway_sets"
 LIBRARIES = ("hallmark", "reactome")
 
 

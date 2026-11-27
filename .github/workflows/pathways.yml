@@ -21,11 +21,12 @@ jobs:
       - name: Licence pages (printed for review)
         continue-on-error: true
         run: |
-          for u in https://www.gsea-msigdb.org/gsea/msigdb/license_terms_list.jsp https://reactome.org/license; do
-            echo "=== $u"; curl -s -L "$u" | sed -e 's/<[^>]*>/ /g' | tr -s ' \n' | grep -i -o '.\{0,200\}\(licen[cs]e\|creative commons\|CC BY\|CC0\|commercial\).\{0,200\}' | head -25
-          done
+          mkdir -p backend/app/pathway_sets
+          for u in https://www.gsea-msigdb.org/gsea/msigdb/license_terms_list.jsp https://docs.gsea-msigdb.org/#MSigDB/MSigDB_License/ https://reactome.org/license; do
+            echo "=== $u"; curl -s -L "$u" | sed -e 's/<[^>]*>/ /g' | tr -s ' \n' | grep -i -o '.\{0,240\}\(licen[cs]e\|creative commons\|CC BY\|CC0\|commercial\).\{0,240\}' | head -25
+          done | tee backend/app/pathway_sets/LICENCE-PAGES.txt
       - name: Build the libraries
-        run: python3 backend/scripts/build_pathways.py backend/app/data/pathways
+        run: python3 backend/scripts/build_pathways.py backend/app/pathway_sets
       - name: System libraries for the report renderer (cairo)
         run: sudo apt-get update -q && sudo apt-get install -y -q libcairo2-dev pkg-config
       - name: Install the engine's packages
@@ -57,7 +58,7 @@ jobs:
       - name: Commit them
         run: |
           git config user.name "kiri-ci"; git config user.email "kiri-ci@users.noreply.github.com"
-          git add backend/app/data/pathways
+          git add backend/app/pathway_sets
           git diff --cached --quiet && exit 0
           git commit -m "Pathway libraries: Hallmark and Reactome built by CI"
           git pull --rebase origin claude/project-thread-2tc0ep && git push

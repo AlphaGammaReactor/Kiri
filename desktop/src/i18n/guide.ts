@@ -6,7 +6,7 @@ export type Alt = { figure: Pair; verdict: "ok" | "avoid"; why: Pair };
 export type Recipe = {
   id: "tn" | "stage" | "survival" | "correlation" | "across" | "pathways" | "bench";
   question: Pair; figure: Pair; test: Pair; why: Pair; read: Pair; caution: Pair; alts: Alt[];
-  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | null;
+  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | null;
   keywords: RegExp;
 };
 
@@ -93,14 +93,20 @@ export const RECIPES: Recipe[] = [
     keywords: /across|pan-?cancer|cancers|many cancer|cancer types|泛癌|不同癌|多个癌|癌种之间/i,
   },
   {
-    id: "pathways", action: null,
-    question: ["Which pathways change with my gene?", "哪些通路随我的基因变化？"],
-    figure: ["Enrichment dot plot, or a GSEA running-score plot for one pathway", "富集点图，或单条通路的 GSEA 运行得分图"],
-    test: ["Differential expression (DESeq2 on counts), then GSEA on the ranked list", "差异表达（基于计数的 DESeq2），再对排序列表做 GSEA"],
-    why: ["Ranks every gene instead of cutting at an arbitrary p-value, so weak but consistent changes still count.", "对所有基因排序而不是按任意 p 值截断，弱但一致的变化也能被发现。"],
-    read: ["Look at the normalised enrichment score and the adjusted p (FDR); ignore pathways that only reach significance before correction.", "看标准化富集分数和校正后的 p（FDR）；忽略只在校正前显著的通路。"],
-    caution: ["Gene-set versions change results; Kiri records which version was used.", "基因集版本会影响结果；Kiri 会记录所用版本。"],
-    alts: [{ figure: ["Over-representation of a top-100 list", "取前 100 个基因做过表达分析"], verdict: "ok", why: ["Simple, but depends on where you cut the list.", "简单，但结果取决于在哪里截断。"] }],
+    id: "pathways", action: "de",
+    question: ["Which genes and pathways differ between my groups?", "我的分组之间哪些基因和通路不同？"],
+    figure: ["Volcano plot, then the pathways the up and down genes fall in", "火山图，再看上调和下调基因所在的通路"],
+    test: ["Welch t-test per gene on log2 values with Benjamini–Hochberg correction, then over-representation in Hallmark or Reactome", "逐基因在 log2 数值上做 Welch t 检验并用 Benjamini–Hochberg 校正，再在 Hallmark 或 Reactome 中做过表达分析"],
+    why: ["Testing every gene needs a correction for the thousands of tests, and a fold-change threshold keeps tiny but significant shifts out. Pathways turn a long gene list into a few readable themes.",
+      "检验所有基因需要对成千上万次检验做校正，倍数变化阈值能排除微小但显著的变化。通路把长长的基因列表归纳成几个可读的主题。"],
+    read: ["Genes far left or right and high up differ most. For pathways, read the adjusted q and how many of the pathway's genes are in your list; ignore pathways that only pass before correction.",
+      "左右两侧且位置高的基因差异最大。看通路时，读校正后的 q 以及通路中有多少基因在你的列表里；忽略只在校正前显著的通路。"],
+    caution: ["Kiri works on TPM values, not raw counts, so it does not run DESeq2. Before a paper, confirm key genes with DESeq2 or limma on counts. Kiri records the gene-set version used.",
+      "Kiri 使用 TPM 数值而非原始计数，因此不运行 DESeq2。发表前请用计数数据的 DESeq2 或 limma 确认关键基因。Kiri 会记录所用基因集版本。"],
+    alts: [
+      { figure: ["GSEA on the ranked list", "对排序列表做 GSEA"], verdict: "ok", why: ["Uses every gene instead of a cut-off, so weak but consistent changes count. Good as a second look.", "使用全部基因而非截断，弱但一致的变化也算数。适合作为补充。"] },
+      { figure: ["Heat map of the top 50 genes only", "只画前 50 个基因的热图"], verdict: "avoid", why: ["Looks convincing whatever the data, because the genes were chosen for differing.", "无论数据如何都显得很有说服力，因为这些基因本来就是按差异挑出来的。"] },
+    ],
     keywords: /pathway|enrich|gsea|kegg|go term|gene set|通路|富集|基因集/i,
   },
   {

@@ -30,10 +30,11 @@ export type CorrelationResult = {
 };
 export type ErrorResult = { kind: string; gene: string; error: string; [k: string]: unknown };
 export type DataVersion = { cohort: string; projects: string[]; source: string; units: string; built: string };
-export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "correlation";
-export type RunParams = { kind: Kind; gene: string; gene2?: string; check_only?: boolean; cut?: "median" | "quartile" | "optimal"; adjust?: ("age" | "stage")[]; paired?: boolean; replace?: string };
+export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "correlation" | "de";
+export type RunParams = { kind: Kind; gene: string; gene2?: string; check_only?: boolean; cut?: "median" | "quartile" | "optimal"; adjust?: ("age" | "stage")[]; paired?: boolean; replace?: string;
+  compare?: "tn" | "gene" | "group"; group_a?: string | null; group_b?: string | null; lfc?: number; q?: number; library?: PathwayLibrary };
 export type Headline = { p_report?: number | null; error?: string | null; hr?: number | null; p?: number | null; rho?: number | null; n?: number | null; worst?: "pass" | "caution" | "problem" | null };
-export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | ErrorResult> = {
+export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | DEResult | ErrorResult> = {
   id: string; kind: Kind; params: RunParams & { projects: string[] }; result: R; data_versions: DataVersion;
   created_at: string; updated_at: string; saved?: boolean;
 };
@@ -41,6 +42,17 @@ export type Note = {
   id: string; kind: "figure" | "text" | "result"; pinned: boolean; created_at: string; changed_since: boolean;
   body: { analysis_id?: string; kind?: Kind; gene?: string; title?: string; summary?: string; caption?: string; svg?: string; text?: string; checks?: Check[]; meta?: string };
 };
+export type PathwayLibrary = "hallmark" | "reactome";
+export type DEGene = { gene: string; lfc: number; mean_a: number; mean_b: number; t: number; p: number; p_adj: number; dir: "up" | "down" | "" };
+export type EnrichRow = { id: string; name: string; size: number; k: number; ratio: number; fold: number; p: number; p_adj: number; genes: string[] };
+export type DEResult = {
+  kind: "de"; compare: "tn" | "gene" | "group"; gene: string | null; labels: [string, string]; n: [number, number];
+  n_tested: number; n_low: number; n_up: number; n_down: number; thresholds: { lfc: number; q: number };
+  volcano: [string, number, number, "up" | "down" | ""][]; top_up: DEGene[]; top_down: DEGene[];
+  enrichment: { library: PathwayLibrary | null; n_sets?: number; up: EnrichRow[]; down: EnrichRow[] };
+  test: { name: string; correction: string }; checks: Check[]; data_version: DataVersion; excluded: number;
+};
+export type PathwayInfo = { id: PathwayLibrary; available: boolean; version?: string; licence?: string; citation?: string; source?: string; n?: number };
 export type OwnCohort = { id: string; name: string; n: number; values: number; survival: boolean; groups: string[]; units: string };
 export type CohortStatus = { own?: OwnCohort; projects: string[]; sample_slice: string | null; packs: Record<string, { ready: boolean; state: string; done?: number; total?: number; file?: string; error?: string }> };
 
@@ -58,6 +70,7 @@ export async function call<T>(path: string, method = "GET", body?: unknown): Pro
 
 export const analyses = {
   run: (p: RunParams) => call<Analysis>("/analyses/run", "POST", p),
+  pathways: () => call<PathwayInfo[]>("/pathways"),
   list: () => call<(Omit<Analysis, "result"> & { headline: Headline })[]>("/analyses"),
   get: (id: string) => call<Analysis>(`/analyses/${id}`),
   rows: (id: string) => call<{ columns: string[]; rows: (string | number | null)[][]; units: string; cut_value?: number; data_version: DataVersion }>(`/analyses/${id}/rows`),

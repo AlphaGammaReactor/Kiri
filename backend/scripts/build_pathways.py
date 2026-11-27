@@ -4,7 +4,7 @@ Build the pathway libraries bundled with Kiri for DE enrichment (run by CI, whic
 - MSigDB Hallmark gene sets (Liberzon et al. 2015, Cell Systems), human gene symbols.
 - Reactome pathways (Milacic et al. 2024, Nucleic Acids Research), human gene symbols.
 
-Each becomes backend/app/data/pathways/<library>.json.gz:
+Each becomes backend/app/pathway_sets/<library>.json.gz:
 {"library", "version", "source", "licence", "citation", "sets": {id: {"name", "genes"}}}
 """
 
@@ -81,4 +81,4 @@ def main(dest: str) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "backend/app/data/pathways")
+    main(sys.argv[1] if len(sys.argv) > 1 else "backend/app/pathway_sets")

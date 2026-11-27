@@ -2,10 +2,11 @@
 // so a panel exists even for an analysis that was never opened or sent to the notebook.
 import { renderToStaticMarkup } from "react-dom/server";
 import type { StringKey } from "../i18n/strings";
-import { fmt, fmtP, type Analysis, type Check, type CorrelationResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
+import { fmt, fmtP, type Analysis, type Check, type CorrelationResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
 import { BoxPoints } from "./BoxPoints";
 import { KM } from "./KM";
 import { Scatter } from "./Scatter";
+import { Volcano } from "./Volcano";
 import { FIG } from "./figure";
 import { figText, fillFig, stars, type FigLang } from "./figStrings";
 import { plainSurvival } from "../screens/workspace/Survival";
@@ -41,6 +42,16 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
       stat: fillFig(r.cut === "optimal" ? F.hrLineAdj : r.cox_adjusted ? F.aHR : F.hrLine, { hr: fmt(cox.hr), lo: fmt(cox.lo), hi: fmt(cox.hi), p: fmtP(p) }),
     }} />;
     summary = plainSurvival(r, cox, p, r.groups.high.n + r.groups.low.n, t);
+  } else if (a.kind === "de") {
+    const r = a.result as DEResult;
+    const zh = figLang === "zh";
+    const [la, lb] = r.labels;
+    el = <Volcano points={r.volcano} lfc={r.thresholds.lfc} pCut={null} labels={{
+      x: zh ? `log2 倍数变化（${la} 对比 ${lb}）` : `log2 fold change (${la} vs ${lb})`, y: "−log10 p",
+      up: zh ? `${la} 中更高（${r.n_up}）` : `Higher in ${la} (${r.n_up})`, down: zh ? `${lb} 中更高（${r.n_down}）` : `Higher in ${lb} (${r.n_down})`,
+      stat: `Welch · BH q < ${r.thresholds.q} · |log2 FC| ≥ ${r.thresholds.lfc}`,
+    }} />;
+    summary = t(r.n_up + r.n_down ? "de.plain" : "de.plainNone", { u: r.n_up, d: r.n_down, a: la, b: lb, g: r.n_tested.toLocaleString(), q: r.thresholds.q });
   } else if (a.kind === "correlation") {
     const r = a.result as CorrelationResult, C = CORR[figLang];
     el = <Scatter points={r.points} line={r.line} labels={{

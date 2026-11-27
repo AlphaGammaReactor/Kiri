@@ -81,10 +81,12 @@ export function ReproduceDialog({ a, fileName, initialTab = "record", onClose, s
   const p = a.params;
   const settings = a.kind === "survival"
     ? [t(`surv.cut.${p.cut ?? "median"}` as StringKey), p.adjust?.length ? t("repro.adjusted", { c: p.adjust.map((x) => t(x === "age" ? "surv.adj.age" : "surv.adj.stage").toLowerCase()).join(", ") }) : t("repro.unadjusted")].join(" · ")
-    : a.kind === "expression_tn" ? (p.paired ? t("repro.paired") : t("repro.unpaired")) : (p as { gene2?: string }).gene2 ? t("repro.withGene", { g: (p as { gene2?: string }).gene2! }) : "–";
+    : a.kind === "expression_tn" ? (p.paired ? t("repro.paired") : t("repro.unpaired"))
+    : a.kind === "de" ? t("repro.de", { c: t(`de.cmp.${p.compare ?? "tn"}` as StringKey, { g: p.gene ?? "" }), l: p.lfc ?? 1, q: p.q ?? 0.05, lib: t(`de.lib.${p.library ?? "hallmark"}` as StringKey) }) : (p as { gene2?: string }).gene2 ? t("repro.withGene", { g: (p as { gene2?: string }).gene2! }) : "–";
   const headline = (r: unknown) => {
     const x = r as Partial<Omit<SurvivalResult, "kind">> & Partial<Omit<ExpressionResult, "kind">> & { rho?: number; p?: number };
     if (a.kind === "survival") return `HR ${fmt((x.cox_adjusted ?? x.cox)?.hr)} · p = ${fmtP(x.p_report)}`;
+    if (a.kind === "de") { const d = r as { n_up?: number; n_down?: number; n_tested?: number }; return `${d.n_up} up · ${d.n_down} down / ${d.n_tested}`; }
     if ((a.kind as string) === "correlation") return `ρ = ${fmt(x.rho)} · p = ${fmtP(x.p)}`;
     return `p = ${fmtP(x.test?.p)}`;
   };
@@ -193,6 +195,29 @@ wilcox.test(pairs$expression.x, pairs$expression.y, paired = TRUE)
 boxplot(expression ~ group, data = d, outline = FALSE, ylab = "${a.data_versions.units}")
 stripchart(expression ~ group, data = d, vertical = TRUE, method = "jitter", add = TRUE, pch = 16, cex = 0.4)
 `;
+  if (a.kind === "de") return `# One row per tested gene, as Kiri computed it (Welch t-test per gene on log2 values).
+# The per-sample matrix is in the project's cohort files; this script checks the
+# multiple-testing correction and the thresholds, and redraws the volcano plot.
+d <- read.csv("${csv}", check.names = FALSE)
+d$q <- p.adjust(d$p, method = "BH")            # should match p_adj_BH
+summary(abs(d$q - d$p_adj_BH))
+lfc <- ${p.lfc ?? 1}; qcut <- ${p.q ?? 0.05}
+up <- d$q < qcut & d$log2_fold_change >= lfc
+down <- d$q < qcut & d$log2_fold_change <= -lfc
+c(up = sum(up), down = sum(down), tested = nrow(d))
+plot(d$log2_fold_change, -log10(d$p), pch = 16, cex = 0.4,
+     col = ifelse(up, "#c8641a", ifelse(down, "#2a6fa8", "grey70")),
+     xlab = "log2 fold change", ylab = "-log10 p")
+abline(v = c(-lfc, lfc), h = -log10(max(d$p[d$q < qcut])), lty = 2)
+`;
+  if (a.kind === "expression_group") return `d <- read.csv("${csv}")
+tapply(d$expression, d$group, summary)
+if (length(unique(d$group)) == 2) wilcox.test(expression ~ group, data = d) else {
+  kruskal.test(expression ~ group, data = d)
+  pairwise.wilcox.test(d$expression, d$group, p.adjust.method = "BH")
+}
+boxplot(expression ~ group, data = d, outline = FALSE, ylab = "${a.data_versions.units}")
+`;
   if (a.kind === "expression_stage") return `d <- read.csv("${csv}")
 d$group <- factor(d$group, levels = c("I", "II", "III", "IV"))
 
@@ -255,6 +280,33 @@ pn = d[d.group == "normal"].groupby("patient").expression.mean()
 both = pt.index.intersection(pn.index)
 print("signed-rank p =", stats.wilcoxon(pt[both], pn[both]).pvalue, "pairs =", len(both))
 ` : ""}`;
+  if (a.kind === "de") return `import numpy as np, pandas as pd              # pip install pandas statsmodels matplotlib
+from statsmodels.stats.multitest import multipletests
+import matplotlib.pyplot as plt
+
+# One row per tested gene, as Kiri computed it (Welch t-test per gene on log2 values).
+d = pd.read_csv("${csv}")
+d["q"] = multipletests(d.p, method="fdr_bh")[1]            # should match p_adj_BH
+print("largest difference from Kiri:", (d.q - d.p_adj_BH).abs().max())
+lfc, qcut = ${p.lfc ?? 1}, ${p.q ?? 0.05}
+up = (d.q < qcut) & (d.log2_fold_change >= lfc)
+down = (d.q < qcut) & (d.log2_fold_change <= -lfc)
+print("up", up.sum(), "down", down.sum(), "tested", len(d))
+c = np.where(up, "#c8641a", np.where(down, "#2a6fa8", "#bbbbbb"))
+plt.scatter(d.log2_fold_change, -np.log10(d.p), s=4, c=c)
+plt.xlabel("log2 fold change"); plt.ylabel("-log10 p"); plt.show()
+`;
+  if (a.kind === "expression_group") return `import pandas as pd                        # pip install pandas scipy
+from scipy import stats
+
+d = pd.read_csv("${csv}")
+groups = {k: g.expression for k, g in d.groupby("group")}
+print(d.groupby("group").expression.describe())
+if len(groups) == 2:
+    print(stats.mannwhitneyu(*groups.values(), alternative="two-sided"))
+else:
+    print("Kruskal-Wallis p =", stats.kruskal(*groups.values()).pvalue)
+`;
   if (a.kind === "expression_stage") return `import itertools
 import pandas as pd                        # pip install pandas scipy statsmodels
 from scipy import stats
