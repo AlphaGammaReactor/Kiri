@@ -99,6 +99,11 @@ export const enNext = {
   "repro.saveBoth": "Save script and data",
   "repro.savedBoth": "Saved the script and its data table in {p}",
   "nb.f.word.ready": "Keeps editing in Word or WPS; figures at print resolution",
+  "smp.title": "Open a sample project",
+  "smp.body": "Each sample is a complete project with real TCGA data built in, so it works without internet. Try the analyses, send figures to the notebook and export a report. Your changes stay in your own copy.",
+  "smp.open": "Open",
+  "smp.note": "Sample data: a slice of the GDC harmonised TCGA data (log2 TPM + 1) for the genes in each project. Other genes need the full cohort download.",
+  "home.samples": "Sample projects",
 } as const;
 
 export const zhNext: Record<keyof typeof enNext, string> = {
@@ -199,4 +204,9 @@ export const zhNext: Record<keyof typeof enNext, string> = {
   "repro.saveBoth": "保存脚本和数据",
   "repro.savedBoth": "脚本和数据表已保存在 {p}",
   "nb.f.word.ready": "可在 Word 或 WPS 中继续编辑；图为打印分辨率",
+  "smp.title": "打开示例项目",
+  "smp.body": "每个示例都是一个完整的项目，内置真实的 TCGA 数据，无需联网即可使用。试试各项分析，把图发送到笔记本并导出报告。你的修改只保存在你自己的副本中。",
+  "smp.open": "打开",
+  "smp.note": "示例数据：GDC 统一处理的 TCGA 数据（log2 TPM + 1）中各项目相关基因的子集。其他基因需要下载完整队列。",
+  "home.samples": "示例项目",
 };

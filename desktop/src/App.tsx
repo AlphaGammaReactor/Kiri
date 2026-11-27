@@ -16,6 +16,7 @@ import { Notebook } from "./screens/Notebook";
 import { Data } from "./screens/Data";
 import { Glossary } from "./screens/Glossary";
 import { Palette } from "./shell/Palette";
+import { SamplePicker } from "./shell/SamplePicker";
 import { ActivityPanel, HelpMenu, ReportProblem, Shortcuts } from "./shell/Help";
 import { useSettings } from "./lib/settings";
 import { useEngine } from "./lib/engine";
@@ -48,6 +49,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
   const [dragging, setDragging] = useState(false);
   const [versionDialog, setVersionDialog] = useState(false);
   const [pendingDoor, setPendingDoor] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const [survGene, setSurvGene] = useState<string>("");
   const [expGene, setExpGene] = useState<string>("");
   const [term, setTerm] = useState<string | undefined>(undefined);
@@ -95,12 +97,13 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
     if (!ready || !pendingDoor) return;
     const d = pendingDoor;
     setPendingDoor(null);
-    if (d === "sample") proj.sample(lang).then(opened);
+    if (d.startsWith("sample:")) proj.sample(lang, d.slice(7)).then(opened);
     else if (d.startsWith("file:")) proj.open(d.slice(5)).then(opened);
   }, [ready, pendingDoor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openDialog = async () => { const p = await pickKiriToOpen(t("file.openTitle")); if (p) openPath(p); };
-  const openSample = () => (ready ? proj.sample(lang).then(opened) : setPendingDoor("sample"));
+  const openSample = () => setPicking(true);
+  const pickSample = (id: string) => { setPicking(false); if (ready) proj.sample(lang, id).then(opened); else setPendingDoor(`sample:${id}`); };
   const startNew = (tpl: TemplateId = "blank") => { setNewTpl(tpl); setScreen("new"); };
   const create = async (d: NewProjectData) => {
     const path = await pickKiriToSave(t("np.saveTitle"), d.name);
@@ -179,6 +182,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
       {overlay === "help" && <HelpMenu onClose={closeOverlay} go={(k) => { if (k === "glossary") { setTerm(undefined); setScreen("glossary"); } else if (k === "about") setScreen("about"); else setOverlay(k); }} />}
       {overlay === "shortcuts" && <Shortcuts onClose={closeOverlay} />}
       {overlay === "report" && <ReportProblem onClose={closeOverlay} screen={screen} level={settings.level} say={say} />}
+      {picking && <SamplePicker ready={ready} onPick={pickSample} onClose={() => setPicking(false)} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );

@@ -37,6 +37,7 @@ export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
           <div className="sub">{recent.length ? t("home.subReturning") : t("home.subEmpty")}</div>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn ghost" onClick={a.onSample}>{t("home.samples")}</button>
           <button className="btn" onClick={a.onOpenFile}>{t("home.open")}</button>
           <button className="btn primary" onClick={() => a.onNew()}>{t("home.new")}</button>
         </div>

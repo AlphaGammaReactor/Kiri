@@ -16,6 +16,7 @@ export type RecentItem = {
   path: string; name: string; question: string; template: TemplateId; targets: string[];
   review: boolean; opened_at: string; exists: boolean;
 };
+export type SampleInfo = { id: string; name: string; question: string; targets: string[]; cancers: string[]; template: TemplateId };
 export type TemplateId = "blank" | "one_gene" | "two_gene" | "own_table" | "course";
 export type GeneCheck = { input: string; status: "ok" | "alias" | "unknown"; symbol?: string; name?: string; suggestions?: string[] };
 export type Cancer = { code: string; en: string; zh: string; project: string };
@@ -42,7 +43,8 @@ export const api = {
   recent: () => call<{ items: RecentItem[] }>("/recent").then((r) => r.items),
   forget: (path: string) => call("/recent", "DELETE", { path }),
   create: (body: Partial<Project> & { path: string; language: string }) => call<ProjectSummary>("/new", "POST", body),
-  sample: (language: string) => call<ProjectSummary>(`/sample?language=${language}`, "POST"),
+  sample: (language: string, id = "parl-mavs") => call<ProjectSummary>(`/sample?language=${language}&id=${encodeURIComponent(id)}`, "POST"),
+  samples: (language: string) => call<{ items: SampleInfo[] }>(`/samples?language=${language}`).then((r) => r.items),
   open: (path: string) => call<ProjectSummary>("/open", "POST", { path }),
   current: () => call<ProjectSummary>("/project"),
   patch: (patch: Partial<Project>) => call<ProjectSummary>("/project", "PATCH", patch),

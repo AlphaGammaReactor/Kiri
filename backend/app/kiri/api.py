@@ -79,30 +79,59 @@ def new(body: NewProject):
         return _err(e, 400)
 
 
-SAMPLE = {
-    "name": "PARL–MAVS in CRC",
-    "question": "Is PARL–MAVS signalling linked to outcome in colorectal cancer?",
-    "template": "two_gene", "targets": ["PARL", "MAVS"], "cancers": ["COAD", "READ"],
-    "datasets": ["TCGA-COAD", "TCGA-READ"], "standard_panel": True, "sample": True,
+SAMPLES = {
+    "parl-mavs": {
+        "name": "PARL–MAVS in CRC",
+        "question": "Is PARL–MAVS signalling linked to outcome in colorectal cancer?",
+        "zh": {"name": "PARL–MAVS 与结直肠癌", "question": "PARL–MAVS 信号是否与结直肠癌的预后相关？"},
+        "template": "two_gene", "targets": ["PARL", "MAVS"], "cancers": ["COAD", "READ"],
+        "datasets": ["TCGA-COAD", "TCGA-READ"], "standard_panel": True, "sample": True,
+    },
+    "tp53-brca": {
+        "name": "TP53 in breast cancer",
+        "question": "Is TP53 expression linked to survival in breast cancer, and does it change with stage?",
+        "zh": {"name": "TP53 与乳腺癌", "question": "TP53 的表达是否与乳腺癌的生存相关？是否随分期变化？"},
+        "template": "one_gene", "targets": ["TP53"], "cancers": ["BRCA"],
+        "datasets": ["TCGA-BRCA"], "standard_panel": True, "sample": True,
+    },
 }
+SAMPLE = SAMPLES["parl-mavs"]  # kept for older callers
+
+
+@router.get("/samples")
+def samples(language: str = "en"):
+    """The sample projects that ship with Kiri (their data is bundled, so they work offline)."""
+    out = []
+    for sid, s in SAMPLES.items():
+        loc = s["zh"] if language == "zh" else s
+        out.append({"id": sid, "name": loc["name"], "question": loc["question"], "targets": s["targets"],
+                    "cancers": s["cancers"], "template": s["template"]})
+    return {"items": out}
 
 
 @router.post("/sample")
-def sample(language: str = "en"):
-    """Open the built-in sample project, creating a fresh copy the first time."""
+def sample(language: str = "en", id: str = "parl-mavs"):  # noqa: A002 - query name used by the app
+    """Open a built-in sample project, creating a fresh copy the first time."""
     from pathlib import Path
 
+    if id not in SAMPLES:
+        return JSONResponse(status_code=404, content={"error": "unknown_sample"})
+    spec = SAMPLES[id]
+    data = {k: v for k, v in spec.items() if k != "zh"}
+    if language == "zh":
+        data |= spec["zh"]
     folder = Path(settings.KIRI_DATA_DIR) / "samples"
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{SAMPLE['name']}.kiri"
+    # The file name stays the same in every language, so switching language reopens the same copy.
+    path = folder / f"{spec['name']}.kiri"
     try:
         if path.exists():
             return ws().open(str(path))
-        return ws().create(str(path), dict(SAMPLE), language)
+        return ws().create(str(path), data, language)
     except KiriFileError as e:
         if e.code == "damaged":
             path.unlink(missing_ok=True)
-            return ws().create(str(path), dict(SAMPLE), language)
+            return ws().create(str(path), data, language)
         return _err(e)
 
 

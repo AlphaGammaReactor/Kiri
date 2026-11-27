@@ -166,3 +166,26 @@ def test_api_runs_and_stores_in_the_kiri_file(tmp_path, monkeypatch):
     con = __import__("sqlite3").connect(tmp_path / "p.kiri")
     assert con.execute("SELECT COUNT(*) FROM analyses").fetchone()[0] == 1
     store.load_slice.cache_clear()
+
+
+def test_sample_projects_open_and_run(tmp_path, monkeypatch):
+    """Both bundled sample projects open and their targets are in the bundled data."""
+    from fastapi.testclient import TestClient
+
+    from app.core.config import settings
+    from app.kiri import api as kapi
+    from app.kiri.fileformat import Workspace
+    from app.main import app
+
+    monkeypatch.setattr(settings, "KIRI_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(kapi, "_ws", Workspace(tmp_path / "data", "test"))
+    cl = TestClient(app)
+    items = cl.get("/api/v1/kiri/samples?language=zh").json()["items"]
+    assert {i["id"] for i in items} == {"parl-mavs", "tp53-brca"} and items[1]["name"] == "TP53 与乳腺癌"
+    for s in items:
+        r = cl.post(f"/api/v1/kiri/sample?language=en&id={s['id']}")
+        assert r.status_code == 200, r.text
+        for g in r.json()["project"]["targets"]:
+            run = cl.post("/api/v1/kiri/analyses/run", json={"kind": "expression_stage", "gene": g})
+            assert run.status_code == 200 and not run.json()["result"].get("error"), run.text
+    assert cl.post("/api/v1/kiri/sample?id=nope").status_code == 404
