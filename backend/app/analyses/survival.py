@@ -35,6 +35,13 @@ def _patients(c: Cohort, gene: str, endpoint: str = "OS", mutation: bool = False
 
     s = attach(c.samples, endpoint)
     s["expr"] = c.mutation(gene) if mutation else c.gene(gene)
+    if str(s["id"].iloc[0] if len(s) else "").startswith("TCGA-"):
+        from app.cohorts import pancan
+
+        try:
+            s["purity"] = pancan.purity(s["id"].tolist())
+        except Exception:  # noqa: BLE001 - purity is an optional covariate
+            pass
     t = s[(s["type"] == "tumor")].sort_values("id").drop_duplicates("case", keep="first")
     n_all = len(t)
     t = t[t["expr"].notna()]
@@ -89,6 +96,9 @@ def _cox(g: pd.DataFrame, adjust: list[str]) -> dict:
         d = d[d["stage"].isin(["I", "II", "III", "IV"])].copy()
         d["stage_n"] = d["stage"].map({"I": 1, "II": 2, "III": 3, "IV": 4})
         cols.append("stage_n")
+    if "purity" in adjust and "purity" in d.columns:
+        d = d[d["purity"].notna()]
+        cols.append("purity")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         m = CoxPHFitter().fit(d[cols], "time", "event")

@@ -44,9 +44,9 @@ def rows_for(c: Cohort, kind: str, params: dict) -> dict:
         t, _ = _patients(c, gene, params.get("endpoint", "OS"), mutation=mut)
         g, value, _ = _split(t, params.get("cut", "median"))
         g = g.sort_values("expr", ascending=False)
-        cols = ["sample", "patient", "project", "mutated" if mut else "expression", "group", "time_months", "event", "age", "stage"]
+        cols = ["sample", "patient", "project", "mutated" if mut else "expression", "group", "time_months", "event", "age", "stage"] + (["purity"] if "purity" in g.columns else [])
         rows = [[r["id"], r["case"], r["project"], int(r["expr"]) if mut else _r(r["expr"]), ("mutated" if r["high"] else "not_mutated") if mut else "high" if r["high"] else "low", _r(r["time"]), int(r["event"]),
-                 _r(r.get("age")), r.get("stage") if isinstance(r.get("stage"), str) else None] for _, r in g.iterrows()]
+                 _r(r.get("age")), r.get("stage") if isinstance(r.get("stage"), str) else None] + ([_r(r["purity"])] if "purity" in g.columns else []) for _, r in g.iterrows()]
         return {"columns": cols, "rows": rows, "cut_value": clean(value)}
     s = c.samples.copy()
     s["expr"] = c.gene(gene)
@@ -70,6 +70,12 @@ def rows_for(c: Cohort, kind: str, params: dict) -> dict:
         s = s.assign(group=group).sort_values(["copies", "expr"], ascending=[True, False])
         cols = ["sample", "patient", "project", "copies", "group", "expression"]
         return {"columns": cols, "rows": [[r["id"], r["case"], r["project"], int(r["copies"]), r["group"], _r(r["expr"])] for _, r in s.iterrows()]}
+    elif kind == "expression_subtype":
+        from app.cohorts import pancan
+
+        s["sub"] = [pancan.short(x) if x else None for x in pancan.subtype(s["id"].tolist())]
+        s = s[(s["type"] == "tumor") & s["sub"].notna()].sort_values("id").drop_duplicates("case", keep="first")
+        group = s["sub"]
     elif kind == "expression_group":
         s = s[s["group"].notna() & (s["group"].astype(str) != "")]
         group = s["group"].astype(str)

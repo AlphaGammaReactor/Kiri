@@ -179,8 +179,8 @@ ${p.cut === "optimal" ? "# Kiri reports the log-rank p adjusted for the cutpoint
 summary(coxph(Surv(time_months, event) ~ high, data = d))
 ${adj.length ? `
 # Adjusted for ${adj.join(" and ")} (patients with ${adj.join(" and ")} recorded)
-d2 <- d${adj.includes("age") ? "\nd2 <- subset(d2, !is.na(age))" : ""}${adj.includes("stage") ? '\nd2 <- subset(d2, stage %in% c("I", "II", "III", "IV"))\nd2$stage_n <- match(d2$stage, c("I", "II", "III", "IV"))' : ""}
-summary(coxph(Surv(time_months, event) ~ high${adj.includes("age") ? " + age" : ""}${adj.includes("stage") ? " + stage_n" : ""}, data = d2))
+d2 <- d${adj.includes("age") ? "\nd2 <- subset(d2, !is.na(age))" : ""}${adj.includes("stage") ? '\nd2 <- subset(d2, stage %in% c("I", "II", "III", "IV"))\nd2$stage_n <- match(d2$stage, c("I", "II", "III", "IV"))' : ""}${adj.includes("purity") ? "\nd2 <- subset(d2, !is.na(purity))" : ""}
+summary(coxph(Surv(time_months, event) ~ high${adj.includes("age") ? " + age" : ""}${adj.includes("stage") ? " + stage_n" : ""}${adj.includes("purity") ? " + purity" : ""}, data = d2))
 ` : ""}
 plot(fit, col = c("#b5462f", "#2f6b8f"), xlab = "Months", ylab = "${({ PFI: "Progression-free interval", DSS: "Disease-specific survival" } as Record<string, string>)[String(p.endpoint)] ?? "Overall survival"}", mark.time = TRUE)
 legend("topright", legend = levels(factor(d$group)), col = c("#b5462f", "#2f6b8f"), lty = 1)
@@ -269,7 +269,7 @@ plot(d$log2_fold_change, -log10(d$p), pch = 16, cex = 0.4,
      xlab = "log2 fold change", ylab = "-log10 p")
 abline(v = c(-lfc, lfc), h = -log10(max(d$p[d$q < qcut])), lty = 2)
 `;
-  if (a.kind === "expression_group" || a.kind === "expression_mut") return `d <- read.csv("${csv}")
+  if (a.kind === "expression_group" || a.kind === "expression_mut" || a.kind === "expression_subtype") return `d <- read.csv("${csv}")
 tapply(d$expression, d$group, summary)
 if (length(unique(d$group)) == 2) wilcox.test(expression ~ group, data = d) else {
   kruskal.test(expression ~ group, data = d)
@@ -322,8 +322,8 @@ print("log-rank p =", logrank_test(hi.time_months, lo.time_months, hi.event, lo.
 ${p.cut === "optimal" ? "# Kiri reports this p adjusted for the cutpoint search (Miller-Siegmund); do not report the raw p alone.\n" : ""}
 CoxPHFitter().fit(d[["time_months", "event", "high"]], "time_months", "event").print_summary()
 ${adj.length ? `
-d2 = d.copy()${adj.includes("age") ? "\nd2 = d2[d2.age.notna()]" : ""}${adj.includes("stage") ? '\nd2 = d2[d2.stage.isin(["I", "II", "III", "IV"])].copy()\nd2["stage_n"] = d2.stage.map({"I": 1, "II": 2, "III": 3, "IV": 4})' : ""}
-CoxPHFitter().fit(d2[["time_months", "event", "high"${adj.includes("age") ? ', "age"' : ""}${adj.includes("stage") ? ', "stage_n"' : ""}]], "time_months", "event").print_summary()
+d2 = d.copy()${adj.includes("age") ? "\nd2 = d2[d2.age.notna()]" : ""}${adj.includes("stage") ? '\nd2 = d2[d2.stage.isin(["I", "II", "III", "IV"])].copy()\nd2["stage_n"] = d2.stage.map({"I": 1, "II": 2, "III": 3, "IV": 4})' : ""}${adj.includes("purity") ? "\nd2 = d2[d2.purity.notna()]" : ""}
+CoxPHFitter().fit(d2[["time_months", "event", "high"${adj.includes("age") ? ', "age"' : ""}${adj.includes("stage") ? ', "stage_n"' : ""}${adj.includes("purity") ? ', "purity"' : ""}]], "time_months", "event").print_summary()
 ` : ""}`;
   }
   if (a.kind === "expression_tn") return `import pandas as pd                        # pip install pandas scipy
@@ -409,7 +409,7 @@ c = np.where(up, "#c8641a", np.where(down, "#2a6fa8", "#bbbbbb"))
 plt.scatter(d.log2_fold_change, -np.log10(d.p), s=4, c=c)
 plt.xlabel("log2 fold change"); plt.ylabel("-log10 p"); plt.show()
 `;
-  if (a.kind === "expression_group" || a.kind === "expression_mut") return `import pandas as pd                        # pip install pandas scipy
+  if (a.kind === "expression_group" || a.kind === "expression_mut" || a.kind === "expression_subtype") return `import pandas as pd                        # pip install pandas scipy
 from scipy import stats
 
 d = pd.read_csv("${csv}")

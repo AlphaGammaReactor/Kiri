@@ -19,6 +19,8 @@ const REACTOME = "Milacic M, et al. The Reactome Pathway Knowledgebase 2024. Nuc
 const XENA = "Goldman MJ, et al. Visualizing and interpreting cancer genomics data via the Xena platform. Nat Biotechnol. 2020;38:675–678.";
 const GDC = "Grossman RL, et al. Toward a shared vision for cancer genomic data. N Engl J Med. 2016;375:1109–1112.";
 const CDR = "Liu J, et al. An Integrated TCGA Pan-Cancer Clinical Data Resource to Drive High-Quality Survival Outcome Analytics. Cell. 2018;173:400–416. (progression-free interval and disease-specific survival)";
+const SUBTYPES = "Sanchez-Vega F, et al. Oncogenic Signaling Pathways in The Cancer Genome Atlas. Cell. 2018;173:321–337. (molecular subtypes, from the TCGA marker papers)";
+const PURITY = "Taylor AM, et al. Genomic and Functional Approaches to Understanding Cancer Aneuploidy. Cancer Cell. 2018;33:676–689. (ABSOLUTE tumour purity)";
 const TCGA: Record<string, string> = {
   "TCGA-COAD": "Cancer Genome Atlas Network. Comprehensive molecular characterization of human colon and rectal cancer. Nature. 2012;487:330–337.",
   "TCGA-READ": "Cancer Genome Atlas Network. Comprehensive molecular characterization of human colon and rectal cancer. Nature. 2012;487:330–337.",
@@ -43,7 +45,7 @@ export function About({ update, onCheck, engine, project }: { update: UpdateStat
   }
   const checkedAt = update.kind === "idle" ? update.checkedAt : update.kind === "error" ? update.checkedAt : undefined;
   const ds = (project?.project.datasets ?? []).filter((d) => d.startsWith("TCGA-"));
-  const refs = [...new Set(ds.map((d) => TCGA[d]).filter(Boolean)), GDC, XENA, CDR, MSIGDB, REACTOME];
+  const refs = [...new Set(ds.map((d) => TCGA[d]).filter(Boolean)), GDC, XENA, CDR, SUBTYPES, PURITY, MSIGDB, REACTOME];
   const CopyBtn = ({ k, s }: { k: string; s: string }) => (
     <button className="icon-btn" aria-label={t("about.copy")} onClick={() => copy(k, s)}>{copied === k ? <Check size={15} /> : <Copy size={15} />}</button>
   );

@@ -275,3 +275,30 @@ def by_copies(c: Cohort, gene: str, cn_gene: str) -> dict:
     return r | {"kind": "expression_cn", "gene2": cn_gene,
                 "dosage": {"rho": clean(rho.statistic) if rho is not None else None, "p": clean(rho.pvalue) if rho is not None else None},
                 "data_version": c.data_version() | {"copy_number": "GDC ASCAT3 gene-level copy number"}}
+
+
+def by_subtype(c: Cohort, gene: str) -> dict:
+    """Expression across the tumours' molecular subtypes (PanCanAtlas). One tumour per patient;
+    subtypes with fewer than 3 tumours are left out and counted."""
+    from dataclasses import replace
+
+    from app.cohorts import pancan
+
+    s = c.samples.copy()
+    s["_s"] = [pancan.short(x) if x else None for x in pancan.subtype(s["id"].tolist())]
+    s["_i"] = np.arange(len(s))
+    t = s[(s["type"] == "tumor")].sort_values("id").drop_duplicates("case", keep="first")
+    keep = t[t["_s"].notna()]
+    counts = keep["_s"].value_counts()
+    small = sorted(k for k, n in counts.items() if n < 3)
+    keep = keep[~keep["_s"].isin(small)]
+    group = np.array([None] * len(s), dtype=object)
+    group[keep["_i"].to_numpy()] = keep["_s"].to_numpy()
+    sub = replace(c, samples=s.drop(columns=["_s", "_i"]).assign(group=group))
+    r = by_group(sub, gene)
+    if r.get("error"):
+        return r | {"kind": "expression_subtype", "error": "no_subtypes" if keep.empty else r["error"]}
+    for ch in r["checks"]:
+        if ch["check"] == "data":
+            ch.update(code="data.groupsSubtype", vars={**ch["vars"], "no_subtype": int(len(t) - len(t[t["_s"].notna()])), "small": ", ".join(small) or "–"})
+    return r | {"kind": "expression_subtype", "data_version": c.data_version() | {"subtypes": pancan.SUBTYPE_CITE}}

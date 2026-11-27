@@ -115,7 +115,7 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
       label = (k) => `${r.gene2} ${k === "mutated" ? F.mutated : F.notMutated}`;
       brackets = [{ a: r.groups[0].key, b: r.groups[1].key, text: stars(r.test.p) }];
       stat = fillFig(F.rankSum, { p: fmtP(r.test.p) });
-    } else if (r.kind === "expression_group") {
+    } else if (r.kind === "expression_group" || r.kind === "expression_subtype") {
       groups = r.groups;
       const idx = Object.fromEntries(r.groups.map((g, i) => [g.key, i]));
       colors = (k) => GROUP_COLORS[(idx[k] ?? 0) % GROUP_COLORS.length];
