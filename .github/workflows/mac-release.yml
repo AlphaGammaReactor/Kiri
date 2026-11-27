@@ -174,7 +174,12 @@ jobs:
         run: |
           notes="desktop/release-notes/${TAG}.md"
           [ -f "$notes" ] || notes=/dev/null
-          gh release create "$TAG" out/* --title "Kiri ${TAG#v} for Mac (test build)" --notes-file "$notes" --target "$GITHUB_SHA"
+          # Push the tag with git first: if a rule blocks it, git says which rule, where the
+          # release API only answers "403 Resource not accessible by integration".
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG" 2>&1 || { echo "::error::could not push tag $TAG (see the message above)"; exit 1; }
+          gh release create "$TAG" out/* --verify-tag --title "Kiri ${TAG#v} for Mac (test build)" --notes-file "$notes" \
+            || { echo "::error::the tag was pushed but the release API refused; check Settings > Rules and Settings > Actions"; exit 1; }
 
   update-test:
     name: Update from the previous release on a real Mac
@@ -255,4 +260,6 @@ jobs:
           git remote add origin "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q origin ci-screenshots && git checkout -q -b ci-screenshots FETCH_HEAD || git checkout -q --orphan ci-screenshots
           mkdir -p "$TAG" && cp ../shots/* "$TAG/"
-          git add -A && git -c user.name="kiri-ci" -c user.email="kiri-ci@users.noreply.github.com" commit -qm "Screenshots for $TAG" && git push -q origin ci-screenshots
+          git add -A
+          git diff --cached --quiet && { echo "screenshots already kept"; exit 0; }
+          git -c user.name="kiri-ci" -c user.email="kiri-ci@users.noreply.github.com" commit -qm "Screenshots for $TAG" && git push -q origin ci-screenshots
