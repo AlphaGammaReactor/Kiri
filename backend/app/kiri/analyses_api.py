@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.analyses import correlation, expression, survival
+from app.analyses.genesets import GENESETS
 from app.cohorts import packs
 from app.cohorts.store import CohortUnavailable, cohort_for, slice_for
 from app.core.config import settings
@@ -39,12 +40,14 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "signature"]
     gene: str
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal"] = "median"
     adjust: list[Literal["age", "stage"]] = Field(default_factory=list)
     paired: bool = False
+    set_id: str = "uprmt_markers"  # signature: a built-in gene set, or "custom"
+    members: list[str] = Field(default_factory=list, max_length=200)  # signature: the custom set
     replace: Optional[str] = None  # analysis id to overwrite (changing options)
     check_only: bool = False  # Reproduce: compute again and return the numbers without saving
 
@@ -77,6 +80,14 @@ def cohort_status():
         "sample_slice": sl,
         "packs": {p: {"ready": packs.is_ready(_data_dir(), p), **packs.progress_of(p)} for p in projects},
     }
+
+
+@router.get("/genesets")
+def genesets(language: str = "en"):
+    """The built-in gene sets (marker lists with citations) for the gene set score."""
+    from app.analyses.genesets import listing
+
+    return {"items": listing(language)}
 
 
 @router.post("/cohort/download")
@@ -140,6 +151,10 @@ def analysis_rows(aid: str):
                 c = own_cohort(op, projects[0])
             except KeyError:
                 return JSONResponse(status_code=404, content={"error": "not_found"})
+        elif r[0] == "signature":
+            from app.kiri.signature_api import signature_cohort
+
+            c = signature_cohort(projects, params["gene"], params.get("set_id", "uprmt_markers"), params.get("members") or [], _data_dir())
         else:
             c = cohort_for(projects, genes, _data_dir())
         return rows_for(c, r[0], params) | {"units": c.units, "data_version": c.data_version()}
@@ -168,6 +183,10 @@ def run(body: RunBody):
                 c = own_cohort(op, own)
             except KeyError:
                 return JSONResponse(status_code=400, content={"error": "no_cohort"})
+        elif body.kind == "signature":
+            from app.kiri.signature_api import signature_cohort
+
+            c = signature_cohort(projects, gene, body.set_id, body.members, _data_dir())
         else:
             c = cohort_for(projects, wanted, _data_dir())
         for g in wanted:
@@ -182,6 +201,12 @@ def run(body: RunBody):
                 result = expression.tumour_vs_normal(c, gene, paired=body.paired)
             elif body.kind == "expression_group":
                 result = expression.by_group(c, gene)
+            elif body.kind == "signature":
+                from app.kiri.signature_api import run_signature
+
+                if body.set_id != "custom" and body.set_id not in GENESETS:
+                    return JSONResponse(status_code=400, content={"error": "unknown_set"})
+                result = run_signature(c, gene, body.set_id, body.members, _data_dir())
             else:
                 result = expression.by_stage(c, gene)
     except CohortUnavailable as e:
@@ -192,6 +217,11 @@ def run(body: RunBody):
         params["gene2"] = gene2
     else:
         params.pop("gene2", None)
+    if body.kind != "signature":
+        params.pop("set_id", None)
+        params.pop("members", None)
+    elif body.set_id != "custom":
+        params["members"] = []
     record = {"id": body.replace or uuid.uuid4().hex, "kind": body.kind, "params": params, "result": result,
               "data_versions": c.data_version(), "created_at": now(), "updated_at": now()}
     if body.check_only:

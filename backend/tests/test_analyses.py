@@ -211,7 +211,7 @@ def test_sample_projects_open_and_run(tmp_path, monkeypatch):
     monkeypatch.setattr(kapi, "_ws", Workspace(tmp_path / "data", "test"))
     cl = TestClient(app)
     items = cl.get("/api/v1/kiri/samples?language=zh").json()["items"]
-    assert {i["id"] for i in items} == {"parl-mavs", "tp53-brca"} and items[1]["name"] == "TP53 与乳腺癌"
+    assert {i["id"] for i in items} == {"parl-mavs", "tp53-brca", "parl-atf5"} and items[1]["name"] == "TP53 与乳腺癌"
     for s in items:
         r = cl.post(f"/api/v1/kiri/sample?language=en&id={s['id']}")
         assert r.status_code == 200, r.text

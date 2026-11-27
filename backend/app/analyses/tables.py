@@ -24,6 +24,8 @@ def _r(x):
 
 def rows_for(c: Cohort, kind: str, params: dict) -> dict:
     gene = params["gene"]
+    if kind == "signature":
+        return _signature_rows(c, params)
     if kind == "survival":
         t, _ = _patients(c, gene)
         g, value, _ = _split(t, params.get("cut", "median"))
@@ -54,3 +56,22 @@ def rows_for(c: Cohort, kind: str, params: dict) -> dict:
     s = s.assign(group=group).sort_values(["group", "expr"], ascending=[True, False])
     cols = ["sample", "patient", "project", "group", "expression"]
     return {"columns": cols, "rows": [[r["id"], r["case"], r["project"], r["group"], _r(r["expr"])] for _, r in s.iterrows()]}
+
+
+def _signature_rows(c: Cohort, params: dict) -> dict:
+    """One row per patient: my gene, each member, the score (mean of the members' z-scores) and the groups."""
+    from app.analyses.signature import _tumours, resolve_members, score_of
+
+    gene = params["gene"]
+    members, _ = resolve_members(params.get("set_id", "uprmt_markers"), params.get("members") or [], gene)
+    present = [g for g in members if c.has(g)]
+    t = _tumours(c, [gene] + present)
+    t = t[t[f"g:{gene}"].notna() & t[[f"g:{g}" for g in present]].notna().all(axis=1)].copy()
+    t["score"] = score_of(t[[f"g:{g}" for g in present]].to_numpy(float))
+    t["gene_group"] = np.where(t[f"g:{gene}"] > t[f"g:{gene}"].median(), "high", "low")
+    t["score_group"] = np.where(t["score"] > t["score"].median(), "high", "low")
+    t["time_months"] = t["os_time"] / 30.4375
+    cols = ["sample", "patient", "project", gene, *present, "score", "gene_group", "score_group", "time_months", "event"]
+    rows = [[r["id"], r["case"], r["project"], _r(r[f"g:{gene}"]), *[_r(r[f"g:{g}"]) for g in present], _r(r["score"]),
+             r["gene_group"], r["score_group"], _r(r["time_months"]), _r(r["os_event"])] for _, r in t.iterrows()]
+    return {"columns": cols, "rows": rows}

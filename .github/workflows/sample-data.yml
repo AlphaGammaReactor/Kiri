@@ -4,7 +4,7 @@ name: Sample project data
 # commits them to the branch. Runs when the build script changes.
 on:
   push:
-    branches: [claude/project-thread-btcqwn]
+    branches: [claude/project-thread-btcqwn, claude/project-thread-bdrb9s]
     paths: ["backend/scripts/build_sample_slice.py", "backend/app/cohorts/**", ".github/workflows/sample-data.yml"]
   workflow_dispatch:
 
