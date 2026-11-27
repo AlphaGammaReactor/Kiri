@@ -17,7 +17,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app.analyses import across, correlation, de, expression, immune, interactions, pathways, survival
+from app.analyses import across, bench, correlation, de, expression, immune, interactions, pathways, survival
 from app.analyses.genesets import GENESETS
 from app.cohorts import packs
 from app.cohorts.store import Cohort, CohortUnavailable, cohort_for, load_slice, slice_for
@@ -40,7 +40,7 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "de", "signature", "across", "immune", "interactions"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "de", "signature", "across", "immune", "interactions", "bench"]
     gene: str = ""
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal"] = "median"
@@ -59,6 +59,13 @@ class RunBody(BaseModel):
     library: Literal["hallmark", "reactome"] = "hallmark"
     # Expression across cancers
     normal: Literal["tcga", "tcga_gtex"] = "tcga_gtex"
+    # Bench data (the student's own numbers, pasted)
+    mode: Literal["qpcr", "values"] = "qpcr"
+    text: str = Field("", max_length=400_000)
+    ref: str = ""
+    control: Optional[str] = None
+    log: bool = False
+    title: str = Field("", max_length=120)
 
 
 def _row(r) -> dict:
@@ -158,6 +165,12 @@ def analysis_rows(aid: str):
     if not r:
         return JSONResponse(status_code=404, content={"error": "not_found"})
     params = json.loads(r[1])
+    if r[0] == "bench":
+        res = bench.run(params.get("mode", "qpcr"), params.get("text", ""), params.get("ref", ""), params.get("control"), params.get("log", False))
+        if params.get("mode") == "values":
+            return {"columns": ["group", "value_log2" if params.get("log") else "value"], "rows": res.get("rows", []), "units": "", "data_version": {}}
+        return {"columns": ["sample", "group", "target", "ct_target_mean", "ct_reference_mean", "delta_ct", "delta_delta_ct", "fold_change"],
+                "rows": res.get("rows", []), "units": "", "data_version": {}}
     if r[0] == "across":
         try:
             return across.rows(params["gene"], _data_dir(), params.get("normal", "tcga_gtex"))
@@ -225,6 +238,11 @@ def run(body: RunBody):
         return JSONResponse(status_code=400, content={"error": "needs_second_gene"})
     if body.kind == "de" and body.compare != "gene":
         gene = ""
+    if body.kind == "bench":
+        result = bench.run(body.mode, body.text, body.ref, body.control, body.log)
+        params = {"kind": "bench", "gene": gene, "mode": body.mode, "text": body.text, "ref": result.get("ref", body.ref),
+                  "control": result.get("control", body.control), "log": body.log, "title": body.title, "projects": []}
+        return _store(op, body, params, result, result.get("data_version", {}))
     if body.kind != "de" and not gene:
         return JSONResponse(status_code=400, content={"error": "needs_gene"})
     if body.kind == "across":
@@ -289,7 +307,7 @@ def run(body: RunBody):
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
 
-    exclude = {"replace", "check_only", "normal"} | (set() if body.kind == "de" else {"compare", "group_a", "group_b", "lfc", "q", "library"})
+    exclude = {"replace", "check_only", "normal", "mode", "text", "ref", "control", "log", "title"} | (set() if body.kind == "de" else {"compare", "group_a", "group_b", "lfc", "q", "library"})
     params = body.model_dump(exclude=exclude) | {"gene": gene, "projects": projects}
     if body.kind == "correlation":
         params["gene2"] = gene2

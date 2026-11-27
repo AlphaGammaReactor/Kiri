@@ -2,13 +2,15 @@
 // so a panel exists even for an analysis that was never opened or sent to the notebook.
 import { renderToStaticMarkup } from "react-dom/server";
 import type { StringKey } from "../i18n/strings";
-import { fmt, fmtP, type Analysis, type Check, type AcrossResult, type CorrelationResult, type ImmuneResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
+import { fmt, fmtP, type Analysis, type Check, type AcrossResult, type CorrelationResult, type ImmuneResult, type BenchResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
 import { BoxPoints } from "./BoxPoints";
 import { KM } from "./KM";
 import { Scatter } from "./Scatter";
 import { Volcano } from "./Volcano";
 import { Across } from "./Across";
 import { Immune } from "./Immune";
+import { BenchDots } from "./BenchDots";
+import { benchFigure, plainBench } from "../screens/workspace/Bench";
 import { FIG } from "./figure";
 import { figText, fillFig, stars, type FigLang } from "./figStrings";
 import { plainSurvival } from "../screens/workspace/Survival";
@@ -60,6 +62,10 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
       labels={{ x: zh ? `与 ${r.gene} 的 Spearman ρ（肿瘤样本）` : `Spearman ρ with ${r.gene} across tumours`, raw: zh ? "ρ 及 95% CI" : "ρ with 95% CI",
         adj: zh ? "去除总体免疫含量后" : "after removing overall immune content", stat: zh ? "标志基因 · BH q" : "markers · BH q", none: zh ? "数据中无标志基因" : "markers not in the data" }} />;
     summary = t(r.pos.length || r.neg.length ? "imm.plain" : "imm.plainNone", { g: r.gene, u: r.pos.length, d: r.neg.length, k: r.rows.filter((x) => x.rho != null && x.id !== "cd45").length });
+  } else if (a.kind === "bench") {
+    const r = a.result as BenchResult;
+    el = <BenchDots {...benchFigure(r, figLang)} />;
+    summary = plainBench(r, t);
   } else if (a.kind === "de") {
     const r = a.result as DEResult;
     const zh = figLang === "zh";

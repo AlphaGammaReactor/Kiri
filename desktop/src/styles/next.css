@@ -195,3 +195,7 @@
 .int-ev .ev-textmining { background: #8a7f70; }
 .int-ev .ev-coexpression { background: #2a6fa8; }
 .int-ev .ev-databases { background: #5a7f4a; }
+
+/* Bench data */
+.bench-paste { width: 100%; min-height: 170px; resize: vertical; font-size: 11.5px; line-height: 1.45; white-space: pre; }
+.bench-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }

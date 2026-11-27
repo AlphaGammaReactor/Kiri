@@ -44,7 +44,8 @@ export function useAnalysis(kinds: Kind[]) {
     const started = Date.now();
     try {
       const sameGene = current && current.params.gene === p.gene.trim().toUpperCase() && current.kind === p.kind
-        && (current.params.gene2 ?? "") === (p.gene2 ?? "").trim().toUpperCase();
+        && (current.params.gene2 ?? "") === (p.gene2 ?? "").trim().toUpperCase()
+        && (current.params.title ?? "") === (p.title ?? "");
       const a = await analyses.run({ ...p, replace: sameGene ? current!.id : undefined });
       // Keep the progress view on screen long enough to read.
       const wait = 700 - (Date.now() - started);

@@ -6,7 +6,7 @@ export type Alt = { figure: Pair; verdict: "ok" | "avoid"; why: Pair };
 export type Recipe = {
   id: "tn" | "stage" | "survival" | "correlation" | "across" | "immune" | "interactions" | "pathways" | "bench";
   question: Pair; figure: Pair; test: Pair; why: Pair; read: Pair; caution: Pair; alts: Alt[];
-  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | "across" | "immune" | "interactions" | null;
+  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | "across" | "immune" | "interactions" | "bench" | null;
   keywords: RegExp;
 };
 
@@ -134,7 +134,7 @@ export const RECIPES: Recipe[] = [
     keywords: /pathway|enrich|gsea|kegg|go term|gene set|通路|富集|基因集/i,
   },
   {
-    id: "bench", action: null,
+    id: "bench", action: "bench",
     question: ["How do I plot my own qPCR or Western blot numbers?", "如何画我自己的 qPCR 或 Western 数据？"],
     figure: ["Dot plot of every replicate with the mean and its 95% interval", "画出每个重复的点图，并标出均值及 95% 区间"],
     test: ["Depends on the design: t-test or Mann–Whitney for two groups, ANOVA or Kruskal–Wallis for more; ΔΔCt for qPCR", "取决于设计：两组用 t 检验或 Mann–Whitney，多组用 ANOVA 或 Kruskal–Wallis；qPCR 用 ΔΔCt"],

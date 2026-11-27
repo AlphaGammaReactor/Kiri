@@ -31,11 +31,12 @@ export type CorrelationResult = {
 };
 export type ErrorResult = { kind: string; gene: string; error: string; [k: string]: unknown };
 export type DataVersion = { cohort: string; projects: string[]; source: string; units: string; built: string };
-export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "correlation" | "de" | "signature" | "across" | "immune" | "interactions";
+export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "correlation" | "de" | "signature" | "across" | "immune" | "interactions" | "bench";
 export type RunParams = { kind: Kind; gene: string; gene2?: string; set_id?: string; members?: string[]; check_only?: boolean; cut?: "median" | "quartile" | "optimal"; adjust?: ("age" | "stage")[]; paired?: boolean; replace?: string;
-  compare?: "tn" | "gene" | "group"; group_a?: string | null; group_b?: string | null; lfc?: number; q?: number; library?: PathwayLibrary; normal?: "tcga" | "tcga_gtex" };
+  compare?: "tn" | "gene" | "group"; group_a?: string | null; group_b?: string | null; lfc?: number; q?: number; library?: PathwayLibrary; normal?: "tcga" | "tcga_gtex";
+  mode?: "qpcr" | "values"; text?: string; ref?: string; control?: string | null; log?: boolean; title?: string };
 export type Headline = { p_report?: number | null; error?: string | null; hr?: number | null; p?: number | null; rho?: number | null; n?: number | null; worst?: "pass" | "caution" | "problem" | null };
-export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | DEResult | AcrossResult | ImmuneResult | InteractionsResult | ErrorResult> = {
+export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | DEResult | AcrossResult | ImmuneResult | InteractionsResult | BenchResult | ErrorResult> = {
   id: string; kind: Kind; params: RunParams & { projects: string[] }; result: R; data_versions: DataVersion;
   created_at: string; updated_at: string; saved?: boolean;
 };
@@ -73,6 +74,13 @@ export type InteractionsResult = {
   bands: { very_high: number; confident: number; low: number; very_low: number } | null;
   n: number; together: string[]; opposite: string[]; strong: number; experimental: string[]; string_version: string | null; fetched: string;
   checks: Check[]; citations: Record<string, string>; data_version: DataVersion;
+};
+export type BenchGroupR = { group: string; n: number; mean: number | null; lo: number | null; hi: number | null; p?: number | null; p_adj?: number | null;
+  log2fc?: number[]; values?: number[]; fold?: number | null; dct_mean?: number | null; sd?: number | null; samples?: string[] };
+export type BenchResult = {
+  kind: "bench"; mode: "qpcr" | "values"; ref?: string; control: string; groups: string[]; genes?: string[]; targets?: string[]; log?: boolean;
+  panels: { gene: string; groups: BenchGroupR[]; overall_p: number | null; test: "welch_t" | "welch_anova_holm" }[];
+  n_samples?: number; checks: Check[]; data_version: DataVersion;
 };
 export type PathwayInfo = { id: PathwayLibrary; available: boolean; version?: string; licence?: string; citation?: string; source?: string; n?: number };
 export type OwnCohort = { id: string; name: string; n: number; values: number; survival: boolean; groups: string[]; units: string };

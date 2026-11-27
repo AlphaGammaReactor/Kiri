@@ -84,12 +84,14 @@ export function ReproduceDialog({ a, fileName, initialTab = "record", onClose, s
     : (a.kind as string) === "signature" ? t("sig.repro.settings", { s: String((a.result as { set_name?: string }).set_name ?? (p as { set_id?: string }).set_id ?? ""), n: sigMembers(a).length })
     : a.kind === "expression_tn" ? (p.paired ? t("repro.paired") : t("repro.unpaired"))
     : a.kind === "immune" ? "Danaher 2017 · Spearman · BH"
+    : a.kind === "bench" ? (p.mode === "qpcr" ? `ΔΔCt · ${p.ref ?? ""} · ${p.control ?? ""}` : `${p.log ? "log2 · " : ""}${p.control ?? ""}`)
     : a.kind === "across" ? (p.normal === "tcga" ? t("acr.normal.tcga") : t("acr.normal.gtex"))
     : a.kind === "de" ? t("repro.de", { c: t(`de.cmp.${p.compare ?? "tn"}` as StringKey, { g: p.gene ?? "" }), l: p.lfc ?? 1, q: p.q ?? 0.05, lib: t(`de.lib.${p.library ?? "hallmark"}` as StringKey) }) : (p as { gene2?: string }).gene2 ? t("repro.withGene", { g: (p as { gene2?: string }).gene2! }) : "–";
   const headline = (r: unknown) => {
     const x = r as Partial<Omit<SurvivalResult, "kind">> & Partial<Omit<ExpressionResult, "kind">> & { rho?: number; p?: number };
     if (a.kind === "survival") return `HR ${fmt((x.cox_adjusted ?? x.cox)?.hr)} · p = ${fmtP(x.p_report)}`;
     if (a.kind === "across") { const d = r as { n_up?: number; n_down?: number; n_tested?: number }; return `${d.n_up} up · ${d.n_down} down / ${d.n_tested}`; }
+    if (a.kind === "bench") { const d = r as { panels?: { groups: { p?: number; p_adj?: number }[] }[] }; const ps = (d.panels ?? []).flatMap((x) => x.groups.slice(1).map((g) => g.p_adj ?? g.p)).filter((v): v is number => v != null); return ps.length ? `min p = ${fmtP(Math.min(...ps))}` : "–"; }
     if (a.kind === "immune") { const d = r as { pos?: string[]; neg?: string[]; n?: number }; return `${d.pos?.length ?? 0} + · ${d.neg?.length ?? 0} − · n = ${d.n}`; }
     if (a.kind === "de") { const d = r as { n_up?: number; n_down?: number; n_tested?: number }; return `${d.n_up} up · ${d.n_down} down / ${d.n_tested}`; }
     if ((a.kind as string) === "correlation" || (a.kind as string) === "signature") return `ρ = ${fmt(x.rho)} · p = ${fmtP(x.p)}`;
@@ -199,6 +201,24 @@ wilcox.test(pairs$expression.x, pairs$expression.y, paired = TRUE)
 ` : ""}
 boxplot(expression ~ group, data = d, outline = FALSE, ylab = "${a.data_versions.units}")
 stripchart(expression ~ group, data = d, vertical = TRUE, method = "jitter", add = TRUE, pch = 16, cex = 0.4)
+`;
+  if (a.kind === "bench") return a.params.mode === "qpcr" ? `# One row per biological sample: mean Ct of target and reference, ΔCt, ΔΔCt and 2^-ΔΔCt, as Kiri computed them.
+d <- read.csv("${csv}", check.names = FALSE)
+for (g in unique(d$target)) {
+  x <- d[d$target == g, ]
+  ctrl <- x$delta_ct[x$group == "${a.params.control ?? ""}"]
+  for (grp in setdiff(unique(x$group), "${a.params.control ?? ""}")) {
+    cat(g, grp, "vs control: Welch t-test on ΔCt, p =", t.test(x$delta_ct[x$group == grp], ctrl)$p.value, "\\n")
+  }
+}
+# With several groups, adjust with p.adjust(p, method = "holm").
+stripchart(log2(fold_change) ~ group, data = d, vertical = TRUE, method = "jitter", pch = 16, ylab = "log2 fold change")
+` : `d <- read.csv("${csv}", check.names = FALSE)
+v <- d[[2]]
+ctrl <- v[d$group == "${a.params.control ?? ""}"]
+for (grp in setdiff(unique(d$group), "${a.params.control ?? ""}")) cat(grp, "vs control: Welch t-test p =", t.test(v[d$group == grp], ctrl)$p.value, "\\n")
+oneway.test(v ~ group, data = d)  # Welch ANOVA
+stripchart(v ~ group, data = d, vertical = TRUE, method = "jitter", pch = 16)
 `;
   if (a.kind === "immune") return `# One row per tumour: your gene and each immune cell type's marker score
 # (mean of z-scored log2 expression of its Danaher et al. 2017 marker genes).
@@ -320,6 +340,25 @@ pn = d[d.group == "normal"].groupby("patient").expression.mean()
 both = pt.index.intersection(pn.index)
 print("signed-rank p =", stats.wilcoxon(pt[both], pn[both]).pvalue, "pairs =", len(both))
 ` : ""}`;
+  if (a.kind === "bench") return `import pandas as pd                        # pip install pandas scipy statsmodels
+from scipy import stats
+from statsmodels.stats.multitest import multipletests
+
+d = pd.read_csv("${csv}")
+control = "${a.params.control ?? ""}"
+${a.params.mode === "qpcr" ? `# One row per biological sample: ΔCt, ΔΔCt and 2^-ΔΔCt as Kiri computed them.
+for gene, x in d.groupby("target"):
+    ctrl = x[x.group == control].delta_ct
+    others = [g for g in x.group.unique() if g != control]
+    ps = [stats.ttest_ind(x[x.group == g].delta_ct, ctrl, equal_var=False).pvalue for g in others]
+    adj = multipletests(ps, method="holm")[1] if len(ps) > 1 else ps
+    for g, p, q in zip(others, ps, adj):
+        print(gene, g, "vs", control, "p =", p, "Holm =", q)` : `v = d.columns[1]
+ctrl = d[d.group == control][v]
+for g in d.group.unique():
+    if g != control:
+        print(g, "vs", control, "Welch p =", stats.ttest_ind(d[d.group == g][v], ctrl, equal_var=False).pvalue)`}
+`;
   if (a.kind === "immune") return `import pandas as pd                        # pip install pandas scipy statsmodels
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
