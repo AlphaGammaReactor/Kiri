@@ -1,6 +1,6 @@
 // The layout every analysis workspace shares: header, parameters, figure card, and the Explain / Reliability panel.
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Copy, Download, NotebookPen, LayoutPanelLeft, Table2, Code2, ChevronDown, CircleHelp, ShieldCheck, Check, TriangleAlert, CircleX, Info, Loader2, RotateCcw, CloudDownload, Activity } from "lucide-react";
+import { Copy, Download, NotebookPen, LayoutPanelLeft, Table2, Code2, ChevronDown, CircleHelp, ShieldCheck, Check, TriangleAlert, CircleX, Info, Loader2, RotateCcw, CloudDownload, Activity, WifiOff } from "lucide-react";
 import { useT } from "../../i18n";
 import type { StringKey } from "../../i18n/strings";
 import { analyses, fmt, fmtP, type Analysis, type Check as CheckT } from "../../lib/analyses";
@@ -261,14 +261,16 @@ export function ErrorState({ what, why, todo, code, actions }: { what: string; w
   const { t } = useT();
   return (
     <div className="state left">
-      <div className="state-title"><CircleX size={20} style={{ color: "var(--color-status-danger)" }} />{t("err.ws.title")}</div>
+      {code === "needs_internet"
+        ? <div className="state-title"><WifiOff size={20} style={{ color: "var(--color-status-warning, #b7791f)" }} />{t("err.ws.offline")}</div>
+        : <div className="state-title"><CircleX size={20} style={{ color: "var(--color-status-danger)" }} />{t("err.ws.title")}</div>}
       <div className="err-grid">
         <span className="eyebrow">{t("err.ws.what")}</span><p>{what}</p>
         <span className="eyebrow">{t("err.ws.why")}</span><p>{why}</p>
         <span className="eyebrow">{t("err.ws.todo")}</span><p>{todo}</p>
       </div>
       <div className="row-gap">{actions}</div>
-      <div className="mono small muted">{t("err.ws.code", { c: code })}</div>
+      {code !== "needs_internet" && <div className="mono small muted">{t("err.ws.code", { c: code })}</div>}
     </div>
   );
 }
