@@ -15,14 +15,14 @@ from __future__ import annotations
 
 GENESETS: dict[str, dict] = {
     "uprmt_markers": {
-        "name": "Mitochondrial UPR: markers", "zh": "线粒体未折叠蛋白反应（UPRmt）：标志基因",
+        "name": "Mitochondrial UPR: markers", "zh": "线粒体 UPR：标志基因",
         "genes": ["ATF5", "HSPD1", "HSPA9", "LONP1", "CLPP"],
         "about": "The transcription factor ATF5 and four matrix chaperones and proteases it induces (HSP60, mtHSP70, LONP1, ClpP), the usual read-outs of the mammalian mitochondrial unfolded protein response.",
         "about_zh": "转录因子 ATF5 及其诱导的四个基质分子伴侣和蛋白酶（HSP60、mtHSP70、LONP1、ClpP），是哺乳动物 UPRmt 最常用的读出指标。",
         "cite": ["Zhao Q et al. EMBO J 2002;21:4411", "Fiorese CJ et al. Curr Biol 2016;26:2037", "Shpilka T & Haynes CM. Nat Rev Mol Cell Biol 2018;19:109"],
     },
     "uprmt": {
-        "name": "Mitochondrial UPR: extended", "zh": "线粒体未折叠蛋白反应（UPRmt）：扩展",
+        "name": "Mitochondrial UPR: extended", "zh": "线粒体 UPR：扩展",
         "genes": ["ATF5", "HSPD1", "HSPE1", "HSPA9", "DNAJA3", "LONP1", "CLPP", "YME1L1", "TRAP1", "ATF4", "DDIT3", "SIRT3"],
         "about": "UPRmt markers plus HSP10, the co-chaperone DNAJA3, the protease YME1L1, TRAP1, the ATF4/CHOP arm shared with the integrated stress response, and SIRT3. ATF4 and CHOP also respond to other stresses, so this set is broader than the markers.",
         "about_zh": "在标志基因基础上加入 HSP10、辅分子伴侣 DNAJA3、蛋白酶 YME1L1、TRAP1、与整合应激反应共享的 ATF4/CHOP 分支以及 SIRT3。ATF4 与 CHOP 也响应其他应激，因此该集合比标志基因更宽泛。",

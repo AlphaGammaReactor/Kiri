@@ -207,18 +207,6 @@ export function Signature({ p, figLang, onFigLang, say, onLater, onGuide }: {
       {view === "survival" && surv && !surv.enough && <p className="warn-text small">{t("sig.surv.few", { n: surv.fewest_events })}</p>}
       {view === "across" && (r.across?.tested ?? 0) <= 1 && <p className="help">{t("sig.across.one")}</p>}
       {view === "across" && (r.across?.tested ?? 0) > 1 && <p className="help">{t("sig.across.more")}</p>}
-      {view === "enrichment" && r.enrichment && (
-        <div className="sig-enr">
-          <p className="help">{t("sig.enr.note")}</p>
-          <table className="tbl">
-            <thead><tr><th>{t("sig.enr.col.set")}</th><th className="num">{t("sig.enr.col.nes")}</th><th className="num">{t("sig.enr.col.q")}</th></tr></thead>
-            <tbody>{[...r.enrichment.results].filter((x) => x.nes != null).sort((x, y) => (y.nes ?? 0) - (x.nes ?? 0)).map((x) => (
-              <tr key={x.set} className={x.set === r.set ? "on" : ""}><td>{sets.find((s) => s.id === x.set)?.name ?? x.set}</td><td className="num">{fmt(x.nes)}</td><td className="num">{fmtP(x.p_adj)}</td></tr>
-            ))}</tbody>
-          </table>
-          <p className="small"><b>{t("sig.enr.topPos", { g: r.gene })}:</b> <span className="mono">{r.enrichment.top_pos.slice(0, 10).map(([g, v]) => `${g} ${fmt(v)}`).join(" · ")}</span></p>
-        </div>
-      )}
     </>
   );
 
@@ -242,6 +230,18 @@ export function Signature({ p, figLang, onFigLang, say, onLater, onGuide }: {
           <b className="method-title">{ownSet.name}</b>
           <p className="small">{ownSet.about}</p>
           <p className="mono cite-line">{ownSet.cite.join(" · ")}</p>
+        </div>
+      )}
+      {view === "enrichment" && r.enrichment && (
+        <div className="side-card sig-enr"><span className="eyebrow">{t("sig.enr.table")}</span>
+          <p className="help">{t("sig.enr.note")}</p>
+          <table className="tbl">
+            <thead><tr><th>{t("sig.enr.col.set")}</th><th className="num">{t("sig.enr.col.nes")}</th><th className="num">{t("sig.enr.col.q")}</th></tr></thead>
+            <tbody>{[...r.enrichment.results].filter((x) => x.nes != null).sort((x, y) => (y.nes ?? 0) - (x.nes ?? 0)).map((x) => (
+              <tr key={x.set} className={x.set === r.set ? "on" : ""}><td>{sets.find((s) => s.id === x.set)?.name ?? x.set}</td><td className="num">{fmt(x.nes)}</td><td className="num">{fmtP(x.p_adj)}</td></tr>
+            ))}</tbody>
+          </table>
+          <p className="small"><b>{t("sig.enr.topPos", { g: r.gene })}:</b> <span className="mono">{r.enrichment.top_pos.slice(0, 10).map(([g, v]) => `${g} ${fmt(v)}`).join(" · ")}</span></p>
         </div>
       )}
       <Method title={t("sig.method.title")} body={t("sig.method.body")} cite="Cronbach 1951 · Subramanian et al. PNAS 2005 · Lee et al. PLoS Comput Biol 2008" />
