@@ -4,7 +4,8 @@ Build small per-gene tables from the Human Protein Atlas (HPA, CC BY 4.0), bundl
 * hpa_cptac.tsv.gz: CPTAC mass-spectrometry protein abundance, tumour vs normal tissue, per cancer
   (log2 fold change and adjusted p), as HPA summarises it. HPA lists CPTAC under CC BY 4.0.
 * hpa_gene.tsv.gz: where in the cell the protein sits (HPA subcellular atlas, with reliability), the normal
-  tissues with the most RNA (HPA consensus nTPM) and the tissues where antibody staining is high.
+  tissues with the most RNA (HPA consensus nTPM) and the tissues where antibody staining is high, and
+  the cell types with the most RNA (HPA single cell type atlas).
 * hpa_release.json: version, licence, citation.
 
 Only HPA's own data and CPTAC are used; HPA's third-party sources with other terms are left out.
@@ -94,9 +95,17 @@ def main(out: str) -> None:
     hg, ht, hl = col(h, "Gene name"), col(h, "Tissue"), col(h, "Level")
     hr = col(h, "Reliability")
     h = h[h[hl].astype(str).eq("High") & ~h[hr].astype(str).eq("Uncertain")]
-    high = h.groupby(hg)[ht].agg(lambda v: ";".join(sorted(set(map(str, v)))[:8])).rename("ihc_high")
+    high = h.groupby(hg)[ht].agg(lambda v: ";".join(sorted(set(map(str, v))))).rename("ihc_high")
 
-    genes = sub.set_index("gene").join(top, how="outer").join(high, how="outer").reset_index().rename(columns={"index": "gene"})
+    # Which cell types make the RNA (HPA single cell type atlas, from public single-cell datasets).
+    sc = table("rna_single_cell_type.tsv.zip")
+    cg, ct, cv = col(sc, "Gene name"), col(sc, "Cell type"), col(sc, "nTPM", "nCPM", "TPM")
+    sc[cv] = pd.to_numeric(sc[cv], errors="coerce")
+    cells = (sc[sc[cv] > 0].sort_values(cv, ascending=False).groupby(cg).head(4)
+             .assign(x=lambda d: d[ct].astype(str) + ":" + d[cv].round(1).astype(str))
+             .groupby(cg)["x"].agg(";".join).rename("cell_top"))
+
+    genes = sub.set_index("gene").join(top, how="outer").join(high, how="outer").join(cells, how="outer").reset_index().rename(columns={"index": "gene"})
     genes.to_csv(o / "hpa_gene.tsv.gz", sep="\t", index=False, compression={"method": "gzip", "mtime": 0})
     print(f"gene table: {len(genes)} genes; e.g.\n{genes[genes['gene'].isin(['KRAS', 'MAVS', 'PARL', 'TP53'])].to_string()}")
 

@@ -1064,6 +1064,8 @@ export const enNext = {
   "hpa.rel": "evidence: {r}",
   "hpa.rna": "Most RNA in normal tissues",
   "hpa.ihc": "High antibody staining in",
+  "hpa.ihcMany": "{n} tissues, so the protein is found widely.",
+  "hpa.cells": "Cell types with most RNA (single-cell atlas, nTPM)",
   "hpa.enNames": "Names of tissues and cell parts are shown in English, as in the Human Protein Atlas.",
 } as const;
 
@@ -2130,5 +2132,7 @@ export const zhNext: Record<keyof typeof enNext, string> = {
   "hpa.rel": "证据等级：{r}",
   "hpa.rna": "正常组织中 RNA 最高",
   "hpa.ihc": "抗体染色强的组织",
+  "hpa.ihcMany": "{n} 种组织，说明该蛋白分布广泛。",
+  "hpa.cells": "RNA 最高的细胞类型（单细胞图谱，nTPM）",
   "hpa.enNames": "组织和细胞结构名称按人类蛋白质图谱原文以英文显示。",
 };

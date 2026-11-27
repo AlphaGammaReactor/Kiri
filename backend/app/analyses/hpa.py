@@ -19,10 +19,21 @@ DIR = Path(__file__).resolve().parent.parent / "cohorts" / "samples"
 # TCGA project -> words that name the same cancer in HPA's CPTAC list.
 CANCER_WORDS = {
     "COAD": ["colon", "colorectal"], "READ": ["colon", "colorectal", "rect"], "BRCA": ["breast"],
-    "LUAD": ["lung adeno"], "LUSC": ["lung squamous"], "KIRC": ["clear cell renal", "kidney", "renal"],
+    "LUAD": ["lung ac", "lung adeno"], "LUSC": ["lung sqcc", "lung squamous"], "KIRC": ["clear cell renal", "kidney", "renal"],
     "UCEC": ["endometri", "uterine"], "OV": ["ovar"], "PAAD": ["pancrea"], "GBM": ["glioblastoma", "brain"],
     "HNSC": ["head and neck", "head & neck"], "LIHC": ["liver", "hepatocellular"], "STAD": ["stomach", "gastric"],
 }
+
+# HPA's short CPTAC cancer names, spelled out for students.
+NAMES = {"Colon AC": "colon adenocarcinoma", "Endometrioid AC": "endometrioid carcinoma", "Glioblastoma": "glioblastoma",
+         "Head and Neck SQCC": "head and neck squamous cell carcinoma", "Liver HC": "hepatocellular carcinoma",
+         "Lung AC": "lung adenocarcinoma", "Lung SQCC": "lung squamous cell carcinoma", "Ovary SC": "ovarian serous carcinoma",
+         "Pancreatic DAC": "pancreatic ductal adenocarcinoma", "Renal cell carcinoma": "renal cell carcinoma",
+         "Uterine CEC": "uterine carcinoma"}
+
+
+def _name(c: str) -> str:
+    return NAMES.get(c, c)
 
 
 @lru_cache(maxsize=1)
@@ -70,8 +81,8 @@ def profile(gene: str, projects: list[str]) -> dict | None:
         if not rows.empty:
             here = cancer_for(projects, sorted(cp["cancer"].unique()))
             out["cptac"] = {
-                "cancer": here,
-                "rows": [{"cancer": r.cancer, "log2fc": clean(r.log2fc), "padj": clean(r.padj)} for r in rows.sort_values("log2fc").itertuples()],
+                "cancer": _name(here) if here else None,
+                "rows": [{"cancer": _name(r.cancer), "log2fc": clean(r.log2fc), "padj": clean(r.padj)} for r in rows.sort_values("log2fc").itertuples()],
                 "studied": here is not None and here in set(rows["cancer"]),
             }
     if gt is not None and gene in gt.index:
@@ -82,6 +93,7 @@ def profile(gene: str, projects: list[str]) -> dict | None:
         out["reliability"] = None if pd.isna(r.get("reliability")) else str(r.get("reliability"))
         out["rna_top"] = [{"tissue": t.rsplit(":", 1)[0], "ntpm": clean(float(t.rsplit(":", 1)[1]))} for t in _split(r.get("rna_top")) if ":" in t]
         out["ihc_high"] = _split(r.get("ihc_high"))
+        out["cell_top"] = [{"cell": t.rsplit(":", 1)[0], "ntpm": clean(float(t.rsplit(":", 1)[1]))} for t in _split(r.get("cell_top")) if ":" in t]
     if len(out) == 1:
         return None
     rel = release()

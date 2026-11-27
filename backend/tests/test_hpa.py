@@ -6,7 +6,7 @@ from app.analyses import hpa
 
 
 def _setup(tmp_path, monkeypatch):
-    pd.DataFrame({"gene": ["MAVS", "MAVS"], "cancer": ["Colon cancer", "Breast cancer"], "log2fc": [0.8, -0.1], "padj": [0.001, 0.4]}).to_csv(
+    pd.DataFrame({"gene": ["MAVS", "MAVS"], "cancer": ["Colon AC", "Breast cancer"], "log2fc": [0.8, -0.1], "padj": [0.001, 0.4]}).to_csv(
         tmp_path / "hpa_cptac.tsv.gz", sep="\t", index=False)
     pd.DataFrame({"gene": ["MAVS"], "reliability": ["Supported"], "location": ["Mitochondria;Peroxisomes"],
                   "rna_top": ["skeletal muscle:40.2;heart muscle:30.1"], "ihc_high": ["colon;rectum"]}).to_csv(tmp_path / "hpa_gene.tsv.gz", sep="\t", index=False)
@@ -19,7 +19,7 @@ def _setup(tmp_path, monkeypatch):
 def test_profile_matches_project_cancer(tmp_path, monkeypatch):
     _setup(tmp_path, monkeypatch)
     p = hpa.profile("MAVS", ["TCGA-COAD", "TCGA-READ"])
-    assert p["cptac"]["cancer"] == "Colon cancer" and p["cptac"]["studied"]
+    assert p["cptac"]["cancer"] == "colon adenocarcinoma" and p["cptac"]["studied"]
     assert p["location"] == ["Mitochondria", "Peroxisomes"]
     assert p["rna_top"][0] == {"tissue": "skeletal muscle", "ntpm": 40.2}
     assert p["source"]["version"] == "26.0"

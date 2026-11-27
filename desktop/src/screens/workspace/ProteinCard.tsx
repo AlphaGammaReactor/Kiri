@@ -7,7 +7,7 @@ export type ProteinProfile = {
   gene: string;
   cptac?: { cancer: string | null; studied: boolean; rows: { cancer: string; log2fc: number | null; padj: number | null }[] };
   location?: string[]; reliability?: string | null;
-  rna_top?: { tissue: string; ntpm: number | null }[]; ihc_high?: string[];
+  rna_top?: { tissue: string; ntpm: number | null }[]; ihc_high?: string[]; cell_top?: { cell: string; ntpm: number | null }[];
   source: { name: string; version: string; licence: string; url: string };
 };
 
@@ -52,10 +52,16 @@ export function ProteinCard({ pr, r }: { pr: ProteinProfile; r: ExpressionResult
           <p className="small">{pr.rna_top.map((x) => `${x.tissue} (${x.ntpm == null ? "–" : Math.round(x.ntpm)} nTPM)`).join(", ")}</p>
         </div>
       )}
+      {!!pr.cell_top?.length && (
+        <div className="hpa-block">
+          <b className="small">{t("hpa.cells")}</b>
+          <p className="small">{pr.cell_top.map((x) => `${x.cell} (${x.ntpm == null ? "–" : Math.round(x.ntpm)})`).join(", ")}</p>
+        </div>
+      )}
       {!!pr.ihc_high?.length && (
         <div className="hpa-block">
           <b className="small">{t("hpa.ihc")}</b>
-          <p className="small">{pr.ihc_high.join(", ")}</p>
+          <p className="small">{pr.ihc_high.length > 6 ? t("hpa.ihcMany", { n: pr.ihc_high.length }) : pr.ihc_high.join(", ")}</p>
         </div>
       )}
       {lang !== "en" && <p className="small muted">{t("hpa.enNames")}</p>}
