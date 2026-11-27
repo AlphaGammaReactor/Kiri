@@ -240,3 +240,38 @@ def by_mutation(c: Cohort, gene: str, mutated: str) -> dict:
         if ch["check"] == "data":
             ch.update(code="data.groupsMut", vars={**ch["vars"], "gene2": mutated, "mutated": n_mut, "not_sequenced": int(len(t) - len(keep))})
     return r | {"kind": "expression_mut", "gene2": mutated, "data_version": c.data_version() | {"mutations": "GDC open-access somatic mutations (WXS, masked)"}}
+
+
+def by_copies(c: Cohort, gene: str, cn_gene: str) -> dict:
+    """Expression of `gene` across copy number states of `cn_gene` (the same gene by default): does more
+    DNA mean more RNA? Kruskal-Wallis across states, plus Spearman's rho of expression against copies.
+    One tumour per patient; states with fewer than 3 tumours are left out and counted."""
+    from dataclasses import replace
+
+    from app.cohorts.copynumber import STATES, state_of
+
+    s = c.samples.copy()
+    s["_c"] = c.copy_number(cn_gene)
+    s["_i"] = np.arange(len(s))
+    t = s[(s["type"] == "tumor")].sort_values("id").drop_duplicates("case", keep="first")
+    keep = t[t["_c"].notna()]
+    states = keep["_c"].map(state_of)
+    counts = states.value_counts()
+    small = [k for k in STATES if 0 < counts.get(k, 0) < 3]
+    keep = keep[~states.isin(small)]
+    group = np.array([None] * len(s), dtype=object)
+    group[keep["_i"].to_numpy()] = keep["_c"].map(state_of).to_numpy()
+    sub = replace(c, samples=s.drop(columns=["_c", "_i"]).assign(group=group))
+    r = by_group(sub, gene)
+    if r.get("error"):
+        return r | {"kind": "expression_cn", "gene2": cn_gene}
+    r["groups"].sort(key=lambda g: STATES.index(g["key"]))
+    y = c.gene(gene)[keep["_i"].to_numpy()]
+    ok = ~np.isnan(y)
+    rho = stats.spearmanr(keep["_c"].to_numpy()[ok], y[ok]) if ok.sum() >= 10 else None
+    for ch in r["checks"]:
+        if ch["check"] == "data":
+            ch.update(code="data.groupsCn", vars={**ch["vars"], "gene2": cn_gene, "no_call": int(len(t) - len(t[t["_c"].notna()])), "small": ", ".join(small) or "–"})
+    return r | {"kind": "expression_cn", "gene2": cn_gene,
+                "dosage": {"rho": clean(rho.statistic) if rho is not None else None, "p": clean(rho.pvalue) if rho is not None else None},
+                "data_version": c.data_version() | {"copy_number": "GDC ASCAT3 gene-level copy number"}}

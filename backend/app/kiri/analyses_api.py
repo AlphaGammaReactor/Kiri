@@ -41,7 +41,7 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "expression_mut", "correlation", "de", "signature", "across", "immune", "interactions", "bench"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "expression_mut", "expression_cn", "correlation", "de", "signature", "across", "immune", "interactions", "bench"]
     gene: str = ""
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal", "mutation"] = "median"
@@ -195,6 +195,9 @@ def analysis_rows(aid: str):
         genes, mutated = [params["gene"]], [params.get("gene2") or params["gene"]]
     elif r[0] == "survival" and params.get("cut") == "mutation":
         genes, mutated = [], [params["gene"]]
+    copies = [params.get("gene2") or params["gene"]] if r[0] == "expression_cn" else None
+    if copies:
+        genes = [params["gene"]]
     try:
         projects = params.get("projects") or _projects(op.project())
         if projects and projects[0].startswith("own:"):
@@ -211,9 +214,11 @@ def analysis_rows(aid: str):
         elif r[0] == "interactions":
             c = inter_cohort(projects, params["gene"], _data_dir())
         else:
-            c = cohort_for(projects, genes, _data_dir(), mutated=mutated)
+            c = cohort_for(projects, genes, _data_dir(), mutated=mutated, copies=copies)
             if mutated:
                 c = _with_mutations(c, projects)
+            if copies:
+                c = _with_copies(c, projects)
         if r[0] == "interactions":
             return interactions.table(c, params["gene"], _data_dir()) | {"units": c.units if c else "", "data_version": c.data_version() if c else {}}
         return rows_for(c, r[0], params) | {"units": c.units, "data_version": c.data_version()}
@@ -282,6 +287,7 @@ def run(body: RunBody):
     if not projects:
         return JSONResponse(status_code=400, content={"error": "no_cohort"})
     try:
+        cn_gene = (gene2 or gene) if body.kind == "expression_cn" else None
         mut_gene = (gene2 or gene) if body.kind == "expression_mut" else gene if (body.kind == "survival" and body.cut == "mutation") else None
         wanted = [] if (body.kind == "survival" and mut_gene) else ([gene] if gene else []) + ([gene2] if body.kind == "correlation" else [])
         if own:
@@ -299,10 +305,12 @@ def run(body: RunBody):
             interactions.data(gene, _data_dir())  # fetch (or read the cache) first: needs_internet comes from here
             c = inter_cohort(projects, gene, _data_dir())
         else:
-            c = cohort_for(projects, wanted, _data_dir(), mutated=[mut_gene] if mut_gene else None)
+            c = cohort_for(projects, wanted, _data_dir(), mutated=[mut_gene] if mut_gene else None, copies=[cn_gene] if cn_gene else None)
         if mut_gene and not own:
             c = _with_mutations(c, projects)
-        if mut_gene and own:
+        if cn_gene and not own:
+            c = _with_copies(c, projects)
+        if (mut_gene or cn_gene) and own:
             return JSONResponse(status_code=400, content={"error": "no_mutation_data"})
         for g in ([] if body.kind == "interactions" else wanted):
             if not c.has(g):
@@ -320,6 +328,8 @@ def run(body: RunBody):
                 result = expression.by_group(c, gene)
             elif body.kind == "expression_mut":
                 result = expression.by_mutation(c, gene, mut_gene)
+            elif body.kind == "expression_cn":
+                result = expression.by_copies(c, gene, cn_gene)
             elif body.kind == "de":
                 result = de.run(c, body.compare, gene or None, body.group_a, body.group_b, lfc=body.lfc, q=body.q,
                                 sets=pathways.load(body.library))
@@ -345,6 +355,8 @@ def run(body: RunBody):
         params["gene2"] = gene2
     elif body.kind == "expression_mut":
         params["gene2"] = mut_gene
+    elif body.kind == "expression_cn":
+        params["gene2"] = cn_gene
     else:
         params.pop("gene2", None)
     if body.kind != "signature":
@@ -363,6 +375,17 @@ def _with_mutations(c: Cohort, projects: list[str]) -> Cohort:
 
     if not all(fetch_mutations(pack_dir(_data_dir(), p), p) for p in projects):
         raise CohortUnavailable("no_mutation_data", cohort=c.name)
+    return open_packs(projects, _data_dir())
+
+
+def _with_copies(c: Cohort, projects: list[str]) -> Cohort:
+    """A downloaded cohort made before copy number was part of a pack: fetch it now."""
+    if c.copy_reader is not None or c.copies is not None or c.reader is None:
+        return c
+    from app.cohorts.packs import fetch_copies, open_packs, pack_dir
+
+    if not all(fetch_copies(_data_dir(), pack_dir(_data_dir(), p), p) for p in projects):
+        raise CohortUnavailable("no_copy_data", cohort=c.name)
     return open_packs(projects, _data_dir())
 
 

@@ -61,6 +61,15 @@ def rows_for(c: Cohort, kind: str, params: dict) -> dict:
         s["mut"] = c.mutation(params.get("gene2") or gene)[s.index]
         s = s[(s["type"] == "tumor") & s["mut"].notna()].sort_values("id").drop_duplicates("case", keep="first")
         group = s["mut"].map(lambda m: "mutated" if m >= 0.5 else "not_mutated")
+    elif kind == "expression_cn":
+        from app.cohorts.copynumber import state_of
+
+        s["copies"] = c.copy_number(params.get("gene2") or gene)[s.index]
+        s = s[(s["type"] == "tumor") & s["copies"].notna()].sort_values("id").drop_duplicates("case", keep="first")
+        group = s["copies"].map(state_of)
+        s = s.assign(group=group).sort_values(["copies", "expr"], ascending=[True, False])
+        cols = ["sample", "patient", "project", "copies", "group", "expression"]
+        return {"columns": cols, "rows": [[r["id"], r["case"], r["project"], int(r["copies"]), r["group"], _r(r["expr"])] for _, r in s.iterrows()]}
     elif kind == "expression_group":
         s = s[s["group"].notna() & (s["group"].astype(str) != "")]
         group = s["group"].astype(str)

@@ -72,7 +72,7 @@ def datasets(cohort: str) -> dict:
     for d in xena.dataset_list(HUB, [cohort]):
         n = d["name"]
         print("  dataset:", n, d.get("type"), flush=True)
-        for key, pat in (("expr", "star_tpm"), ("surv", "survival"), ("clin", "clinical")):
+        for key, pat in (("expr", "star_tpm"), ("surv", "survival"), ("clin", "clinical"), ("cn", "gene-level_ascat3")):
             if pat in n and key not in found:
                 found[key] = n
     missing = {"expr", "surv", "clin"} - found.keys()
@@ -129,6 +129,7 @@ def mutations_of(proj: str, tmp: Path) -> dict:
 def build(name: str, spec: dict) -> dict:
     samples, values = [], {g: [] for g in spec["genes"]}
     parts = []
+    copies: dict[str, list] | None = {g: [] for g in spec["genes"]}
     for proj in spec["projects"]:
         cohort = cohort_of(proj)
         print(proj, "->", cohort, flush=True)
@@ -154,6 +155,23 @@ def build(name: str, spec: dict) -> dict:
         except Exception as e:  # noqa: BLE001 - the slice still works without mutations
             print("  WARNING: no mutations:", type(e).__name__, e, flush=True)
             parts.append(None)
+        cn = {}
+        if copies is not None and "cn" in ds:
+            # Sample ids differ in their last letter between the expression and copy number tables.
+            cn_ids = xena.dataset_samples(HUB, ds["cn"], None)
+            by15 = {x[:15]: x for x in cn_ids}
+            want = [by15.get(x[:15]) for x in sids]
+            got = [x for x in want if x]
+            for row in xena.dataset_gene_probe_avg(HUB, ds["cn"], got, spec["genes"]):
+                sc = row["scores"]
+                if sc and isinstance(sc[0], list):
+                    sc = sc[0]
+                vals = dict(zip(got, sc)) if sc and len(sc) == len(got) else {}
+                cn[row["gene"]] = [num(vals.get(x)) if x else None for x in want]
+            print(f"  copy number: {len(got)} of {len(sids)} samples", flush=True)
+        elif copies is not None:
+            print("  WARNING: no gene-level copy number dataset", flush=True)
+            copies = None
         surv = phenotype(ds["surv"], sids, {"t": ["OS.time"], "e": ["OS"]})
         clin = phenotype(ds["clin"], sids, {
             "stage": ["ajcc_pathologic_stage.diagnoses", "ajcc_pathologic_stage"],
@@ -174,6 +192,9 @@ def build(name: str, spec: dict) -> dict:
             for g in spec["genes"]:
                 v = num(expr[g][i])
                 values[g].append(round(v, 4) if v is not None else None)
+                if copies is not None:
+                    cv = cn.get(g, [None] * len(sids))[i]
+                    copies[g].append(int(round(cv)) if cv is not None else None)
     m = muts.merge(parts)
     if m:
         n = max(1, len(m["profiled"]))
@@ -184,6 +205,7 @@ def build(name: str, spec: dict) -> dict:
         "name": name, "projects": spec["projects"], "built": date.today().isoformat(),
         "source": "GDC harmonised data (STAR, GENCODE v36) via the UCSC Xena GDC hub",
         "units": "log2(TPM + 1)", "samples": samples, "genes": values,
+        **({"copies": copies, "copy_source": "GDC ASCAT3 gene-level copy number via the UCSC Xena GDC hub"} if copies else {}),
         **({"mutations": m, "mutation_source": "GDC open-access somatic mutations (WXS, masked) via the UCSC Xena GDC hub"} if m else {}),
     }
 

@@ -42,6 +42,8 @@ class Cohort:
     _genes: dict[str, np.ndarray] = field(default_factory=dict)
     reader: object | None = None   # pack reader for genes not in _genes
     mutations: dict | None = None  # somatic mutation calls (mutations.py), when the source has them
+    copies: dict | None = None     # bundled slice: gene -> copy number per sample (copynumber.py)
+    copy_reader: object | None = None  # pack: CopyReader
 
     def has(self, gene: str) -> bool:
         return gene in self._genes or (self.reader is not None and self.reader.has(gene))
@@ -67,6 +69,19 @@ class Cohort:
             raise CohortUnavailable("gene_not_in_cohort", gene=gene, cohort=self.name)
         return status(self.mutations, self.samples["id"].tolist(), gene)
 
+    def has_copies(self, gene: str) -> bool:
+        return (self.copies is not None and gene in self.copies) or (self.copy_reader is not None and self.copy_reader.has(gene))
+
+    def copy_number(self, gene: str) -> np.ndarray:
+        """Whole copies of the gene per sample (NaN: no call)."""
+        if self.copies is not None and gene in self.copies:
+            return np.array([np.nan if v is None else v for v in self.copies[gene]], dtype=float)
+        if self.copy_reader is not None and self.copy_reader.has(gene):
+            return self.copy_reader.values(gene, self.samples["id"].tolist())
+        if self.copies is None and self.copy_reader is None:
+            raise CohortUnavailable("no_copy_data", cohort=self.name)
+        raise CohortUnavailable("gene_not_in_cohort", gene=gene, cohort=self.name)
+
     def data_version(self) -> dict:
         return {"cohort": self.name, "projects": self.projects, "source": self.source, "units": self.units, "built": self.built}
 
@@ -80,7 +95,7 @@ def load_slice(name: str) -> Cohort:
         d = json.load(f)
     samples = pd.DataFrame(d["samples"])
     genes = {g: np.array([np.nan if v is None else v for v in vals], dtype=float) for g, vals in d["genes"].items()}
-    return Cohort(d["name"], d["projects"], samples, d["source"], d["units"], d["built"], genes, mutations=d.get("mutations"))
+    return Cohort(d["name"], d["projects"], samples, d["source"], d["units"], d["built"], genes, mutations=d.get("mutations"), copies=d.get("copies"))
 
 
 def slice_for(projects: list[str]) -> str | None:
@@ -96,12 +111,14 @@ def slice_for(projects: list[str]) -> str | None:
     return None
 
 
-def cohort_for(projects: list[str], genes: list[str], data_dir: str | Path, mutated: list[str] | None = None) -> Cohort:
-    """The best available cohort for these projects that has all `genes` (and mutation status for `mutated`)."""
+def cohort_for(projects: list[str], genes: list[str], data_dir: str | Path, mutated: list[str] | None = None,
+               copies: list[str] | None = None) -> Cohort:
+    """The best available cohort for these projects that has all `genes` (and mutation status for `mutated`,
+    copy number for `copies`)."""
     name = slice_for(projects)
     if name:
         c = load_slice(name)
-        if all(c.has(g) for g in genes) and all(c.has_mutation(g) for g in (mutated or [])):
+        if all(c.has(g) for g in genes) and all(c.has_mutation(g) for g in (mutated or [])) and all(c.has_copies(g) for g in (copies or [])):
             return c
     from app.cohorts.packs import open_packs
 

@@ -130,6 +130,36 @@ def build_pack(data_dir: Path, project: str, progress=None) -> None:
         _fetch(PROBEMAP, probemap)
     convert(raw["expr"], raw["survival"], raw["clinical"], probemap, d, project)
     fetch_mutations(d, project, progress)
+    fetch_copies(data_dir, d, project, progress)
+
+
+def fetch_copies(data_dir: Path, d: Path, project: str, progress=None) -> bool:
+    """Gene-level copy number for the pack (optional, like mutations). Safe to call again."""
+    from app.cohorts import copynumber
+
+    if (d / "cn.npy").exists():
+        return True
+    try:
+        raw = next((d / n.format(p=project) for n in copynumber.FILES if (d / n.format(p=project)).exists()), None)
+        if raw is None:
+            for n in copynumber.FILES:
+                try:
+                    _fetch(n.format(p=project), d / n.format(p=project), (lambda a, b: progress("copies", a, b)) if progress else None)
+                    raw = d / n.format(p=project)
+                    break
+                except httpx.HTTPStatusError:
+                    continue
+        if raw is None:
+            return False
+        probemap = data_dir / "cohorts" / PROBEMAP
+        if not probemap.exists():
+            _fetch(PROBEMAP, probemap)
+        pm = pd.read_csv(probemap, sep="\t")
+        copynumber.convert(raw, dict(zip(pm["id"].str.split(".").str[0], pm["gene"])), d)
+        raw.unlink(missing_ok=True)
+        return True
+    except Exception:  # noqa: BLE001 - copy number is an extra
+        return False
 
 
 def fetch_mutations(d: Path, project: str, progress=None) -> bool:
@@ -250,6 +280,12 @@ def open_packs(projects: list[str], data_dir: Path) -> Cohort:
     samples = pd.concat([pd.read_json(d / "samples.json", orient="records") for d in dirs], ignore_index=True)
     from app.cohorts import mutations
 
+    from app.cohorts.copynumber import CopyReader
+
     muts = mutations.merge([mutations.load(d / "mutations.json.gz") for d in dirs])
+    try:
+        cr = CopyReader(dirs)
+    except FileNotFoundError:
+        cr = None
     return Cohort("+".join(projects), projects, samples, "GDC harmonised data (STAR, GENCODE v36) via the UCSC Xena GDC hub",
-                  "log2(TPM + 1)", "downloaded", reader=PackReader(dirs), mutations=muts)
+                  "log2(TPM + 1)", "downloaded", reader=PackReader(dirs), mutations=muts, copy_reader=cr)

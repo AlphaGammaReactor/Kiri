@@ -75,6 +75,9 @@ jobs:
           print("mutations:", len(c.mutations["profiled"]), "sequenced;", {g: len(c.mutations["genes"].get(g, [])) for g in ("APC", "TP53", "KRAS")})
           m = survival.run(c, "TP53", cut="mutation")
           print("survival by TP53 mutation READ:", m.get("error") or (m["groups"]["high"]["n"], m["groups"]["low"]["n"], m["cox"]["hr"]))
+          assert c.copy_reader, "no copy number in the pack"
+          y = expression.by_copies(c, "MYC", "MYC")
+          print("MYC by MYC copies READ:", y.get("error") or ([(g["key"], g["n"]) for g in y["groups"]], y["dosage"]))
           x = expression.by_mutation(c, "EGFR", "KRAS")
           print("EGFR by KRAS mutation READ:", x.get("error") or [(g["key"], g["n"]) for g in x["groups"]])
           PY
