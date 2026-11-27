@@ -7,7 +7,7 @@ import type { ProjectSummary } from "../../lib/api";
 import { analyses, fmt, fmtP, type DEGene, type DEResult, type EnrichRow, type PathwayInfo, type PathwayLibrary } from "../../lib/analyses";
 import { Volcano } from "../../charts/Volcano";
 import type { FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, runKeys } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -122,8 +122,7 @@ export function DE({ p, figLang, onFigLang, say, onLater, onGuide, onGene }: {
       </Param>
       {compare === "group" && groups.length < 2 && <div className="excluded"><CircleAlert size={14} /><span>{t("de.noGroups")}</span></div>}
       <div className="run-row">
-        <button className="btn primary" onClick={run} disabled={a.phase.kind === "running" || !ok || (compare === "group" && groups.length < 2)}>{t("de.run")}</button>
-        <span className="kbd">{runKeys}</span>
+        <RunButton onClick={run} disabled={a.phase.kind === "running" || !ok || (compare === "group" && groups.length < 2)} label={t("de.run")} />
       </div>
     </>
   );
@@ -206,7 +205,7 @@ export function DE({ p, figLang, onFigLang, say, onLater, onGuide, onGene }: {
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.de")}`} title={title} badges={badges} params={paramsUi}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} cohorts={a} />;
 }
 
 function GeneTable({ title, rows, onGene, cls }: { title: string; rows: DEGene[]; onGene: (g: string) => void; cls: string }) {

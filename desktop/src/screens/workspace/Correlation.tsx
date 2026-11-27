@@ -7,7 +7,7 @@ import type { ProjectSummary } from "../../lib/api";
 import { fmt, fmtP, type CorrelationResult } from "../../lib/analyses";
 import { Scatter } from "../../charts/Scatter";
 import type { FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, runKeys } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -74,8 +74,7 @@ export function Correlation({ p, figLang, onFigLang, say, onLater, onGuide, init
       {!ok && g1.trim() && g2.trim() && <div className="excluded"><CircleAlert size={14} /><span>{t("corr.same")}</span></div>}
       {r && r.excluded > 0 && <div className="excluded"><CircleAlert size={14} /><span>{t("corr.excluded", { n: r.excluded })}</span></div>}
       <div className="run-row">
-        <button className="btn primary" onClick={run} disabled={a.phase.kind === "running" || !ok}>{t("corr.run")}</button>
-        <span className="kbd">{runKeys}</span>
+        <RunButton onClick={run} disabled={a.phase.kind === "running" || !ok} label={t("corr.run")} />
       </div>
     </>
   );
@@ -131,5 +130,5 @@ export function Correlation({ p, figLang, onFigLang, say, onLater, onGuide, init
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.correlation")}`} title={title} badges={badges} params={params}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} cohorts={a} />;
 }

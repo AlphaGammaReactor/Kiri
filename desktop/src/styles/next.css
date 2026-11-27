@@ -256,3 +256,28 @@
 .state .state-title .spin { margin-right: 6px; vertical-align: -3px; }
 .state.left .mascot { margin-bottom: 0; }
 :root[data-level="expert"] .mascot { display: none; }
+
+/* Settings search: matching groups stack in one column; the sidebar marks the groups with hits. */
+.set-groups { display: grid; gap: 16px; align-content: start; min-width: 0; height: 100%; overflow: auto; }
+.set-groups > .panel:only-child { min-height: 100%; }
+.split-nav .nav-item[data-hit]::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent-default); margin-left: auto; }
+
+/* Check in another cohort */
+.ws-other { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--color-accent-subtle); color: var(--color-accent-text); width: fit-content; }
+.other-list { display: grid; max-height: 300px; overflow: auto; border: 1px solid var(--color-border-default); border-radius: 10px; }
+.other-item { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: center; text-align: left; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--color-border-default); background: none; font: inherit; color: inherit; cursor: pointer; }
+.other-item:last-child { border-bottom: 0; }
+.other-item:hover:not(:disabled) { background: var(--color-bg-subtle, rgba(0,0,0,.03)); }
+.other-item[aria-selected="true"] { background: var(--color-accent-subtle); box-shadow: inset 3px 0 0 var(--color-accent-default); }
+.other-item:disabled { cursor: default; opacity: .7; }
+
+/* Buttons, app-wide: one line, never wrapped. Text-only labels end in "…" when there is no room, and
+   labels inside a span (.btn-label / .run-label) do the same next to icons or key hints. The whole name
+   shows on hover (shell/truncation.ts). A keyboard shortcut sits inside the button in small mono type. */
+.btn { white-space: nowrap; max-width: 100%; min-width: 0; overflow: hidden; }
+.btn:not(:has(> *)) { display: inline-block; line-height: 32px; text-overflow: ellipsis; text-align: center; }
+.btn.sm:not(:has(> *)) { line-height: 28px; }
+.btn .btn-label, .btn .run-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.btn > svg { flex: none; }
+.btn .btn-kbd { flex: none; font: 500 10.5px var(--font-mono); letter-spacing: .02em; padding: 1px 6px; border-radius: 4px; border: 0; background: color-mix(in srgb, currentColor 12%, transparent); color: inherit; opacity: .8; }
+.run-btn { flex: 1; justify-content: space-between; gap: 10px; }

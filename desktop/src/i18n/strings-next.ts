@@ -870,6 +870,17 @@ export const enNext = {
   "tut.own.6.b": "Your table now works in the same screens as TCGA data: groups, survival and correlation.",
   "mascot.hello": "Hi, I'm Kiri. I made this app so students can do real analyses for free. Pick a language and we'll start.",
   "mascot.allDone": "All six done. You know your way around Kiri now.",
+  "set.search.none": "No setting matches “{q}”. Try a shorter word, in English or Chinese.",
+  "other.tip": "Repeat this analysis, same gene and settings, in a different TCGA cohort",
+  "other.none": "Run the analysis first, then check it in another cohort.",
+  "other.body": "Kiri repeats this analysis with the same gene and settings in the cohort you pick. Your current result stays saved in the project, and you can come back to it.",
+  "other.search": "Search cancer types",
+  "other.run": "Check in {c}",
+  "other.here": "Showing now",
+  "other.home": "Project cohort",
+  "other.note": "A finding that holds in an independent cohort is more convincing. If it does not hold, that is worth a look rather than a failure: tumour types differ in biology and sample size. Data for a new cohort downloads once.",
+  "other.now": "Checking in {c}, outside this project's cohort.",
+  "other.back": "Back to {c}",
 } as const;
 
 export const zhNext: Record<keyof typeof enNext, string> = {
@@ -1741,4 +1752,15 @@ export const zhNext: Record<keyof typeof enNext, string> = {
   "tut.own.6.b": "你的表格现在可以在与 TCGA 数据相同的界面中使用：分组、生存和相关性。",
   "mascot.hello": "你好，我是 Kiri。我做这个软件，是为了让学生免费做真正的分析。选一种语言，我们就开始吧。",
   "mascot.allDone": "六项全部完成。你已经熟悉 Kiri 了。",
+  "set.search.none": "没有与“{q}”匹配的设置。试试更短的词，中英文均可。",
+  "other.tip": "用相同基因和设置，在另一个 TCGA 队列中重复此分析",
+  "other.none": "请先运行分析，再到另一队列中验证。",
+  "other.body": "Kiri 会用相同的基因和设置，在你选择的队列中重复此分析。当前结果仍保存在项目中，随时可以回来查看。",
+  "other.search": "搜索癌症类型",
+  "other.run": "在 {c} 中验证",
+  "other.here": "当前显示",
+  "other.home": "项目队列",
+  "other.note": "在独立队列中仍然成立的发现更有说服力。如果不成立，也值得细看，而不是失败：不同肿瘤的生物学特征和样本量都不同。新队列的数据只需下载一次。",
+  "other.now": "正在 {c} 中验证，不属于本项目的队列。",
+  "other.back": "回到 {c}",
 };

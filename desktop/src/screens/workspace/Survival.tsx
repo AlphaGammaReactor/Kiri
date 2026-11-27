@@ -6,7 +6,7 @@ import type { ProjectSummary } from "../../lib/api";
 import { fmt, fmtP, type SurvivalResult } from "../../lib/analyses";
 import { KM } from "../../charts/KM";
 import { figText, fillFig, type FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, runKeys } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -101,8 +101,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
         <div className="excluded"><CircleAlert size={14} /><span>{t("surv.excluded", { n: r.counts.no_survival + r.counts.no_expression })}</span></div>
       )}
       <div className="run-row">
-        <button className="btn primary" onClick={run} disabled={a.phase.kind === "running" || !gene.trim()}>{t("surv.run")}</button>
-        <span className="kbd">{runKeys}</span>
+        <RunButton onClick={run} disabled={a.phase.kind === "running" || !gene.trim()} label={t("surv.run")} />
       </div>
     </>
   );
@@ -157,7 +156,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.survival")}`} title={title} badges={badges} params={params}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} cohorts={a} />;
 }
 
 function medianText(m: number | null, t: ReturnType<typeof useT>["t"]) { return m == null ? t("surv.notReached") : t("surv.months", { m: fmt(m, 1) }); }

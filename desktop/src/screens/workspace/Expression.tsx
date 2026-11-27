@@ -7,7 +7,7 @@ import { fmt, fmtP, type ExpressionResult, type Group } from "../../lib/analyses
 import { BoxPoints } from "../../charts/BoxPoints";
 import { FIG } from "../../charts/figure";
 import { figText, fillFig, stars, type FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, runKeys } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -132,8 +132,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
       <label className="toggle-row"><span>{t("expr.points")}</span><span className="switch"><input type="checkbox" checked={points} onChange={(e) => setPoints(e.target.checked)} /><span /></span></label>
       {r && r.excluded > 0 && <div className="excluded"><CircleAlert size={14} /><span>{t(r.kind === "expression_stage" ? "expr.excludedStage" : "expr.excluded", { n: r.excluded })}</span></div>}
       <div className="run-row">
-        <button className="btn primary" onClick={run} disabled={a.phase.kind === "running" || !gene.trim()}>{t("expr.run")}</button>
-        <span className="kbd">{runKeys}</span>
+        <RunButton onClick={run} disabled={a.phase.kind === "running" || !gene.trim()} label={t("expr.run")} />
       </div>
     </>
   );
@@ -198,7 +197,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.expression")}`} title={title} badges={badges} params={params}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} cohorts={a} />;
 }
 
 export function plainExpression(r: ExpressionResult, t: ReturnType<typeof useT>["t"]) {

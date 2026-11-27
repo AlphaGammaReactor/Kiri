@@ -8,6 +8,7 @@ stored in the .kiri file, so reopening the project shows the same numbers.
 from __future__ import annotations
 
 import json
+import re
 import threading
 import uuid
 from pathlib import Path
@@ -66,6 +67,8 @@ class RunBody(BaseModel):
     control: Optional[str] = None
     log: bool = False
     title: str = Field("", max_length=120)
+    # "Check in another cohort": run in these TCGA projects instead of the project's own cohort.
+    projects: Optional[list[str]] = Field(None, max_length=3)
 
 
 def _row(r) -> dict:
@@ -79,14 +82,23 @@ def pathway_libraries():
     return pathways.info()
 
 
+def _other(projects: Optional[list[str]]) -> Optional[list[str]]:
+    """Another cohort the person asked for: TCGA projects only, as a list without repeats."""
+    if not projects:
+        return None
+    out = list(dict.fromkeys(p for p in projects if re.fullmatch(r"TCGA-[A-Z]{2,5}", p)))
+    return out or None
+
+
 @router.get("/cohort")
-def cohort_status():
-    """What data the open project can use right now."""
+def cohort_status(projects: Optional[str] = None):
+    """What data the open project can use right now (or, with ?projects=, another cohort)."""
     try:
         op = ws().require()
     except KiriFileError as e:
         return JSONResponse(status_code=409, content={"error": e.code})
-    own = own_dataset_of(op.project())
+    other = _other(projects.split(",") if projects else None)
+    own = None if other else own_dataset_of(op.project())
     if own:
         try:
             c = own_cohort(op, own)
@@ -95,7 +107,7 @@ def cohort_status():
                     "groups": sorted({g for g in c.samples["group"] if g}), "units": c.units}}
         except KeyError:
             pass
-    projects = _projects(op.project())
+    projects = other or _projects(op.project())
     sl = slice_for(projects) if projects else None
     return {
         "projects": projects,
@@ -254,8 +266,11 @@ def run(body: RunBody):
             return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
         params = {"kind": "across", "gene": gene, "normal": body.normal, "projects": result["data_version"]["projects"]}
         return _store(op, body, params, result, result["data_version"])
-    own = own_dataset_of(op.project())
-    projects = [own] if own else _projects(op.project())
+    other = _other(body.projects)
+    if body.projects and not other and not all(p.startswith("own:") for p in body.projects):
+        return JSONResponse(status_code=400, content={"error": "unknown_project"})
+    own = None if other else own_dataset_of(op.project())
+    projects = other or ([own] if own else _projects(op.project()))
     if not projects:
         return JSONResponse(status_code=400, content={"error": "no_cohort"})
     try:
@@ -307,7 +322,7 @@ def run(body: RunBody):
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
 
-    exclude = {"replace", "check_only", "normal", "mode", "text", "ref", "control", "log", "title"} | (set() if body.kind == "de" else {"compare", "group_a", "group_b", "lfc", "q", "library"})
+    exclude = {"replace", "check_only", "projects", "normal", "mode", "text", "ref", "control", "log", "title"} | (set() if body.kind == "de" else {"compare", "group_a", "group_b", "lfc", "q", "library"})
     params = body.model_dump(exclude=exclude) | {"gene": gene, "projects": projects}
     if body.kind == "correlation":
         params["gene2"] = gene2

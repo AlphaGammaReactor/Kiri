@@ -11,9 +11,15 @@ import { progress } from "../../lib/progress";
 import { FigureViewer } from "../../charts/FigureViewer";
 import { Mascot } from "../../shell/Mascot";
 import { addToBoard } from "../../charts/board";
+import { Dialog } from "../../shell/Dialog";
+import { api, type Cancer } from "../../lib/api";
+import { cohortLabel } from "./useAnalysis";
+
+/** What a workspace hands the frame so "Check in another cohort" can run the same analysis elsewhere. */
+export type CohortSwitch = { other: string[] | null; home: string[]; checkIn: (ps: string[] | null) => void };
 
 export const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
-export const runKeys = isMac ? "⌘ Enter" : "Ctrl Enter";
+export const runKeys = isMac ? "⌘ ↩" : "Ctrl Enter";
 
 export function useRunShortcut(run: () => void, enabled: boolean) {
   useEffect(() => {
@@ -23,12 +29,13 @@ export function useRunShortcut(run: () => void, enabled: boolean) {
   }, [run, enabled]);
 }
 
-export function Frame({ crumb, title, badges, params, figure, side, onLater, analysis, say }: {
+export function Frame({ crumb, title, badges, params, figure, side, onLater, analysis, say, cohorts }: {
   crumb: string; title: string; badges: ReactNode; params: ReactNode; figure: ReactNode; side: ReactNode; onLater: () => void;
-  analysis?: Analysis | null; say?: (s: string) => void;
+  analysis?: Analysis | null; say?: (s: string) => void; cohorts?: CohortSwitch | null;
 }) {
   const { t } = useT();
   const [repro, setRepro] = useState(false);
+  const [pick, setPick] = useState(false);
   const usable = !!analysis && !(analysis.result as { error?: string }).error;
   return (
     <div className="ws">
@@ -37,10 +44,15 @@ export function Frame({ crumb, title, badges, params, figure, side, onLater, ana
           <div className="crumb mono">{crumb}</div>
           <h1 className="page ws-title">{title}</h1>
           <div className="ws-badges">{badges}</div>
+          {cohorts?.other && <div className="ws-other small">
+            <span>{t("other.now", { c: cohortLabel(cohorts.other) })}</span>
+            <button className="link small" onClick={() => cohorts.checkIn(null)}>{t("other.back", { c: cohortLabel(cohorts.home) })}</button>
+          </div>}
         </div>
         <div className="ws-actions">
           <button className="btn ghost" onClick={() => (usable ? setRepro(true) : say?.(t("repro.none")))} title={t("repro.tip")}>{t("ws.reproduce")}</button>
-          <button className="btn" onClick={onLater} title={t("common.notYet")}>{t("ws.checkOther")}</button>
+          {cohorts ? <button className="btn" data-tour="other" onClick={() => (usable ? setPick(true) : say?.(t("other.none")))} title={t("other.tip")}>{t("ws.checkOther")}</button>
+            : cohorts === undefined && <button className="btn" onClick={onLater} title={t("common.notYet")}>{t("ws.checkOther")}</button>}
         </div>
       </div>
       <div className="ws-grid">
@@ -49,7 +61,47 @@ export function Frame({ crumb, title, badges, params, figure, side, onLater, ana
         <aside className="ws-side">{side}</aside>
       </div>
       {repro && analysis && <ReproduceDialog a={analysis} fileName={title} onClose={() => setRepro(false)} say={say ?? (() => {})} />}
+      {pick && cohorts && analysis && <OtherCohortDialog current={analysis.params.projects ?? []} home={cohorts.home}
+        onPick={(ps) => { setPick(false); cohorts.checkIn(ps); }} onClose={() => setPick(false)} />}
     </div>
+  );
+}
+
+/** Pick another TCGA cohort to repeat the analysis in, with the same gene and settings. */
+function OtherCohortDialog({ current, home, onPick, onClose }: { current: string[]; home: string[]; onPick: (ps: string[] | null) => void; onClose: () => void }) {
+  const { t, lang } = useT();
+  const [list, setList] = useState<Cancer[] | null>(null);
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState<string | null>(null);
+  useEffect(() => { api.cancers().then(setList).catch(() => setList([])); }, []);
+  const name = (c: Cancer) => (lang === "en" ? c.en : lang === "zh" ? c.zh : `${c.zh} · ${c.en}`);
+  const ql = q.trim().toLowerCase();
+  const shown = (list ?? []).filter((c) => !ql || `${c.code} ${c.project} ${c.en} ${c.zh}`.toLowerCase().includes(ql));
+  const isHome = (p: string) => home.length === 1 && home[0] === p;
+  const backHome = current.join() !== home.join() && home.length > 0;
+  return (
+    <Dialog title={t("ws.checkOther")} onClose={onClose} width={560}
+      footer={<>
+        {backHome && <button className="btn ghost" onClick={() => onPick(null)}>{t("other.back", { c: cohortLabel(home) })}</button>}
+        <span style={{ flex: 1 }} />
+        <button className="btn ghost" onClick={onClose}>{t("file.cancel")}</button>
+        <button className="btn primary" disabled={!sel} onClick={() => sel && onPick([sel])}>{t("other.run", { c: sel ?? "…" })}</button>
+      </>}>
+      <p className="small" style={{ marginTop: 0 }}>{t("other.body")}</p>
+      <label className="input" style={{ margin: "10px 0" }}><input autoFocus placeholder={t("other.search")} value={q} onChange={(e) => setQ(e.target.value)} /></label>
+      <div className="other-list" role="listbox" aria-label={t("ws.checkOther")}>
+        {list === null && <p className="muted small">…</p>}
+        {shown.map((c) => {
+          const here = current.length === 1 && current[0] === c.project;
+          return <button key={c.project} role="option" aria-selected={sel === c.project} disabled={here} className="other-item"
+            onClick={() => setSel(c.project)} onDoubleClick={() => !here && onPick([c.project])}>
+            <span className="mono">{c.code}</span><span>{name(c)}</span>
+            {here ? <span className="badge sm">{t("other.here")}</span> : isHome(c.project) ? <span className="badge sm">{t("other.home")}</span> : null}
+          </button>;
+        })}
+      </div>
+      <p className="help">{t("other.note")}</p>
+    </Dialog>
   );
 }
 
@@ -306,4 +358,14 @@ export function DownloadState({ project, state, onDownload }: { project: string;
 export function OutOfDate({ onRun }: { onRun: () => void }) {
   const { t } = useT();
   return <div className="stale"><TriangleAlert size={15} /><span>{t("ws.stale")}</span><button className="btn sm" onClick={onRun}>{t("ws.runAgain")}</button></div>;
+}
+
+/** The run button: one line, full width, with its shortcut inside. A long name is cut with "…" and shown whole on hover. */
+export function RunButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button className="btn primary run-btn" onClick={onClick} disabled={disabled} title={`${label} (${runKeys})`} aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}>
+      <span className="run-label">{label}</span>
+      <kbd className="btn-kbd">{runKeys}</kbd>
+    </button>
+  );
 }

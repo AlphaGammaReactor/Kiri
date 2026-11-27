@@ -6,7 +6,7 @@ import type { ProjectSummary } from "../../lib/api";
 import { fmt, fmtP, type AcrossResult } from "../../lib/analyses";
 import { Across as AcrossChart } from "../../charts/Across";
 import type { FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, OutOfDate, useRunShortcut, runKeys } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -79,8 +79,7 @@ export function Across({ p, figLang, onFigLang, say, onLater, onGuide, onMode, i
       </Param>
       <p className="help">{t("acr.source.help")}</p>
       <div className="run-row">
-        <button className="btn primary" onClick={run} disabled={a.phase.kind === "running" || !gene.trim()}>{t("acr.run")}</button>
-        <span className="kbd">{runKeys}</span>
+        <RunButton onClick={run} disabled={a.phase.kind === "running" || !gene.trim()} label={t("acr.run")} />
       </div>
     </>
   );
@@ -134,5 +133,5 @@ export function Across({ p, figLang, onFigLang, say, onLater, onGuide, onMode, i
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.expression")}`} title={title} badges={badges} params={params}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} cohorts={null} />;
 }

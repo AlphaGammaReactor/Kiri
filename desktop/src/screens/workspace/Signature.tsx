@@ -11,7 +11,7 @@ import { BoxPoints } from "../../charts/BoxPoints";
 import { Heatmap, KM4, GseaCurve, Forest, type Surv4, type GseaCurveT } from "../../charts/SigCharts";
 import { FIG } from "../../charts/figure";
 import type { FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, runKeys } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -132,8 +132,7 @@ export function Signature({ p, figLang, onFigLang, say, onLater, onGuide }: {
       </Param>
       {r && r.missing.length > 0 && <div className="excluded"><CircleAlert size={14} /><span>{t("sig.missingNote", { g: r.missing.join(", ") })}</span></div>}
       <div className="run-row">
-        <button className="btn primary" onClick={run} disabled={a.phase.kind === "running" || !ok}>{t("sig.run")}</button>
-        <span className="kbd">{runKeys}</span>
+        <RunButton onClick={run} disabled={a.phase.kind === "running" || !ok} label={t("sig.run")} />
       </div>
     </>
   );
@@ -258,7 +257,7 @@ export function Signature({ p, figLang, onFigLang, say, onLater, onGuide }: {
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.signature")}`} title={title} badges={badges} params={params}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} cohorts={a} />;
 }
 
 // Figure text in the other language (the figure language can differ from the interface language).

@@ -8,7 +8,7 @@ import { fmt, fmtP, type InteractionsResult, type Partner } from "../../lib/anal
 import { Network } from "../../charts/Network";
 import { ProteinMap } from "../../charts/ProteinMap";
 import type { FigLang } from "../../charts/figStrings";
-import { Frame, Param, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, OutOfDate, useRunShortcut, runKeys } from "./Frame";
+import { Frame, Param, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -99,8 +99,7 @@ export function Interactions({ p, figLang, onFigLang, say, onLater, onGuide, onC
       </Param>
       <p className="help">{t("int.source.help")}</p>
       <div className="run-row">
-        <button className="btn primary" onClick={run} disabled={a.phase.kind === "running" || !gene.trim()}>{t("int.run")}</button>
-        <span className="kbd">{runKeys}</span>
+        <RunButton onClick={run} disabled={a.phase.kind === "running" || !gene.trim()} label={t("int.run")} />
       </div>
     </>
   );
@@ -177,5 +176,5 @@ export function Interactions({ p, figLang, onFigLang, say, onLater, onGuide, onC
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.interactions")}`} title={title} badges={badges} params={params}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} cohorts={a} />;
 }

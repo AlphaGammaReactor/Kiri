@@ -7,7 +7,7 @@ import { fmt, fmtP, type ImmuneResult } from "../../lib/analyses";
 import { Immune as ImmuneChart } from "../../charts/Immune";
 import { Scatter } from "../../charts/Scatter";
 import type { FigLang } from "../../charts/figStrings";
-import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, runKeys } from "./Frame";
+import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, LoadingState, ErrorState, DownloadState, OutOfDate, useRunShortcut, RunButton } from "./Frame";
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
@@ -94,8 +94,7 @@ export function Immune({ p, figLang, onFigLang, say, onLater, onGuide, initialGe
       )}
       <p className="help">{t("imm.source.help")}</p>
       <div className="run-row">
-        <button className="btn primary" onClick={run} disabled={a.phase.kind === "running" || !gene.trim()}>{t("imm.run")}</button>
-        <span className="kbd">{runKeys}</span>
+        <RunButton onClick={run} disabled={a.phase.kind === "running" || !gene.trim()} label={t("imm.run")} />
       </div>
     </>
   );
@@ -164,5 +163,5 @@ export function Immune({ p, figLang, onFigLang, say, onLater, onGuide, initialGe
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.immune")}`} title={title} badges={badges} params={params}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} cohorts={a} />;
 }

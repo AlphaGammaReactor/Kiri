@@ -18,20 +18,30 @@ export function useAnalysis(kinds: Kind[]) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [cohort, setCohort] = useState<CohortStatus | null>(null);
   const poll = useRef<number>(0);
+  // "Check in another cohort": TCGA projects that replace the project's own cohort until the person goes back.
+  const [other, setOther] = useState<string[] | null>(null);
+  const otherRef = useRef<string[] | null>(null);
+  const home = useRef<string[]>([]);
 
   // Remember the imported table's name so badges and pickers show it rather than its id.
   const keep = useCallback((c: CohortStatus) => { if (c.own) ownNames.set(c.own.id, c.own.name); setCohort(c); }, []);
-  const refreshCohort = useCallback(() => analyses.cohort().then(keep).catch(() => {}), [keep]);
+  const refreshCohort = useCallback(() => analyses.cohort(otherRef.current).then(keep).catch(() => {}), [keep]);
+  const useOther = (ps: string[] | null) => { otherRef.current = ps; setOther(ps); };
 
   useEffect(() => {
     let stop = false;
     (async () => {
-      refreshCohort();
       try {
+        const c0 = await analyses.cohort();
+        home.current = c0.projects;
         const list = await analyses.list();
         const last = list.find((a) => kinds.includes(a.kind));
+        // The newest result was checked in another cohort: stay there.
+        const ps = last?.params.projects ?? [];
+        if (!stop && ps.length && ps[0].startsWith("TCGA-") && ps.join() !== c0.projects.join()) useOther(ps);
+        if (!stop) await refreshCohort();
         if (last && !stop) setCurrent(await analyses.get(last.id));
-      } catch { /* no project */ }
+      } catch { refreshCohort(); /* no project */ }
       if (!stop) setLoaded(true);
     })();
     return () => { stop = true; clearInterval(poll.current); };
@@ -45,8 +55,9 @@ export function useAnalysis(kinds: Kind[]) {
     try {
       const sameGene = current && current.params.gene === p.gene.trim().toUpperCase() && current.kind === p.kind
         && (current.params.gene2 ?? "") === (p.gene2 ?? "").trim().toUpperCase()
-        && (current.params.title ?? "") === (p.title ?? "");
-      const a = await analyses.run({ ...p, replace: sameGene ? current!.id : undefined });
+        && (current.params.title ?? "") === (p.title ?? "")
+        && (current.params.projects ?? []).join() === (otherRef.current ?? home.current).join();
+      const a = await analyses.run({ ...p, projects: otherRef.current ?? undefined, replace: sameGene ? current!.id : undefined });
       // Keep the progress view on screen long enough to read.
       const wait = 700 - (Date.now() - started);
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
@@ -68,7 +79,7 @@ export function useAnalysis(kinds: Kind[]) {
     for (const p of projects) await analyses.download(p).catch(() => {});
     clearInterval(poll.current);
     poll.current = window.setInterval(async () => {
-      const c = await analyses.cohort().catch(() => null);
+      const c = await analyses.cohort(otherRef.current).catch(() => null);
       if (!c) return;
       keep(c);
       const states = projects.map((p) => c.packs[p]);
@@ -77,7 +88,28 @@ export function useAnalysis(kinds: Kind[]) {
     }, 1000);
   }, []);
 
-  return { current, loaded, phase, setPhase, cohort, run, download, refreshCohort };
+  /** Show the same analysis in other projects (null: back to the project's own cohort). An earlier
+   *  result there with the same settings is reopened rather than run again. */
+  const basis = useRef<Analysis | null>(null);
+  const checkIn = useCallback(async (ps: string[] | null) => {
+    const cur = current ?? basis.current;
+    if (!cur) return;
+    basis.current = cur;
+    // Never leave the old cohort's numbers on screen under the new cohort's name.
+    setCurrent(null);
+    useOther(ps && ps.join() !== home.current.join() ? ps : null);
+    refreshCohort();
+    const target = (otherRef.current ?? home.current).join();
+    const same = (x: Omit<Analysis, "result">) => x.kind === cur.kind && x.params.gene === cur.params.gene
+      && (x.params.gene2 ?? "") === (cur.params.gene2 ?? "") && (x.params.set_id ?? "") === (cur.params.set_id ?? "")
+      && (x.params.projects ?? []).join() === target;
+    const earlier = (await analyses.list().catch(() => [])).find(same);
+    if (earlier) { setPhase({ kind: "idle" }); setCurrent(await analyses.get(earlier.id)); return; }
+    const { projects: _p, ...params } = cur.params; // eslint-disable-line @typescript-eslint/no-unused-vars
+    await run({ ...params, kind: cur.kind, replace: undefined });
+  }, [current, refreshCohort, run]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { current, loaded, phase, setPhase, cohort, run, download, refreshCohort, other, home: home.current, checkIn };
 }
 
 /** A short label for the cohort: "TCGA-COAD + READ". */

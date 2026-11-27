@@ -70,7 +70,7 @@ export function Notebook({ p, say, onOpenAnalysis }: { p: ProjectSummary; say: (
           <div className="sub" style={{ marginTop: 0 }}>{t("nb.sub")}</div>
         </div>
         <div className="ws-actions">
-          <button className="btn ghost" onClick={() => setQuick(true)} disabled={p.read_only}>{t("nb.quick")} <span className="mono small">{isMac ? "⌘⇧N" : "Ctrl Shift N"}</span></button>
+          <button className="btn ghost" onClick={() => setQuick(true)} disabled={p.read_only}><span className="btn-label">{t("nb.quick")}</span><kbd className="btn-kbd">{isMac ? "⌘ ⇧ N" : "Ctrl Shift N"}</kbd></button>
           <button className="btn primary" onClick={() => setExporting(true)} disabled={!all.length}>{t("nb.export")}</button>
         </div>
       </div>
@@ -174,7 +174,7 @@ function QuickNote({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
   const [text, setText] = useState("");
   const save = async () => { if (!text.trim()) return; await analyses.note("text", { text: text.trim() }).catch(() => {}); onSaved(); };
   return (
-    <Dialog title={t("nb.quick")} onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>{t("file.cancel")}</button><button className="btn primary" onClick={save} disabled={!text.trim()}>{t("file.save")}</button></>}>
+    <Dialog title={t("nb.quick")} onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>{t("file.cancel")}</button><button className="btn primary" onClick={save} disabled={!text.trim()}><span className="btn-label">{t("file.save")}</span><kbd className="btn-kbd">{isMac ? "⌘ ↩" : "Ctrl Enter"}</kbd></button></>}>
       <textarea className="text area" autoFocus rows={5} value={text} onChange={(e) => setText(e.target.value)} placeholder={t("nb.quick.placeholder")}
         onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save(); }} />
       <p className="help">{t("nb.quick.help")}</p>
