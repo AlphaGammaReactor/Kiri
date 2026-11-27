@@ -73,6 +73,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
     else if (a === "correlation") setScreen("correlation");
     else if (a === "de") setScreen("de");
     else if (a === "across") { setExpGene(g); setScreen("across"); }
+    else if (a === "immune") setScreen("immune");
     else openGene("expression", g, a === "expression_stage" ? "stage" : "tn");
   };
   // Getting-started checklist: remember each first step in the settings file.
@@ -252,7 +253,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
           {screen === "across" && proj.project && <Across key={`a-${proj.project.path}`} initialGene={expGene} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "across")}
             onMode={(m, g) => { setExpGene(g); setExpMode(m); setScreen("expression"); }} />}
           {screen === "de" && proj.project && <DE key={`de-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "pathways")} onGene={(g) => { setExpGene(g); setScreen("expression"); }} />}
-          {screen === "immune" && proj.project && <Immune key={`i-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "correlation")} />}
+          {screen === "immune" && proj.project && <Immune key={`i-${proj.project.path}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "immune")} />}
           {screen === "notebook" && proj.project && <Notebook key={`n-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onOpenAnalysis={(k, g) => { if (k === "survival") setSurvGene(g ?? ""); setScreen(k === "survival" ? "survival" : k === "correlation" ? "correlation" : k === "de" ? "de" : k === "across" ? "across" : k === "immune" ? "immune" : "expression"); }} />}
           {screen === "data" && proj.project && <Data key={`d-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onImport={() => setScreen("import")} />}
           {screen === "import" && proj.project && <Import key={`i-${proj.project.path}`} p={proj.project} say={say} onCancel={() => setScreen("data")}

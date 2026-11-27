@@ -4,9 +4,9 @@
 export type Pair = [string, string];
 export type Alt = { figure: Pair; verdict: "ok" | "avoid"; why: Pair };
 export type Recipe = {
-  id: "tn" | "stage" | "survival" | "correlation" | "across" | "pathways" | "bench";
+  id: "tn" | "stage" | "survival" | "correlation" | "across" | "immune" | "pathways" | "bench";
   question: Pair; figure: Pair; test: Pair; why: Pair; read: Pair; caution: Pair; alts: Alt[];
-  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | "across" | null;
+  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | "across" | "immune" | null;
   keywords: RegExp;
 };
 
@@ -91,6 +91,18 @@ export const RECIPES: Recipe[] = [
     caution: ["Several TCGA cancers have fewer than 10 normal samples. GTEx normals help; Kiri uses the Toil recompute so TCGA and GTEx share one pipeline, but GTEx donors are healthy, post-mortem and different people.", "部分 TCGA 癌种的正常样本不足 10 个。GTEx 正常样本有帮助；Kiri 使用 Toil 重新计算的数据，使 TCGA 与 GTEx 采用同一流程，但 GTEx 供体是健康的已故者，且是不同的人。"],
     alts: [{ figure: ["One bar per cancer", "每个癌种一根柱子"], verdict: "avoid", why: ["Loses the spread and the normal comparison.", "丢失了分布和正常组织对照。"] }],
     keywords: /across|pan-?cancer|cancers|many cancer|cancer types|泛癌|不同癌|多个癌|癌种之间/i,
+  },
+  {
+    id: "immune", action: "immune",
+    question: ["Which immune cells go with my gene in tumours?", "哪些免疫细胞与肿瘤中我的基因相关？"],
+    figure: ["One row per immune cell type: correlation with 95% CI, and the same after removing overall immune content", "每种免疫细胞一行：相关系数及 95% CI，以及去除总体免疫含量后的相关"],
+    test: ["Spearman correlation with marker-gene scores (Danaher et al. 2017), Benjamini–Hochberg across cell types; partial correlation on PTPRC", "与标志基因评分（Danaher 等 2017）的 Spearman 相关，按细胞类型做 Benjamini–Hochberg 校正；以 PTPRC 做偏相关"],
+    why: ["Marker scores are simple and transparent, and every cell type sits on the same scale, so you can compare them in one figure. The adjusted value tells apart a specific cell type from tumours that are simply more inflamed.",
+      "标志评分简单透明，各细胞类型在同一尺度上，可放在一张图中比较。校正后的数值能区分特定细胞类型与只是炎症更重的肿瘤。"],
+    read: ["Look for cell types whose dot is coloured and whose open diamond stays on the same side of zero.", "找圆点着色、且空心菱形仍在零同一侧的细胞类型。"],
+    caution: ["Scores are relative amounts between tumours, not cell counts, and bulk RNA cannot say which cells make your gene. Confirm with single-cell data or staining.", "评分是肿瘤之间的相对多少，并非细胞计数；组织 RNA 也无法说明基因由哪种细胞表达。请用单细胞数据或染色验证。"],
+    alts: [{ figure: ["Stacked bars of cell fractions per patient", "每位患者的细胞比例堆叠柱图"], verdict: "avoid", why: ["Needs a deconvolution method and reference with its own licence and assumptions, and the bars hide the link to your gene.", "需要带有自身许可和假设的反卷积方法与参考矩阵，且柱图看不出与基因的关系。"] }],
+    keywords: /immun|t ?cell|macrophage|infiltrat|lymphocyte|nk cell|免疫|浸润|巨噬|淋巴细胞|T 细胞/i,
   },
   {
     id: "pathways", action: "de",

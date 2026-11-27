@@ -27,10 +27,10 @@ export const Immune = forwardRef<SVGSVGElement, { rows: ImmuneRow[]; labels: Imm
           <text x={sx(v)} y={T + rows.length * ROW + 15} fontSize={10.5} textAnchor="middle" fill={FIG.muted} fontFamily={FIG.mono}>{v}</text>
         </g>
       ))}
-      <circle cx={L + 5} cy={14} r={4} fill={FIG.ink} />
-      <text x={L + 14} y={18} fontSize={10.5} fill={FIG.ink}>{labels.raw}</text>
-      <path d={`M ${L + 150} 9 l 5 5 l -5 5 l -5 -5 z`} fill="#ffffff" stroke={FIG.ink} strokeWidth={1.2} />
-      <text x={L + 160} y={18} fontSize={10.5} fill={FIG.ink}>{labels.adj}</text>
+      <circle cx={14} cy={14} r={4} fill={FIG.ink} />
+      <text x={23} y={18} fontSize={10.5} fill={FIG.ink}>{labels.raw}</text>
+      <path d={`M 124 9 l 5 5 l -5 5 l -5 -5 z`} fill="#ffffff" stroke={FIG.ink} strokeWidth={1.2} />
+      <text x={134} y={18} fontSize={10.5} fill={FIG.ink}>{labels.adj}</text>
       <text x={W - 6} y={18} fontSize={10} textAnchor="end" fill={FIG.muted} fontFamily={FIG.mono}>{labels.stat}</text>
       {rows.map((r, i) => {
         const y = T + i * ROW, cy = y + ROW / 2;
