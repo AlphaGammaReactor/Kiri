@@ -170,6 +170,11 @@ def gene_check(q: str):
     return genes.check(q)
 
 
+@router.get("/genes/search")
+def gene_search(q: str, limit: int = 8):
+    return {"items": genes.search(q, max(1, min(limit, 20)))}
+
+
 @router.get("/cancers")
 def cancer_types():
     return {"items": cancers.all_types()}

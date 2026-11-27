@@ -3,6 +3,9 @@ export function svgText(svg: SVGSVGElement): string {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   clone.querySelectorAll("[data-screen-only]").forEach((n) => n.remove());
+  // The on-screen zoom sets a CSS size; files keep the figure's own width and height.
+  clone.style.removeProperty("width");
+  clone.style.removeProperty("height");
   return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clone)}`;
 }
 
