@@ -10,7 +10,7 @@ import { Frame, Param, Select, FigureCard, SideTabs, Method, EmptyState, Loading
 import { useAnalysis, cohortLabel } from "./useAnalysis";
 import { errorText } from "./errors";
 
-type Cut = "median" | "quartile" | "optimal";
+type Cut = "median" | "quartile" | "optimal" | "mutation";
 type Endpoint = "OS" | "PFI" | "DSS";
 /** Endpoint words for sentences: {ep} inside a sentence, {Ep} at its start, {abbr} for short labels. */
 export const epVars = (t: ReturnType<typeof useT>["t"], e?: string) => {
@@ -61,7 +61,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
   const pShown = r ? (r.cut === "optimal" ? r.p_report : r.logrank.p) : null;
   const cutText = (c: Cut) => t(`surv.cut.${c}` as const);
 
-  const title = t("surv.title", { g: r?.gene ?? (gene.trim().toUpperCase() || "…"), ...epVars(t, r?.endpoint ?? ep) });
+  const title = t((r?.cut ?? cut) === "mutation" ? "surv.titleMut" : "surv.title", { g: r?.gene ?? (gene.trim().toUpperCase() || "…"), ...epVars(t, r?.endpoint ?? ep) });
   const badges = (
     <>
       <span className="badge ok">● {cohortLabel(projects)} · {own ? t("ws.ownSource") : "GDC"}</span>
@@ -97,6 +97,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
       <Param label={t("surv.split")} help={t("surv.split.help")} recommended={cut === "median"}>
         <Select<Cut> value={cut} onChange={setCut} options={[
           { value: "median", label: t("surv.cut.median") }, { value: "quartile", label: t("surv.cut.quartile") }, { value: "optimal", label: t("surv.cut.optimal") },
+          { value: "mutation", label: t("surv.cut.mutation"), disabled: !!own },
         ]} />
         <p className="help">{t(`surv.cut.${cut}.help` as const)}</p>
       </Param>
@@ -132,11 +133,11 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
     <>
       {stale && <OutOfDate onRun={run} />}
       <FigureCard svgRef={svgRef} fileName={title} chartName={t("surv.chart")} why={t("surv.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only} analysis={a.current}
-        caption={t("surv.caption", { c: cohortLabel(r.data_version.projects), cut: cutText(r.cut).toLowerCase(), g: r.gene, ...epVars(t, r.endpoint) })}
+        caption={t(r.cut === "mutation" ? "surv.captionMut" : "surv.caption", { c: cohortLabel(r.data_version.projects), cut: cutText(r.cut).toLowerCase(), g: r.gene, ...epVars(t, r.endpoint) })}
         notebookBody={() => ({ analysis_id: a.current?.id, kind: "survival", gene: r.gene, title: `${t("surv.chart")} · ${title}`, summary: cox ? plainSurvival(r, cox, pShown, n, t) : "", checks: r.checks, meta: `${r.data_version.source} · ${r.data_version.built}` })}>
         <KM ref={svgRef} r={r} labels={{
-          yTitle: probTitle(F, r.endpoint), xTitle: F.months, atRisk: F.atRisk, highShort: F.highShort, lowShort: F.lowShort,
-          high: `${r.gene} ${F.high} (n = ${r.groups.high.n})`, low: `${r.gene} ${F.low} (n = ${r.groups.low.n})`,
+          yTitle: probTitle(F, r.endpoint), xTitle: F.months, atRisk: F.atRisk, highShort: r.cut === "mutation" ? F.mutShort : F.highShort, lowShort: r.cut === "mutation" ? F.wtShort : F.lowShort,
+          high: `${r.gene} ${r.cut === "mutation" ? F.mutated : F.high} (n = ${r.groups.high.n})`, low: `${r.gene} ${r.cut === "mutation" ? F.notMutated : F.low} (n = ${r.groups.low.n})`,
           stat: fillFig(r.cut === "optimal" ? F.hrLineAdj : r.cox_adjusted ? F.aHR : F.hrLine, { hr: fmt(cox!.hr), lo: fmt(cox!.lo), hi: fmt(cox!.hi), p: fmtP(pShown) }),
         }} />
       </FigureCard>
@@ -149,7 +150,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
         <div className="tile"><span className="eyebrow">{r.cox_adjusted ? t("surv.hrAdj") : t("surv.hr")}</span><b>{fmt(cox.hr)}</b><span className="mono small">95% CI {fmt(cox.lo)}–{fmt(cox.hi)}</span></div>
         <div className="tile"><span className="eyebrow">{r.cut === "optimal" ? t("surv.pAdj") : t("surv.logrankP")}</span><b>{fmtP(pShown)}</b><span className="mono small">χ² = {fmt(r.logrank.statistic)}, df 1</span></div>
       </div>
-      <p className="mono small median-line">{t("surv.medianOS", { h: medianText(r.groups.high.median, t), l: medianText(r.groups.low.median, t), ...epVars(t, r.endpoint) })}</p>
+      <p className="mono small median-line">{t(r.cut === "mutation" ? "surv.medianMut" : "surv.medianOS", { h: medianText(r.groups.high.median, t), l: medianText(r.groups.low.median, t), ...epVars(t, r.endpoint) })}</p>
       <div className="side-card shows">
         <span className="eyebrow">{t("ws.whatShows")}</span><span className="small muted">{t("ws.fromNumbers")}</span>
         <p className="plain">{plainSurvival(r, cox, pShown, n, t)}</p>
@@ -174,6 +175,7 @@ function medianText(m: number | null, t: ReturnType<typeof useT>["t"]) { return 
 
 export function plainSurvival(r: SurvivalResult, cox: { hr: number; lo: number; hi: number }, p: number | null, n: number, t: ReturnType<typeof useT>["t"]) {
   const v = { ...epVars(t, r.endpoint), g: r.gene, hr: fmt(cox.hr), lo: fmt(cox.lo), hi: fmt(cox.hi), p: fmtP(p), n };
+  if (r.cut === "mutation") return t(p != null && p < 0.05 ? (cox.hr > 1 ? "surv.plain.mut.shorter" : "surv.plain.mut.longer") : "surv.plain.mut.none", v);
   if (p != null && p < 0.05) return t(cox.hr > 1 ? "surv.plain.shorter" : "surv.plain.longer", v);
   return t("surv.plain.none", v);
 }

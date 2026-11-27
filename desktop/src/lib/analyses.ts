@@ -6,7 +6,7 @@ export type Check = { check: string; status: "pass" | "caution" | "problem" | "i
 export type Curve = { n: number; events: number; time: number[]; surv: number[]; lo: number[]; hi: number[]; censor_times: number[]; censor_surv: number[]; median: number | null };
 export type Cox = { hr: number; lo: number; hi: number; p: number; n: number; covariates: string[]; ph_p: number | null };
 export type SurvivalResult = {
-  kind: "survival"; gene: string; endpoint: string; cut: "median" | "quartile" | "optimal"; cut_value: number;
+  kind: "survival"; gene: string; endpoint: string; cut: "median" | "quartile" | "optimal" | "mutation"; cut_value: number;
   cut_info: { p_min?: number; tried?: number; p_adjusted?: number; low?: number; high?: number };
   groups: { high: Curve; low: Curve }; at_risk: { ticks: number[]; high: number[]; low: number[] };
   logrank: { statistic: number; p: number }; p_report: number; cox: Cox; cox_adjusted: Cox | null;
@@ -17,7 +17,7 @@ export type SurvivalResult = {
 export type Summary = { n: number; median?: number | null; q1?: number | null; q3?: number | null; min?: number | null; max?: number | null; mean?: number | null };
 export type Group = { key: string; n: number; median: number; q1: number; q3: number; min: number; max: number; mean: number; values: number[] };
 export type ExpressionResult = {
-  kind: "expression_tn" | "expression_stage" | "expression_group"; gene: string; units: string; paired?: boolean;
+  kind: "expression_tn" | "expression_stage" | "expression_group" | "expression_mut"; gene: string; gene2?: string; units: string; paired?: boolean;
   groups: Group[]; test: { name: string; statistic: number; p: number; n_pairs?: number };
   effect: { median_diff?: number; rank_biserial?: number; rb_ci?: [number, number]; epsilon_squared?: number };
   pairwise?: { a: string; b: string; p: number; p_adj: number }[];
@@ -31,8 +31,8 @@ export type CorrelationResult = {
 };
 export type ErrorResult = { kind: string; gene: string; error: string; [k: string]: unknown };
 export type DataVersion = { cohort: string; projects: string[]; source: string; units: string; built: string };
-export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "correlation" | "de" | "signature" | "across" | "immune" | "interactions" | "bench";
-export type RunParams = { kind: Kind; gene: string; gene2?: string; set_id?: string; members?: string[]; check_only?: boolean; cut?: "median" | "quartile" | "optimal"; adjust?: ("age" | "stage")[]; endpoint?: "OS" | "PFI" | "DSS"; paired?: boolean; replace?: string;
+export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "expression_mut" | "correlation" | "de" | "signature" | "across" | "immune" | "interactions" | "bench";
+export type RunParams = { kind: Kind; gene: string; gene2?: string; set_id?: string; members?: string[]; check_only?: boolean; cut?: "median" | "quartile" | "optimal" | "mutation"; adjust?: ("age" | "stage")[]; endpoint?: "OS" | "PFI" | "DSS"; paired?: boolean; replace?: string;
   compare?: "tn" | "gene" | "group"; group_a?: string | null; group_b?: string | null; lfc?: number; q?: number; library?: PathwayLibrary; normal?: "tcga" | "tcga_gtex";
   mode?: "qpcr" | "values"; text?: string; ref?: string; control?: string | null; log?: boolean; title?: string; projects?: string[] };
 export type Headline = { p_report?: number | null; error?: string | null; hr?: number | null; p?: number | null; rho?: number | null; n?: number | null; worst?: "pass" | "caution" | "problem" | null };

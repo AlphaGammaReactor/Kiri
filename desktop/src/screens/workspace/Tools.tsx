@@ -269,7 +269,7 @@ plot(d$log2_fold_change, -log10(d$p), pch = 16, cex = 0.4,
      xlab = "log2 fold change", ylab = "-log10 p")
 abline(v = c(-lfc, lfc), h = -log10(max(d$p[d$q < qcut])), lty = 2)
 `;
-  if (a.kind === "expression_group") return `d <- read.csv("${csv}")
+  if (a.kind === "expression_group" || a.kind === "expression_mut") return `d <- read.csv("${csv}")
 tapply(d$expression, d$group, summary)
 if (length(unique(d$group)) == 2) wilcox.test(expression ~ group, data = d) else {
   kruskal.test(expression ~ group, data = d)
@@ -409,7 +409,7 @@ c = np.where(up, "#c8641a", np.where(down, "#2a6fa8", "#bbbbbb"))
 plt.scatter(d.log2_fold_change, -np.log10(d.p), s=4, c=c)
 plt.xlabel("log2 fold change"); plt.ylabel("-log10 p"); plt.show()
 `;
-  if (a.kind === "expression_group") return `import pandas as pd                        # pip install pandas scipy
+  if (a.kind === "expression_group" || a.kind === "expression_mut") return `import pandas as pd                        # pip install pandas scipy
 from scipy import stats
 
 d = pd.read_csv("${csv}")

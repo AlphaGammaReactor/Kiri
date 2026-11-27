@@ -44,8 +44,8 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
     const cox = r.cox_adjusted ?? r.cox;
     const p = r.cut === "optimal" ? r.p_report : r.logrank.p;
     el = <KM r={r} labels={{
-      yTitle: probTitle(F, r.endpoint), xTitle: F.months, atRisk: F.atRisk, highShort: F.highShort, lowShort: F.lowShort,
-      high: `${r.gene} ${F.high} (n = ${r.groups.high.n})`, low: `${r.gene} ${F.low} (n = ${r.groups.low.n})`,
+      yTitle: probTitle(F, r.endpoint), xTitle: F.months, atRisk: F.atRisk, highShort: r.cut === "mutation" ? F.mutShort : F.highShort, lowShort: r.cut === "mutation" ? F.wtShort : F.lowShort,
+      high: `${r.gene} ${r.cut === "mutation" ? F.mutated : F.high} (n = ${r.groups.high.n})`, low: `${r.gene} ${r.cut === "mutation" ? F.notMutated : F.low} (n = ${r.groups.low.n})`,
       stat: fillFig(r.cut === "optimal" ? F.hrLineAdj : r.cox_adjusted ? F.aHR : F.hrLine, { hr: fmt(cox.hr), lo: fmt(cox.lo), hi: fmt(cox.hi), p: fmtP(p) }),
     }} />;
     summary = plainSurvival(r, cox, p, r.groups.high.n + r.groups.low.n, t);
@@ -105,7 +105,13 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
     const r = a.result as ExpressionResult;
     let groups: Group[], brackets: { a: string; b: string; text: string }[] = [];
     let colors = (k: string) => (k.endsWith("normal") ? FIG.normal : FIG.tumour), label = (k: string) => k, stat: string;
-    if (r.kind === "expression_group") {
+    if (r.kind === "expression_mut") {
+      groups = r.groups;
+      colors = (k) => (k === "mutated" ? FIG.tumour : FIG.normal);
+      label = (k) => `${r.gene2} ${k === "mutated" ? F.mutated : F.notMutated}`;
+      brackets = [{ a: r.groups[0].key, b: r.groups[1].key, text: stars(r.test.p) }];
+      stat = fillFig(F.rankSum, { p: fmtP(r.test.p) });
+    } else if (r.kind === "expression_group") {
       groups = r.groups;
       const idx = Object.fromEntries(r.groups.map((g, i) => [g.key, i]));
       colors = (k) => GROUP_COLORS[(idx[k] ?? 0) % GROUP_COLORS.length];

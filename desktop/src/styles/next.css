@@ -291,3 +291,7 @@
 .tut-card > .row-gap:last-child { min-height: 34px; }
 .fr-cards > *, .templates > *, .tpl-grid > *, .stat-row > * { height: 100%; }
 .fr-cards > .option { justify-content: flex-start; }
+
+/* Four choices in a narrow panel: two rows of two, never clipped. */
+.segmented.quad { display: grid; grid-template-columns: 1fr 1fr; width: 100%; gap: 2px; }
+.segmented.quad button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
