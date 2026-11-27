@@ -81,11 +81,12 @@ export function ReproduceDialog({ a, fileName, initialTab = "record", onClose, s
   const p = a.params;
   const settings = a.kind === "survival"
     ? [t(`surv.cut.${p.cut ?? "median"}` as StringKey), p.adjust?.length ? t("repro.adjusted", { c: p.adjust.map((x) => t(x === "age" ? "surv.adj.age" : "surv.adj.stage").toLowerCase()).join(", ") }) : t("repro.unadjusted")].join(" · ")
+    : (a.kind as string) === "signature" ? t("sig.repro.settings", { s: String((a.result as { set_name?: string }).set_name ?? (p as { set_id?: string }).set_id ?? ""), n: sigMembers(a).length })
     : a.kind === "expression_tn" ? (p.paired ? t("repro.paired") : t("repro.unpaired")) : (p as { gene2?: string }).gene2 ? t("repro.withGene", { g: (p as { gene2?: string }).gene2! }) : "–";
   const headline = (r: unknown) => {
     const x = r as Partial<Omit<SurvivalResult, "kind">> & Partial<Omit<ExpressionResult, "kind">> & { rho?: number; p?: number };
     if (a.kind === "survival") return `HR ${fmt((x.cox_adjusted ?? x.cox)?.hr)} · p = ${fmtP(x.p_report)}`;
-    if ((a.kind as string) === "correlation") return `ρ = ${fmt(x.rho)} · p = ${fmtP(x.p)}`;
+    if ((a.kind as string) === "correlation" || (a.kind as string) === "signature") return `ρ = ${fmt(x.rho)} · p = ${fmtP(x.p)}`;
     return `p = ${fmtP(x.test?.p)}`;
   };
   const recheck = async () => {
@@ -205,6 +206,7 @@ pairwise.wilcox.test(d$expression, d$group, p.adjust.method = "BH")
 boxplot(expression ~ group, data = d, outline = FALSE, xlab = "Stage", ylab = "${a.data_versions.units}")
 stripchart(expression ~ group, data = d, vertical = TRUE, method = "jitter", add = TRUE, pch = 16, cex = 0.4)
 `;
+  if ((a.kind as string) === "signature") return sigR(a, csv);
   const g2 = (p as { gene2?: string }).gene2 ?? "";
   return `d <- read.csv("${csv}", check.names = FALSE)
 x <- d[["${p.gene}"]]; y <- d[["${g2}"]]
@@ -270,6 +272,7 @@ raw = [stats.mannwhitneyu(groups[a], groups[b], alternative="two-sided").pvalue 
 for (a, b), p, q in zip(pairs, raw, multipletests(raw, method="fdr_bh")[1]):
     print(f"{a} vs {b}: p = {p:.3g}, BH-adjusted = {q:.3g}")
 `;
+  if ((a.kind as string) === "signature") return sigPy(a, csv);
   const g2 = (p as { gene2?: string }).gene2 ?? "";
   return `import pandas as pd                        # pip install pandas scipy
 from scipy import stats
@@ -278,5 +281,70 @@ d = pd.read_csv("${csv}")
 x, y = d["${p.gene}"], d["${g2}"]
 print("Spearman", stats.spearmanr(x, y))   # what Kiri reports
 print("Pearson ", stats.pearsonr(x, y))
+`;
+}
+
+// Gene set score: recompute the score, the correlation, the member table, the group test and the four-group survival.
+function sigMembers(a: Analysis): string[] {
+  return ((a.result as { members?: string[] }).members) ?? [];
+}
+
+function sigR(a: Analysis, csv: string) {
+  const g = a.params.gene, m = sigMembers(a);
+  return `d <- read.csv("${csv}", check.names = FALSE)
+members <- c(${m.map((x) => `"${x}"`).join(", ")})
+
+# Score: mean of the members' z-scores across these patients (Kiri recomputes it the same way)
+n <- nrow(d)
+z <- scale(d[, members]) * sqrt(n / (n - 1))   # Kiri divides by the population SD
+d$score_check <- rowMeans(z)
+all.equal(d$score_check, d$score, tolerance = 1e-6)
+
+# ${g} against the score (what Kiri reports), and against each member with BH correction
+cor.test(d[["${g}"]], d$score, method = "spearman", exact = FALSE)
+per <- sapply(members, function(m) unlist(cor.test(d[["${g}"]], d[[m]], method = "spearman", exact = FALSE)[c("estimate", "p.value")]))
+per <- t(per); per <- cbind(per, p_adj = p.adjust(per[, 2], "BH")); print(round(per, 4))
+
+# Do the members move together? Spearman matrix (the heatmap) and Cronbach's alpha
+round(cor(d[, c("${g}", members)], method = "spearman"), 2)
+k <- length(members); k / (k - 1) * (1 - sum(apply(z, 2, var)) / var(rowSums(z)))
+
+# Score in ${g}-high against ${g}-low patients (median split)
+wilcox.test(score ~ gene_group, data = d)
+
+# Survival in four groups (${g} high/low x score high/low)
+library(survival)
+d$four <- interaction(d$gene_group, d$score_group)
+survdiff(Surv(time_months, event) ~ four, data = d)
+`;
+}
+
+function sigPy(a: Analysis, csv: string) {
+  const g = a.params.gene, m = sigMembers(a);
+  return `import numpy as np
+import pandas as pd                        # pip install pandas scipy statsmodels lifelines
+from scipy import stats
+from statsmodels.stats.multitest import multipletests
+from lifelines.statistics import multivariate_logrank_test
+
+d = pd.read_csv("${csv}")
+members = [${m.map((x) => `"${x}"`).join(", ")}]
+
+# Score: mean of the members' z-scores across these patients
+z = (d[members] - d[members].mean()) / d[members].std(ddof=0)
+print("score matches:", np.allclose(z.mean(axis=1), d.score, atol=1e-6))
+
+print("${g} vs score:", stats.spearmanr(d["${g}"], d.score))
+per = pd.DataFrame([stats.spearmanr(d["${g}"], d[m]) for m in members], index=members, columns=["rho", "p"])
+per["p_adj"] = multipletests(per.p, method="fdr_bh")[1]
+print(per.round(4))
+
+print(d[["${g}", *members]].corr(method="spearman").round(2))
+k = len(members); print("Cronbach alpha:", k / (k - 1) * (1 - z.var(ddof=1).sum() / z.sum(axis=1).var(ddof=1)))
+
+print("score high vs low ${g}:", stats.mannwhitneyu(d[d.gene_group == "high"].score, d[d.gene_group == "low"].score))
+
+s = d.dropna(subset=["time_months", "event"]); s = s[s.time_months > 0]
+print(multivariate_logrank_test(s.time_months, s.gene_group + "/" + s.score_group, s.event).p_value)
 `;
 }

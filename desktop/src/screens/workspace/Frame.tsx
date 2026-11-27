@@ -177,6 +177,8 @@ export function SideTabs({ explain, checks }: { explain: ReactNode; checks: Chec
 export const CHECK_TITLE: Record<string, StringKey> = {
   data: "rel.t.data", enough: "rel.t.enough", assumptions: "rel.t.assumptions", multiple: "rel.t.multiple",
   effect: "rel.t.effect", stability: "rel.t.stability", replication: "rel.t.replication", reproducibility: "rel.t.reproducibility",
+  coherence: "rel.t.coherence", leave_one_out: "rel.t.leave_one_out", mito_content: "rel.t.mito_content", proliferation: "rel.t.proliferation",
+  set_kind: "rel.t.set_kind", causality: "rel.t.causality",
 };
 
 export function fmtVars(v: Record<string, unknown>) {

@@ -316,16 +316,20 @@ def run(c: Cohort, gene: str, set_id: str = "uprmt_markers", custom: list[str] |
     def ctrl_check(key, ctrl, code):
         if not ctrl:
             return check(key, "info", f"{code}.na")
-        drop = abs(ctrl["rho_partial"] or 0) < abs(rho) * 0.5 and sig
-        return check(key, "caution" if drop else "pass", f"{code}.{'explains' if drop else 'holds'}",
-                     rho=rho, rho_partial=ctrl["rho_partial"], p=ctrl["p"], n_genes=len(ctrl["genes"]))
+        pr = ctrl["rho_partial"] or 0.0
+        flipped = sig and pr != 0 and np.sign(pr) != np.sign(rho) and ctrl["p"] < 0.05
+        drop = sig and (abs(pr) < abs(rho) * 0.5 or np.sign(pr) != np.sign(rho))
+        reveals = not sig and ctrl["p"] < 0.05 and abs(pr) >= 0.1
+        state = "flips" if flipped else "explains" if drop else "reveals" if reveals else "holds"
+        return check(key, "pass" if state == "holds" else "caution", f"{code}.{state}",
+                     rho=rho, rho_partial=pr, p=ctrl["p"], n_genes=len(ctrl["genes"]))
 
     checks = [
         check("data", "pass" if not missing else "caution", "data.sig" if not missing else "data.sigMissing",
               n=int(n), excluded=int(n_all - n), members=len(present), missing=", ".join(missing), source=c.source),
         check("enough", "pass" if n >= MIN_PATIENTS else "caution", "enough.corr" if n >= MIN_PATIENTS else "enough.corrSmall", n=int(n), min=MIN_PATIENTS),
         check("coherence", alpha_status, f"sig.coherence.{alpha_status}", alpha=alpha, mean_r=mean_inter, k=len(present)),
-        check("leave_one_out", "caution" if loo_flip and sig else "pass", "sig.loo.flip" if loo_flip and sig else "sig.loo.ok",
+        check("leave_one_out", "caution" if loo_flip and sig else "pass", ("sig.loo.flip" if sig else "sig.loo.weak") if loo_flip else "sig.loo.ok",
               lo=loo_range[0] if loo_range else None, hi=loo_range[1] if loo_range else None),
         ctrl_check("mito_content", mito_ctrl, "sig.mito"),
         ctrl_check("proliferation", prolif_ctrl, "sig.prolif"),
