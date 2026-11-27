@@ -41,6 +41,9 @@ def rows_for(c: Cohort, kind: str, params: dict) -> dict:
     elif kind == "expression_stage":
         s = s[(s["type"] == "tumor") & s["stage"].isin(["I", "II", "III", "IV"])]
         group = s["stage"]
+    elif kind == "expression_group":
+        s = s[s["group"].notna() & (s["group"].astype(str) != "")]
+        group = s["group"].astype(str)
     elif kind == "correlation":
         s["expr2"] = c.gene(params["gene2"])
         s = s[(s["type"] == "tumor") & s["expr2"].notna()].sort_values("id").drop_duplicates("case", keep="first")

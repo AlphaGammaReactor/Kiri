@@ -153,3 +153,63 @@ def by_stage(c: Cohort, gene: str) -> dict:
         "pairwise": pairs, "effect": {"epsilon_squared": clean(max(eps2, 0.0))}, "excluded": missing_stage,
         "checks": checks, "data_version": c.data_version(),
     }
+
+
+def by_group(c: Cohort, gene: str) -> dict:
+    """Your own table: a value compared across the groups in its group column.
+    Two groups: Wilcoxon rank-sum with the rank-biserial r. More: Kruskal–Wallis, then pairwise with BH."""
+    s = c.samples
+    if "group" not in s.columns:
+        return {"kind": "expression_group", "gene": gene, "error": "no_groups"}
+    y = c.gene(gene)
+    g = s["group"].to_numpy(dtype=object)
+    ok = ~np.isnan(y) & np.array([v is not None and v == v and str(v) != "" for v in g])
+    names = sorted({str(v) for v in g[ok]}, key=lambda k: (-int((g[ok] == k).sum()), k))[:8]
+    groups = [(k, y[ok & (g == k)]) for k in names]
+    groups = [(k, v) for k, v in groups if len(v) > 0]
+    excluded = int((~ok).sum())
+    if len(groups) < 2 or min(len(v) for _, v in groups) < 2:
+        return {"kind": "expression_group", "gene": gene, "error": "too_few_groups"}
+    small = min(len(v) for _, v in groups)
+    n = int(sum(len(v) for _, v in groups))
+    common = [
+        check("data", "pass", "data.groupsOwn", n=n, groups=len(groups), excluded=excluded, source=c.source),
+        check("enough", "pass" if small >= MIN_GROUP else "caution", "enough.groups" if small >= MIN_GROUP else "enough.smallGroup", smallest=int(small), min=MIN_GROUP),
+    ]
+    tail = [check("replication", "info", "replication.notYet"), check("reproducibility", "pass", "repro.recorded", built=c.built)]
+    out = {"kind": "expression_group", "gene": gene, "units": c.units,
+           "groups": [{"key": k, **summary(v), "values": [clean(x) for x in v]} for k, v in groups],
+           "excluded": excluded, "data_version": c.data_version()}
+    if len(groups) == 2:
+        (ka, a), (kb, b) = groups
+        mw = stats.mannwhitneyu(a, b, alternative="two-sided")
+        rb = _rank_biserial(a, b)
+        lo, hi = _boot_rb(a, b)
+        strength = abs(rb)
+        size = "effect.large" if strength >= 0.5 else "effect.medium" if strength >= 0.3 else "effect.small" if strength >= 0.1 else "effect.negligible"
+        checks = common + [
+            check("assumptions", "pass", "assume.rankSumOwn"),
+            check("multiple", "pass", "multiple.one"),
+            check("effect", "caution" if mw.pvalue < 0.05 and size == "effect.negligible" else "pass", size, rb=rb, lo=lo, hi=hi),
+        ] + tail
+        return out | {"test": {"name": "wilcoxon_rank_sum", "statistic": clean(mw.statistic), "p": clean(mw.pvalue)},
+                      "pairwise": [{"a": ka, "b": kb, "p": clean(mw.pvalue), "p_adj": clean(mw.pvalue)}],
+                      "effect": {"rank_biserial": clean(rb), "ci": [clean(lo), clean(hi)],
+                                 "median_diff": clean(float(np.median(a) - np.median(b)))}, "checks": checks}
+    kw = stats.kruskal(*[v for _, v in groups])
+    pairs, raw = [], []
+    for i in range(len(groups)):
+        for j in range(i + 1, len(groups)):
+            p = stats.mannwhitneyu(groups[i][1], groups[j][1], alternative="two-sided").pvalue
+            pairs.append({"a": groups[i][0], "b": groups[j][0], "p": clean(p)})
+            raw.append(p)
+    for pr, adj in zip(pairs, bh(raw)):
+        pr["p_adj"] = clean(adj)
+    eps2 = (kw.statistic - len(groups) + 1) / (n - len(groups))
+    checks = common + [
+        check("assumptions", "pass", "assume.kruskal"),
+        check("multiple", "pass", "multiple.pairwiseBH", tests=len(pairs)),
+        check("effect", "pass" if eps2 >= 0.01 else "caution", "effect.epsilon", eps2=float(max(eps2, 0.0))),
+    ] + tail
+    return out | {"test": {"name": "kruskal_wallis", "statistic": clean(kw.statistic), "p": clean(kw.pvalue)},
+                  "pairwise": pairs, "effect": {"epsilon_squared": clean(max(eps2, 0.0))}, "checks": checks}

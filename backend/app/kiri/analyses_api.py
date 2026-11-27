@@ -23,6 +23,7 @@ from app.cohorts.store import CohortUnavailable, cohort_for, slice_for
 from app.core.config import settings
 from app.kiri.api import ws
 from app.kiri.fileformat import KiriFileError, now
+from app.kiri.owndata import own_cohort, own_dataset_of
 
 router = APIRouter(prefix="/kiri", tags=["analyses"])
 _run_lock = threading.Lock()
@@ -38,7 +39,7 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "correlation"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation"]
     gene: str
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal"] = "median"
@@ -60,6 +61,15 @@ def cohort_status():
         op = ws().require()
     except KiriFileError as e:
         return JSONResponse(status_code=409, content={"error": e.code})
+    own = own_dataset_of(op.project())
+    if own:
+        try:
+            c = own_cohort(op, own)
+            return {"projects": [own], "sample_slice": None, "packs": {}, "own": {"id": own, "name": c.name, "n": len(c.samples),
+                    "values": len(c._genes), "survival": bool(c.samples["os_time"].notna().any() and c.samples["os_event"].notna().any()),
+                    "groups": sorted({g for g in c.samples["group"] if g}), "units": c.units}}
+        except KeyError:
+            pass
     projects = _projects(op.project())
     sl = slice_for(projects) if projects else None
     return {
@@ -124,7 +134,14 @@ def analysis_rows(aid: str):
     params = json.loads(r[1])
     genes = [params["gene"]] + ([params["gene2"]] if params.get("gene2") else [])
     try:
-        c = cohort_for(params.get("projects") or _projects(op.project()), genes, _data_dir())
+        projects = params.get("projects") or _projects(op.project())
+        if projects and projects[0].startswith("own:"):
+            try:
+                c = own_cohort(op, projects[0])
+            except KeyError:
+                return JSONResponse(status_code=404, content={"error": "not_found"})
+        else:
+            c = cohort_for(projects, genes, _data_dir())
         return rows_for(c, r[0], params) | {"units": c.units, "data_version": c.data_version()}
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
@@ -140,12 +157,19 @@ def run(body: RunBody):
     gene2 = (body.gene2 or "").strip().upper()
     if body.kind == "correlation" and not gene2:
         return JSONResponse(status_code=400, content={"error": "needs_second_gene"})
-    projects = _projects(op.project())
+    own = own_dataset_of(op.project())
+    projects = [own] if own else _projects(op.project())
     if not projects:
         return JSONResponse(status_code=400, content={"error": "no_cohort"})
     try:
         wanted = [gene] + ([gene2] if body.kind == "correlation" else [])
-        c = cohort_for(projects, wanted, _data_dir())
+        if own:
+            try:
+                c = own_cohort(op, own)
+            except KeyError:
+                return JSONResponse(status_code=400, content={"error": "no_cohort"})
+        else:
+            c = cohort_for(projects, wanted, _data_dir())
         for g in wanted:
             if not c.has(g):
                 raise CohortUnavailable("gene_not_in_cohort", gene=g, cohort=c.name)
@@ -156,6 +180,8 @@ def run(body: RunBody):
                 result = correlation.run(c, gene, gene2)
             elif body.kind == "expression_tn":
                 result = expression.tumour_vs_normal(c, gene, paired=body.paired)
+            elif body.kind == "expression_group":
+                result = expression.by_group(c, gene)
             else:
                 result = expression.by_stage(c, gene)
     except CohortUnavailable as e:

@@ -51,6 +51,8 @@ from app.kiri.analyses_api import router as kiri_analyses_router  # noqa: E402
 router.include_router(kiri_analyses_router)
 from app.kiri.system_api import router as kiri_system_router  # noqa: E402
 router.include_router(kiri_system_router)
+from app.kiri.owndata import router as kiri_own_router  # noqa: E402
+router.include_router(kiri_own_router)
 router.include_router(pdm_router)
 router.include_router(cross_validation_router)
 router.include_router(

@@ -9,7 +9,7 @@ hidden = (
     collect_submodules("app")
     + collect_submodules("uvicorn")
     + collect_submodules("aiosqlite")
-    + ["sqlalchemy.dialects.sqlite.aiosqlite", "rlPyCairo"]
+    + ["sqlalchemy.dialects.sqlite.aiosqlite", "rlPyCairo", "openpyxl"]
 )
 datas = [(os.path.join(BACKEND, "app", "core", "gate_page.html"), "app/core")]
 for pkg in ("gseapy", "lifelines", "reportlab", "svglib", "pydeseq2", "docx"):
