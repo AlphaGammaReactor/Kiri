@@ -17,7 +17,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app.analyses import correlation, expression, survival
+from app.analyses import correlation, de, expression, pathways, survival
 from app.cohorts import packs
 from app.cohorts.store import CohortUnavailable, cohort_for, slice_for
 from app.core.config import settings
@@ -39,19 +39,32 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation"]
-    gene: str
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "correlation", "de"]
+    gene: str = ""
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal"] = "median"
     adjust: list[Literal["age", "stage"]] = Field(default_factory=list)
     paired: bool = False
     replace: Optional[str] = None  # analysis id to overwrite (changing options)
     check_only: bool = False  # Reproduce: compute again and return the numbers without saving
+    # Differential expression
+    compare: Literal["tn", "gene", "group"] = "tn"
+    group_a: Optional[str] = None
+    group_b: Optional[str] = None
+    lfc: float = Field(1.0, ge=0, le=10)
+    q: float = Field(0.05, gt=0, le=0.25)
+    library: Literal["hallmark", "reactome"] = "hallmark"
 
 
 def _row(r) -> dict:
     return {"id": r[0], "kind": r[1], "params": json.loads(r[2]), "result": json.loads(r[3]) if r[3] else None,
             "data_versions": json.loads(r[4]) if r[4] else None, "created_at": r[5], "updated_at": r[6]}
+
+
+@router.get("/pathways")
+def pathway_libraries():
+    """The bundled pathway libraries, with version, licence and citation (shown in About and under results)."""
+    return pathways.info()
 
 
 @router.get("/cohort")
@@ -132,7 +145,7 @@ def analysis_rows(aid: str):
     if not r:
         return JSONResponse(status_code=404, content={"error": "not_found"})
     params = json.loads(r[1])
-    genes = [params["gene"]] + ([params["gene2"]] if params.get("gene2") else [])
+    genes = [g for g in [params.get("gene")] + ([params["gene2"]] if params.get("gene2") else []) if g]
     try:
         projects = params.get("projects") or _projects(op.project())
         if projects and projects[0].startswith("own:"):
@@ -157,12 +170,16 @@ def run(body: RunBody):
     gene2 = (body.gene2 or "").strip().upper()
     if body.kind == "correlation" and not gene2:
         return JSONResponse(status_code=400, content={"error": "needs_second_gene"})
+    if body.kind == "de" and body.compare != "gene":
+        gene = ""
+    if body.kind != "de" and not gene:
+        return JSONResponse(status_code=400, content={"error": "needs_gene"})
     own = own_dataset_of(op.project())
     projects = [own] if own else _projects(op.project())
     if not projects:
         return JSONResponse(status_code=400, content={"error": "no_cohort"})
     try:
-        wanted = [gene] + ([gene2] if body.kind == "correlation" else [])
+        wanted = ([gene] if gene else []) + ([gene2] if body.kind == "correlation" else [])
         if own:
             try:
                 c = own_cohort(op, own)
@@ -182,12 +199,17 @@ def run(body: RunBody):
                 result = expression.tumour_vs_normal(c, gene, paired=body.paired)
             elif body.kind == "expression_group":
                 result = expression.by_group(c, gene)
+            elif body.kind == "de":
+                result = de.run(c, body.compare, gene or None, body.group_a, body.group_b, lfc=body.lfc, q=body.q,
+                                sets=pathways.load(body.library))
+                result.pop("rows", None)
             else:
                 result = expression.by_stage(c, gene)
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
 
-    params = body.model_dump(exclude={"replace", "check_only"}) | {"gene": gene, "projects": projects}
+    exclude = {"replace", "check_only"} | (set() if body.kind == "de" else {"compare", "group_a", "group_b", "lfc", "q", "library"})
+    params = body.model_dump(exclude=exclude) | {"gene": gene, "projects": projects}
     if body.kind == "correlation":
         params["gene2"] = gene2
     else:

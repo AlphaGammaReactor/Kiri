@@ -23,7 +23,16 @@ def _r(x):
 
 
 def rows_for(c: Cohort, kind: str, params: dict) -> dict:
-    gene = params["gene"]
+    gene = params.get("gene") or ""
+    if kind == "de":
+        # One line per tested gene (not per sample): the full table behind the volcano plot.
+        from app.analyses import de
+
+        r = de.run(c, params.get("compare", "tn"), gene or None, params.get("group_a"), params.get("group_b"),
+                   lfc=params.get("lfc", 1.0), q=params.get("q", 0.05))
+        a, b = r.get("labels", ["A", "B"])
+        cols = ["gene", "log2_fold_change", f"mean_{a}", f"mean_{b}", "welch_t", "p", "p_adj_BH", "direction"]
+        return {"columns": cols, "rows": [[x["gene"], x["lfc"], x["mean_a"], x["mean_b"], x["t"], x["p"], x["p_adj"], x["dir"]] for x in r.get("rows", [])]}
     if kind == "survival":
         t, _ = _patients(c, gene)
         g, value, _ = _split(t, params.get("cut", "median"))

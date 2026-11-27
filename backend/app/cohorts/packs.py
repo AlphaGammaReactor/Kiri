@@ -208,6 +208,20 @@ class PackReader:
         return out
 
 
+    def matrix(self, sample_ids: list[str]) -> tuple[list[str], np.ndarray]:
+        """Every gene measured in all parts, for these samples (genes x samples, NaN where a sample is absent)."""
+        common = [g for g in self.parts[0][1] if all(g in idx for _, idx, _ in self.parts[1:])]
+        out = np.full((len(common), len(sample_ids)), np.nan, dtype=np.float32)
+        for mat, gidx, cidx in self.parts:
+            pos = [(i, cidx[s]) for i, s in enumerate(sample_ids) if s in cidx]
+            if not pos:
+                continue
+            dst, src = (list(x) for x in zip(*pos))
+            rows = np.fromiter((gidx[g] for g in common), dtype=np.int64, count=len(common))
+            out[:, dst] = np.asarray(mat[:, src], dtype=np.float32)[rows]
+        return common, out
+
+
 def open_packs(projects: list[str], data_dir: Path) -> Cohort:
     missing = [p for p in projects if not is_ready(data_dir, p)]
     if missing:
