@@ -26,6 +26,9 @@ import { Immune } from "./screens/workspace/Immune";
 import { Interactions } from "./screens/workspace/Interactions";
 import { Bench } from "./screens/workspace/Bench";
 import { Board } from "./screens/Board";
+import { Tutorials } from "./screens/Tutorials";
+import { Tour } from "./shell/Tour";
+import { tutorial, type TutId } from "./lib/tutorials";
 import { Glossary } from "./screens/Glossary";
 import { Guide, type GuideAction } from "./screens/Guide";
 import type { Recipe } from "./i18n/guide";
@@ -111,6 +114,27 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
 
   const say = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
   const notYet = () => say(t("common.notYet"));
+  const [tour, setTour] = useState<{ id: TutId; step: number } | null>(null);
+  const tourStep = (n: number) => {
+    if (!tour) return;
+    setTour({ ...tour, step: n });
+    update({ tutorials: { ...settings.tutorials, [tour.id]: { step: n, done: !!settings.tutorials[tour.id]?.done } } });
+  };
+  const tourDone = () => {
+    if (!tour) return;
+    update({ tutorials: { ...settings.tutorials, [tour.id]: { step: tutorial(tour.id)!.steps.length, done: true } } });
+    say(t("tour.finished", { n: t(`tut.${tour.id}.name` as StringKey) }));
+    setTour(null); setScreen("tutorials");
+  };
+  const startTutorial = async (id: TutId, fresh: boolean) => {
+    const ok = await proj.sample(lang, "parl-mavs", { tutorial: true, fresh });
+    if (!ok) return;
+    loadRecent();
+    const saved = settings.tutorials[id];
+    const step = fresh || !saved || saved.done ? 0 : Math.min(saved.step, tutorial(id)!.steps.length - 1);
+    setTour({ id, step });
+    update({ tutorials: { ...settings.tutorials, [id]: { step, done: !!saved?.done && !fresh ? saved.done : false } } });
+  };
   const openAnalysis = (k: string, g?: string) => {
     if (k === "survival") setSurvGene(g ?? "");
     setScreen(k === "survival" ? "survival" : k === "correlation" ? "correlation" : k === "de" ? "de" : k === "across" ? "across" : k === "immune" ? "immune"
@@ -250,7 +274,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
               notYet, onOpenFile: openDialog, onNew: startNew, onSample: openSample, onOpenRecent: openPath,
               onLocate: async (item) => { const p = await pickKiriToOpen(t("file.openTitle")); if (p) { await api.forget(item.path); openPath(p); } },
               onForget: async (path) => { await api.forget(path); loadRecent(); },
-              onGuide: openGuide, progress: settings.progress,
+              onGuide: openGuide, progress: settings.progress, onTutorial: (id) => startTutorial(id as TutId, true), onTutorials: () => setScreen("tutorials"),
             }} />
           )}
           {screen === "new" && <NewProject key={newTpl} initialTemplate={newTpl} onCancel={() => setScreen("home")} onCreate={create} notYet={notYet} />}
@@ -275,6 +299,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
             onDone={() => { proj.refresh(); setScreen("overview"); }}
             onOpen={(k) => { proj.refresh(); if (k === "correlation") setScreen("correlation"); else openGene(k, ""); }} />}
           {screen === "glossary" && <Glossary key={term} initial={term} />}
+          {screen === "tutorials" && <Tutorials progress={settings.tutorials} onStart={startTutorial} onGlossary={() => setScreen("glossary")} onShortcuts={() => setOverlay("shortcuts")} />}
           {screen === "guide" && <Guide key={guideAt.n} initialQuery={guideAt.q} initialId={guideAt.id} projectOpen={!!proj.project} onAction={guideAction} onSample={openSample} />}
           {screen === "settings" && <Settings s={settings} update={update} engineReady={ready} updater={updater.state} onCheck={updater.check} onWhatsNew={() => setWhatsNew(updater.state.kind === "ready" ? "before" : "after")} />}
           {screen === "about" && <About update={updater.state} onCheck={updater.check} engine={engine} project={proj.project} />}
@@ -290,6 +315,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
       {overlay === "activity" && <ActivityPanel onClose={closeOverlay} update={updater.state} onRestart={restartToUpdate} onRetryUpdate={updater.check} engineReady={ready} />}
       {overlay === "help" && <HelpMenu onClose={closeOverlay} go={(k) => { if (k === "glossary") { setTerm(undefined); setScreen("glossary"); } else if (k === "about") setScreen("about"); else setOverlay(k); }} />}
       {overlay === "shortcuts" && <Shortcuts onClose={closeOverlay} />}
+      {tour && proj.project && <Tour key={`${tour.id}-${tour.step}`} id={tour.id} step={tour.step} onStep={tourStep} onClose={() => setTour(null)} onDone={tourDone} onNav={setScreen} />}
       {overlay === "report" && <ReportProblem onClose={closeOverlay} screen={screen} level={settings.level} say={say} />}
       {picking && <SamplePicker ready={ready} onPick={pickSample} onClose={() => setPicking(false)} />}
       {toast && <div className="toast" role="status">{toast}</div>}

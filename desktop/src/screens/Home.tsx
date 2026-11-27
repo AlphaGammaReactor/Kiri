@@ -5,7 +5,7 @@ import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
 
 export type HomeActions = {
-  notYet: () => void; onOpenFile: () => void; onNew: (tpl?: TemplateId) => void; onSample: () => void;
+  notYet: () => void; onTutorial: (id: string) => void; onTutorials: () => void; onOpenFile: () => void; onNew: (tpl?: TemplateId) => void; onSample: () => void;
   onOpenRecent: (path: string) => void; onLocate: (item: RecentItem) => void; onForget: (path: string) => void;
   onGuide: (query?: string, id?: GuideId) => void; progress: string[];
 };
@@ -15,7 +15,6 @@ const CHECK_KEY = ["run", "save", "reliable", "word", "version", "glossary"];
 
 export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
   const { t, lang } = useT();
-  const notYet = a.notYet;
   const when = (iso: string) => {
     const d = new Date(iso), now = new Date();
     const loc = lang === "en" ? "en-GB" : "zh-CN";
@@ -26,7 +25,7 @@ export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
   const done = CHECK_KEY.filter((k) => a.progress.includes(k)).length;
   const qs: StringKey[] = ["home.show.q1", "home.show.q2", "home.show.q3", "home.show.q4", "home.show.q5", "home.show.q6"];
   const checks: StringKey[] = ["home.check.run", "home.check.save", "home.check.reliable", "home.check.word", "home.check.version", "home.check.glossary"];
-  const tuts: [StringKey, number][] = [["home.tut.1", 8], ["home.tut.2", 6], ["home.tut.3", 7], ["home.tut.4", 9], ["home.tut.5", 10], ["home.tut.6", 8]];
+  const tuts: [StringKey, number, string][] = [["home.tut.1", 8, "survival"], ["home.tut.2", 6, "tn"], ["home.tut.3", 7, "check"], ["home.tut.4", 9, "enrich"], ["home.tut.5", 10, "figure"], ["home.tut.6", 8, "own"]];
   const tpls: [StringKey, StringKey, React.JSX.Element, TemplateId][] = [
     ["home.tpl.blank", "home.tpl.blank.sub", <FileText size={16} />, "blank"],
     ["home.tpl.one", "home.tpl.one.sub", <Search size={16} />, "one_gene"],
@@ -123,10 +122,10 @@ export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
             </ul>
           </section>
           <section className="card" style={{ flex: 1 }}>
-            <span className="eyebrow">{t("home.tutorials")}</span>
+            <div className="row-between"><span className="eyebrow">{t("home.tutorials")}</span><button className="link small" onClick={a.onTutorials}>{t("tut.all")}</button></div>
             <ul className="tuts">
-              {tuts.map(([k, m]) => (
-                <li key={k}><button onClick={notYet}><Play size={13} fill="currentColor" color="var(--color-accent-text)" /> <span>{t(k)}</span> <span className="mono muted">{m} {t("common.min")}</span></button></li>
+              {tuts.map(([k, m, id]) => (
+                <li key={k}><button onClick={() => a.onTutorial(id)}><Play size={13} fill="currentColor" color="var(--color-accent-text)" /> <span>{t(k)}</span> <span className="mono muted">{m} {t("common.min")}</span></button></li>
               ))}
             </ul>
           </section>

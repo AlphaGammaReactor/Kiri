@@ -29,3 +29,22 @@ def test_board_round_trip(tmp_path, monkeypatch):
 
     assert cl.delete(f"/api/v1/kiri/boards/{b['id']}").status_code == 200
     assert cl.get("/api/v1/kiri/boards").json() == []
+
+
+def test_tutorial_copy_is_separate_and_can_restart(tmp_path, monkeypatch):
+    from app.core.config import settings
+    from app.kiri import api as kapi
+    from app.kiri.fileformat import Workspace
+    from app.main import app
+
+    monkeypatch.setattr(kapi, "_ws", Workspace(tmp_path / "data", "test"))
+    monkeypatch.setattr(settings, "KIRI_DATA_DIR", str(tmp_path / "data"))
+    cl = TestClient(app)
+    s = cl.post("/api/v1/kiri/sample").json()
+    t = cl.post("/api/v1/kiri/sample?tutorial=true").json()
+    assert s["path"] != t["path"] and "tutorial" in t["path"] and t["project"]["name"].endswith("tutorial")
+    cl.post("/api/v1/kiri/boards", json={"title": "x"})
+    assert len(cl.get("/api/v1/kiri/boards").json()) == 1
+    again = cl.post("/api/v1/kiri/sample?tutorial=true&fresh=true").json()
+    assert again["path"] == t["path"]
+    assert cl.get("/api/v1/kiri/boards").json() == []

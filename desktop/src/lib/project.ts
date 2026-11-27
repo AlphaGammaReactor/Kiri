@@ -20,8 +20,8 @@ export function useProject() {
   const open = useCallback(async (path: string) => {
     try { const s = await api.open(path); setProject(s); return s; } catch (e) { handle(path, e); return null; }
   }, []);
-  const sample = useCallback(async (language: string, id?: string) => {
-    try { const s = await api.sample(language, id); setProject(s); return s; } catch (e) { handle("", e); return null; }
+  const sample = useCallback(async (language: string, id?: string, o?: { tutorial?: boolean; fresh?: boolean }) => {
+    try { const s = await api.sample(language, id, o); setProject(s); return s; } catch (e) { handle("", e); return null; }
   }, []);
   const create = useCallback(async (body: Parameters<typeof api.create>[0]) => {
     try { const s = await api.create(body); setProject(s); return s; } catch (e) { handle(body.path, e); return null; }

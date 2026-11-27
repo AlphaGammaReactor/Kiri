@@ -44,7 +44,8 @@ export const api = {
   recent: () => call<{ items: RecentItem[] }>("/recent").then((r) => r.items),
   forget: (path: string) => call("/recent", "DELETE", { path }),
   create: (body: Partial<Project> & { path: string; language: string }) => call<ProjectSummary>("/new", "POST", body),
-  sample: (language: string, id = "parl-mavs") => call<ProjectSummary>(`/sample?language=${language}&id=${encodeURIComponent(id)}`, "POST"),
+  sample: (language: string, id = "parl-mavs", o: { tutorial?: boolean; fresh?: boolean } = {}) =>
+    call<ProjectSummary>(`/sample?language=${language}&id=${encodeURIComponent(id)}${o.tutorial ? "&tutorial=true" : ""}${o.fresh ? "&fresh=true" : ""}`, "POST"),
   samples: (language: string) => call<{ items: SampleInfo[] }>(`/samples?language=${language}`).then((r) => r.items),
   open: (path: string) => call<ProjectSummary>("/open", "POST", { path }),
   current: () => call<ProjectSummary>("/project"),

@@ -189,12 +189,12 @@ export function Board({ p, figLang, say, onOpenAnalysis }: { p: ProjectSummary; 
           </div>
         </div>
         <div className="ws-actions">
-          <button className="btn ghost" onClick={() => setChecking(true)} disabled={!layout || !board.panels.length}>
+          <button className="btn ghost" data-tour="check" onClick={() => setChecking(true)} disabled={!layout || !board.panels.length}>
             {worstCheck === "pass" ? <ShieldCheck size={15} /> : <TriangleAlert size={15} />}{t("board.check")}
           </button>
           <button className="btn" onClick={send} disabled={!layout || !board.panels.length}><NotebookPen size={15} />{t("fig.sendNotebook")}</button>
           <div style={{ position: "relative" }}>
-            <button className="btn primary" onClick={() => setExportMenu((v) => !v)} disabled={!layout || !board.panels.length}><Download size={15} />{t("board.export")}</button>
+            <button className="btn primary" data-tour="export" onClick={() => setExportMenu((v) => !v)} disabled={!layout || !board.panels.length}><Download size={15} />{t("board.export")}</button>
             {exportMenu && (
               <div className="menu">
                 <button onClick={() => save("pdf")}>{t("fig.savePdfVector")}</button>

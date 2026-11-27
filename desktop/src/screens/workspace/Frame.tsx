@@ -131,8 +131,8 @@ export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang,
               </div>
             )}
           </div>
-          <button className="btn primary sm" onClick={send}><NotebookPen size={15} />{t("fig.sendNotebook")}</button>
-          <button className="tool" title={t("fig.board")} aria-label={t("fig.board")} onClick={toBoard}><LayoutPanelLeft size={16} /></button>
+          <button className="btn primary sm" data-tour="notebook" onClick={send}><NotebookPen size={15} />{t("fig.sendNotebook")}</button>
+          <button className="tool" data-tour="board" title={t("fig.board")} aria-label={t("fig.board")} onClick={toBoard}><LayoutPanelLeft size={16} /></button>
           <button className="tool" title={t("fig.table")} aria-label={t("fig.table")} onClick={() => (analysis ? setTool("table") : onLater())}><Table2 size={16} /></button>
           <button className="tool" title={t("fig.code")} aria-label={t("fig.code")} onClick={() => (analysis ? setTool("code") : onLater())}><Code2 size={16} /></button>
         </div>

@@ -19,9 +19,10 @@ export type Settings = {
   lastVersion: string | null; // the version that last ran, to notice an update
   resume: Resume | null; // where to go back to after restarting to update
   sigWarned: string | null; // the version whose signature failure was already shown (shown once)
+  tutorials: Record<string, { step: number; done: boolean }>; // tutorial progress (lib/tutorials.ts)
 };
 export type Resume = { path: string | null; screen: string; from: string; notes?: string };
-const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true, firstRunDone: false, purpose: null, familiarity: null, textSize: "normal", reduceMotion: false, progress: [], whatsNew: true, lastVersion: null, resume: null, sigWarned: null };
+const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true, firstRunDone: false, purpose: null, familiarity: null, textSize: "normal", reduceMotion: false, progress: [], whatsNew: true, lastVersion: null, resume: null, sigWarned: null, tutorials: {} };
 
 type StoreLike = { get<T>(k: string): Promise<T | undefined>; set(k: string, v: unknown): Promise<void>; save(): Promise<void> };
 let storePromise: Promise<StoreLike | null> | null = null;

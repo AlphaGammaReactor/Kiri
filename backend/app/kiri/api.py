@@ -118,8 +118,9 @@ def samples(language: str = "en"):
 
 
 @router.post("/sample")
-def sample(language: str = "en", id: str = "parl-mavs"):  # noqa: A002 - query name used by the app
-    """Open a built-in sample project, creating a fresh copy the first time."""
+def sample(language: str = "en", id: str = "parl-mavs", tutorial: bool = False, fresh: bool = False):  # noqa: A002 - query name used by the app
+    """Open a built-in sample project, creating a fresh copy the first time. Tutorials use their own
+    copy, kept apart from the sample the person may be working in; `fresh` starts that copy again."""
     from pathlib import Path
 
     if id not in SAMPLES:
@@ -128,10 +129,18 @@ def sample(language: str = "en", id: str = "parl-mavs"):  # noqa: A002 - query n
     data = {k: v for k, v in spec.items() if k not in ("zh", "gene_set")}
     if language == "zh":
         data |= spec["zh"]
-    folder = Path(settings.KIRI_DATA_DIR) / "samples"
+    folder = Path(settings.KIRI_DATA_DIR) / ("tutorials" if tutorial else "samples")
     folder.mkdir(parents=True, exist_ok=True)
     # The file name stays the same in every language, so switching language reopens the same copy.
     path = folder / f"{spec['name']}.kiri"
+    if tutorial:
+        data["name"] = f"{data['name']} · {'教程' if language == 'zh' else 'tutorial'}"
+        if fresh and path.exists():
+            w = ws()
+            if w.current and w.current.path.resolve() == path.resolve():
+                w.close()
+            path.unlink(missing_ok=True)
+            w._autosave_path(path).unlink(missing_ok=True)
     try:
         if path.exists():
             return ws().open(str(path))

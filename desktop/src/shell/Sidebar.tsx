@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import {
+import { GraduationCap,
   Home, LayoutGrid, Compass, SlidersHorizontal, ChartSpline, ChartLine, ChartArea, Share2, Shield, FlaskConical,
   SquarePlus, NotebookPen, LayoutPanelLeft, Database, Layers,
 } from "lucide-react";
@@ -8,7 +8,7 @@ import type { StringKey } from "../i18n/strings";
 import type { EngineState } from "../lib/engine";
 import { APP_VERSION } from "../lib/platform";
 
-export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation" | "import" | "de" | "signature" | "across" | "immune" | "interactions" | "bench" | "board";
+export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation" | "import" | "de" | "signature" | "across" | "immune" | "interactions" | "bench" | "board" | "tutorials";
 
 const Item = ({ icon, label, active, disabled, onClick, title }: { icon: ReactNode; label: string; active?: boolean; disabled?: boolean; onClick?: () => void; title?: string }) => (
   <button className="nav-item" aria-current={active ? "page" : undefined} disabled={disabled} onClick={onClick} title={title}>
@@ -51,6 +51,8 @@ export function Sidebar({ screen, onNav, engine, projectOpen, onLater }: { scree
       {record.map(([k, i, to]) => to
         ? <Item key={k} icon={i} label={t(k)} disabled={off} title={tip} active={screen === to} onClick={() => onNav(to)} />
         : <Item key={k} icon={i} label={t(k)} disabled={off} title={off ? tip : t("common.notYet")} onClick={onLater} />)}
+      <div style={{ flex: 1 }} />
+      <Item icon={<GraduationCap {...ic} />} label={t("nav.learn")} active={screen === "tutorials" || screen === "glossary"} onClick={() => onNav("tutorials")} />
       <div className="foot">
         <span>
           <span className={`status-dot ${engine.status === "ready" ? "" : engine.status === "failed" ? "bad" : "warn"}`} />
