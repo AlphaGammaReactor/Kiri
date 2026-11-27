@@ -8,6 +8,9 @@ on:
     paths: ["backend/app/analyses/across.py", ".github/workflows/across.yml"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -28,6 +31,7 @@ jobs:
           from pathlib import Path
           from app.analyses import across
           d = Path(tempfile.mkdtemp())
+          across.BUNDLED = Path("/nonexistent")  # measure the real download, not the bundle
           t = time.time(); ph = across.phenotype(d); print("phenotype", len(ph["samples"]), "samples in", round(time.time() - t, 1), "s")
           print("fields:", [k for k in ph if k not in ("samples",)])
           dis = collections.Counter(zip(ph.get("study", []), ph.get("disease", ph.get("detail", []))))
@@ -41,3 +45,13 @@ jobs:
               for x in r["rows"][:6]:
                   print("  ", x["code"], "T", x["tumour"].get("n"), x["tumour"].get("median"), "N", x["normal"].get("n"), x["normal"].get("median"), "gtex", x["n_gtex"], "q", x.get("p_adj"))
           PY
+      - name: Bundle the sample genes
+        working-directory: backend
+        run: uv run python -c "from pathlib import Path; from app.analyses import across; across.BUNDLED = Path('/nonexistent'); across.build_bundle(Path('app/cohorts/samples/across'))" && rm -rf app/cohorts/samples/across/_tmp && ls -la app/cohorts/samples/across
+      - name: Commit the bundle
+        run: |
+          git config user.name "kiri-ci"; git config user.email "kiri-ci@users.noreply.github.com"
+          git add backend/app/cohorts/samples/across
+          git diff --cached --quiet && exit 0
+          git commit -m "Sample data: across-cancers values for the sample genes, built by CI"
+          git pull --rebase origin claude/project-thread-2tc0ep && git push

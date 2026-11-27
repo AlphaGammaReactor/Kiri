@@ -76,6 +76,15 @@ def _xena():
     return xenaPython
 
 
+# Sample genes ship with Kiri (built by CI, .github/workflows/across.yml) so the sample projects work offline.
+BUNDLED = Path(__file__).resolve().parent.parent / "cohorts" / "samples" / "across"
+SAMPLE_GENES = ["TP53", "MDM2", "PARL", "MAVS", "ATF5", "EGFR"]
+
+
+def _safe(gene: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]", "_", gene)
+
+
 def _cache(data_dir: Path) -> Path:
     d = Path(data_dir) / "across"
     (d / "genes").mkdir(parents=True, exist_ok=True)
@@ -115,6 +124,8 @@ def phenotype(data_dir: Path) -> dict:
     path = _cache(data_dir) / "phenotype.json.gz"
     if path.exists():
         return _read(path)
+    if (BUNDLED / "phenotype.json.gz").exists():
+        return _read(BUNDLED / "phenotype.json.gz")
     try:
         x = _xena()
         samples = x.dataset_samples(HUB, EXPR, None)
@@ -137,9 +148,12 @@ def phenotype(data_dir: Path) -> dict:
 
 
 def gene_values(data_dir: Path, gene: str, samples: list[str]) -> np.ndarray:
-    path = _cache(data_dir) / "genes" / f"{re.sub(r'[^A-Za-z0-9._-]', '_', gene)}.json.gz"
-    if path.exists():
-        return np.array([np.nan if v is None else v for v in _read(path)["v"]], dtype=float)
+    path = _cache(data_dir) / "genes" / f"{_safe(gene)}.json.gz"
+    for p in (path, BUNDLED / f"{_safe(gene)}.json.gz"):
+        if p.exists():
+            d = _read(p)
+            if len(d["v"]) == len(samples):
+                return np.array([np.nan if v is None else v for v in d["v"]], dtype=float)
     try:
         res = _xena().dataset_gene_probe_avg(HUB, EXPR, samples, [gene])
     except Exception as e:  # noqa: BLE001
@@ -227,3 +241,15 @@ def rows(gene: str, data_dir: Path, normal: str = "tcga_gtex") -> dict:
             out.append([s, "GTEx", site, "normal", clean(y[i])])
     return {"columns": ["sample", "study", "cancer_or_tissue", "group", f"{gene}_log2_TPM_plus_1"], "rows": out,
             "units": "log2(TPM + 1)", "data_version": {"source": SOURCE, "citation": CITATION}}
+
+
+def build_bundle(dest: Path, genes: list[str] = SAMPLE_GENES) -> None:
+    """Fetch the phenotype and the sample genes into `dest` (used by CI to bundle them with the app)."""
+    tmp = Path(dest) / "_tmp"
+    ph = phenotype(tmp)
+    for g in genes:
+        gene_values(tmp, g, ph["samples"])
+    Path(dest).mkdir(parents=True, exist_ok=True)
+    (tmp / "across" / "phenotype.json.gz").replace(Path(dest) / "phenotype.json.gz")
+    for g in genes:
+        (tmp / "across" / "genes" / f"{_safe(g)}.json.gz").replace(Path(dest) / f"{_safe(g)}.json.gz")
