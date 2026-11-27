@@ -4,9 +4,9 @@
 export type Pair = [string, string];
 export type Alt = { figure: Pair; verdict: "ok" | "avoid"; why: Pair };
 export type Recipe = {
-  id: "tn" | "stage" | "survival" | "correlation" | "across" | "immune" | "interactions" | "pathways" | "bench";
+  id: "tn" | "stage" | "survival" | "correlation" | "across" | "immune" | "interactions" | "pathways" | "bench" | "dependency";
   question: Pair; figure: Pair; test: Pair; why: Pair; read: Pair; caution: Pair; alts: Alt[];
-  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | "across" | "immune" | "interactions" | "bench" | null;
+  action: "expression_tn" | "expression_stage" | "survival" | "correlation" | "de" | "across" | "immune" | "interactions" | "bench" | "dependency" | null;
   keywords: RegExp;
 };
 
@@ -103,6 +103,18 @@ export const RECIPES: Recipe[] = [
     caution: ["Scores are relative amounts between tumours, not cell counts, and bulk RNA cannot say which cells make your gene. Confirm with single-cell data or staining.", "评分是肿瘤之间的相对多少，并非细胞计数；组织 RNA 也无法说明基因由哪种细胞表达。请用单细胞数据或染色验证。"],
     alts: [{ figure: ["Stacked bars of cell fractions per patient", "每位患者的细胞比例堆叠柱图"], verdict: "avoid", why: ["Needs a deconvolution method and reference with its own licence and assumptions, and the bars hide the link to your gene.", "需要带有自身许可和假设的反卷积方法与参考矩阵，且柱图看不出与基因的关系。"] }],
     keywords: /immun|t ?cell|macrophage|infiltrat|lymphocyte|nk cell|免疫|浸润|巨噬|淋巴细胞|T 细胞/i,
+  },
+  {
+    id: "dependency", action: "dependency",
+    question: ["Do cancer cells need my gene to grow?", "癌细胞的生长需要我的基因吗？"],
+    figure: ["One row per cancer lineage: CRISPR gene effect across its cell lines, with the share of lines that depend on the gene", "每个癌症谱系一行：其细胞系中的 CRISPR 基因效应，以及依赖该基因的细胞系比例"],
+    test: ["DepMap CRISPR knockout screens (Chronos gene effect); a line counts as dependent at −0.5 or below", "DepMap CRISPR 敲除筛选（Chronos 基因效应）；效应 ≤ −0.5 视为依赖"],
+    why: ["Tumour RNA shows where a gene is high, not whether cancer cells need it. Knockout screens in hundreds of cell lines answer that directly, and your cancer's own lineage is marked.",
+      "肿瘤 RNA 只显示基因在哪里高表达，而不说明癌细胞是否需要它。数百个细胞系中的敲除筛选可以直接回答，并标出你的癌症所属谱系。"],
+    read: ["Look at your lineage's box: left of the dashed line means most of its cell lines slow down without the gene.", "看你所属谱系的箱体：位于虚线左侧表示多数细胞系在缺少该基因时生长变慢。"],
+    caution: ["Cell lines grow in a dish without immune cells or stroma, and a gene every cell needs is a poor drug target. Treat this as one piece of evidence.", "细胞系在培养皿中生长，没有免疫细胞和间质；所有细胞都需要的基因也不是好的药物靶点。请把它当作一条证据。"],
+    alts: [{ figure: ["Tumour vs normal expression as proof of a role", "以肿瘤与正常的表达差异证明作用"], verdict: "avoid", why: ["Higher expression does not show that cancer cells depend on the gene.", "表达更高并不能说明癌细胞依赖该基因。"] }],
+    keywords: /essential|dependen|knock ?out|crispr|depmap|cell line|need.*grow|必需|依赖|敲除|细胞系/i,
   },
   {
     id: "interactions", action: "interactions",

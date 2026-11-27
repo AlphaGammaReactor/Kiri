@@ -2,13 +2,15 @@
 // so a panel exists even for an analysis that was never opened or sent to the notebook.
 import { renderToStaticMarkup } from "react-dom/server";
 import type { StringKey } from "../i18n/strings";
-import { fmt, fmtP, type Analysis, type Check, type AcrossResult, type CorrelationResult, type ImmuneResult, type BenchResult, type InteractionsResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
+import { fmt, fmtP, type Analysis, type Check, type AcrossResult, type CorrelationResult, type ImmuneResult, type DependencyResult, type BenchResult, type InteractionsResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
 import { BoxPoints } from "./BoxPoints";
 import { KM } from "./KM";
 import { Scatter } from "./Scatter";
 import { Volcano } from "./Volcano";
 import { Across } from "./Across";
 import { Immune } from "./Immune";
+import { Dependency } from "./Dependency";
+import { DEP_FIG, linLabel, plainDependency } from "../screens/workspace/Dependency";
 import { BenchDots } from "./BenchDots";
 import { Network } from "./Network";
 import { networkFigure, plainInteractions } from "../screens/workspace/Interactions";
@@ -56,6 +58,13 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
     el = <Across rows={rows} labels={{ x: zh ? `${r.gene} 表达量，log2(TPM + 1)` : `${r.gene} expression, log2(TPM + 1)`, tumour: zh ? "肿瘤" : "Tumour",
       normal: r.normal === "tcga_gtex" ? (zh ? "正常（TCGA + GTEx）" : "Normal (TCGA + GTEx)") : (zh ? "正常" : "Normal"), noNormal: zh ? "无正常" : "no normal", stat: "n T/N · BH q" }} />;
     summary = t(r.n_up + r.n_down ? "acr.plain" : "acr.plainNone", { g: r.gene, u: r.n_up, d: r.n_down, k: r.n_tested });
+  } else if (a.kind === "dependency") {
+    const r = a.result as DependencyResult;
+    const zh = figLang === "zh";
+    const F2 = DEP_FIG[figLang];
+    el = <Dependency rows={[...r.rows].sort((x, y) => (x.median ?? 0) - (y.median ?? 0)).map((x) => ({ ...x, label: linLabel(x.lineage, zh) }))}
+      labels={{ x: F2.x.replace("{g}", r.gene), cut: F2.cut, stat: F2.stat }} />;
+    summary = plainDependency(r, t, zh);
   } else if (a.kind === "immune") {
     const r = a.result as ImmuneResult;
     const zh = figLang === "zh";

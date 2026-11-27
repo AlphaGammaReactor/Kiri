@@ -41,7 +41,7 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "expression_mut", "expression_cn", "expression_subtype", "correlation", "de", "signature", "across", "immune", "interactions", "bench"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "expression_group", "expression_mut", "expression_cn", "expression_subtype", "correlation", "de", "signature", "across", "immune", "interactions", "bench", "dependency"]
     gene: str = ""
     gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal", "mutation"] = "median"
@@ -199,6 +199,13 @@ def analysis_rows(aid: str):
             return {"columns": ["group", "value_log2" if params.get("log") else "value"], "rows": res.get("rows", []), "units": "", "data_version": {}}
         return {"columns": ["sample", "group", "target", "ct_target_mean", "ct_reference_mean", "delta_ct", "delta_delta_ct", "fold_change"],
                 "rows": res.get("rows", []), "units": "", "data_version": {}}
+    if r[0] == "dependency":
+        from app.analyses import dependency
+
+        try:
+            return dependency.table(params["gene"], params.get("projects", []))
+        except CohortUnavailable as e:
+            return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
     if r[0] == "across":
         try:
             return across.rows(params["gene"], _data_dir(), params.get("normal", "tcga_gtex"))
@@ -285,6 +292,17 @@ def run(body: RunBody):
         return _store(op, body, params, result, result.get("data_version", {}))
     if body.kind != "de" and not gene:
         return JSONResponse(status_code=400, content={"error": "needs_gene"})
+    if body.kind == "dependency":
+        # Cancer cell lines (DepMap), independent of the project's cohort; the project's cancer marks its lineage.
+        from app.analyses import dependency
+
+        projects = _projects(op.project())
+        try:
+            result = dependency.run(gene, projects)
+        except CohortUnavailable as e:
+            return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
+        params = {"kind": "dependency", "gene": gene, "projects": projects}
+        return _store(op, body, params, result, result["data_version"])
     if body.kind == "across":
         # Every TCGA cancer plus GTEx, from the Toil recompute: independent of the project's own cohort.
         try:

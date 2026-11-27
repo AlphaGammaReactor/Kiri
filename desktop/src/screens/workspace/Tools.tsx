@@ -84,6 +84,7 @@ export function ReproduceDialog({ a, fileName, initialTab = "record", onClose, s
     : (a.kind as string) === "signature" ? t("sig.repro.settings", { s: String((a.result as { set_name?: string }).set_name ?? (p as { set_id?: string }).set_id ?? ""), n: sigMembers(a).length })
     : a.kind === "expression_tn" ? (p.paired ? t("repro.paired") : t("repro.unpaired"))
     : a.kind === "immune" ? "Danaher 2017 · Spearman · BH"
+    : a.kind === "dependency" ? "DepMap CRISPR · Chronos"
     : a.kind === "bench" ? (p.mode === "qpcr" ? `ΔΔCt · ${p.ref ?? ""} · ${p.control ?? ""}` : `${p.log ? "log2 · " : ""}${p.control ?? ""}`)
     : a.kind === "across" ? (p.normal === "tcga" ? t("acr.normal.tcga") : t("acr.normal.gtex"))
     : a.kind === "de" ? t("repro.de", { c: t(`de.cmp.${p.compare ?? "tn"}` as StringKey, { g: p.gene ?? "" }), l: p.lfc ?? 1, q: p.q ?? 0.05, lib: t(`de.lib.${p.library ?? "hallmark"}` as StringKey) }) : (p as { gene2?: string }).gene2 ? t("repro.withGene", { g: (p as { gene2?: string }).gene2! }) : "–";
@@ -92,6 +93,7 @@ export function ReproduceDialog({ a, fileName, initialTab = "record", onClose, s
     if (a.kind === "survival") return `HR ${fmt((x.cox_adjusted ?? x.cox)?.hr)} · p = ${fmtP(x.p_report)}`;
     if (a.kind === "across") { const d = r as { n_up?: number; n_down?: number; n_tested?: number }; return `${d.n_up} up · ${d.n_down} down / ${d.n_tested}`; }
     if (a.kind === "bench") { const d = r as { panels?: { groups: { p?: number; p_adj?: number }[] }[] }; const ps = (d.panels ?? []).flatMap((x) => x.groups.slice(1).map((g) => g.p_adj ?? g.p)).filter((v): v is number => v != null); return ps.length ? `min p = ${fmtP(Math.min(...ps))}` : "–"; }
+    if (a.kind === "dependency") { const d = r as { focus?: { lineage: string; median: number | null; dep: number | null } | null; all?: { median: number | null } }; return d.focus ? `${d.focus.lineage}: ${fmt(d.focus.median)} · ${Math.round((d.focus.dep ?? 0) * 100)}%` : `all: ${fmt(d.all?.median)}`; }
     if (a.kind === "immune") { const d = r as { pos?: string[]; neg?: string[]; n?: number }; return `${d.pos?.length ?? 0} + · ${d.neg?.length ?? 0} − · n = ${d.n}`; }
     if (a.kind === "de") { const d = r as { n_up?: number; n_down?: number; n_tested?: number }; return `${d.n_up} up · ${d.n_down} down / ${d.n_tested}`; }
     if ((a.kind as string) === "correlation" || (a.kind as string) === "signature") return `ρ = ${fmt(x.rho)} · p = ${fmtP(x.p)}`;
@@ -219,6 +221,15 @@ ctrl <- v[d$group == "${a.params.control ?? ""}"]
 for (grp in setdiff(unique(d$group), "${a.params.control ?? ""}")) cat(grp, "vs control: Welch t-test p =", t.test(v[d$group == grp], ctrl)$p.value, "\\n")
 oneway.test(v ~ group, data = d)  # Welch ANOVA
 stripchart(v ~ group, data = d, vertical = TRUE, method = "jitter", pch = 16)
+`;
+  if (a.kind === "dependency") return `# One row per cancer lineage: DepMap CRISPR gene effect across its cell lines (* = your project's lineage)
+d <- read.csv("${csv}")
+d[order(d$median), c("lineage", "cell_lines", "median", "share_dependent")]
+# Box: middle half of the cell lines; whiskers: 10th to 90th percentile; a line depends on the gene at <= -0.5
+o <- order(d$median, decreasing = TRUE); y <- seq_along(o)
+plot(d$median[o], y, xlim = range(c(d$gene_effect_q10, d$q90, 0, -1)), yaxt = "n", pch = "|", xlab = "CRISPR gene effect", ylab = "")
+segments(d$gene_effect_q10[o], y, d$q90[o], y); rect(d$q25[o], y - 0.3, d$q75[o], y + 0.3)
+axis(2, at = y, labels = d$lineage[o], las = 1, cex.axis = 0.6); abline(v = c(0, -0.5), lty = c(1, 2))
 `;
   if (a.kind === "immune") return `# One row per tumour: your gene and each immune cell type's marker score
 # (mean of z-scored log2 expression of its Danaher et al. 2017 marker genes).
@@ -358,6 +369,18 @@ ctrl = d[d.group == control][v]
 for g in d.group.unique():
     if g != control:
         print(g, "vs", control, "Welch p =", stats.ttest_ind(d[d.group == g][v], ctrl, equal_var=False).pvalue)`}
+`;
+  if (a.kind === "dependency") return `import pandas as pd                        # pip install pandas matplotlib
+import matplotlib.pyplot as plt
+
+d = pd.read_csv("${csv}").sort_values("median", ascending=False)   # * marks your project's lineage
+print(d[["lineage", "cell_lines", "median", "share_dependent"]].to_string(index=False))
+y = range(len(d))
+plt.hlines(y, d.gene_effect_q10, d.q90, color="grey")
+plt.barh(y, d.q75 - d.q25, left=d.q25, height=0.6, color="#d9d2c3", edgecolor="grey")
+plt.scatter(d["median"], y, marker="|", s=120, color="black")
+plt.axvline(0, color="grey"); plt.axvline(-0.5, ls="--", color="#c8641a")
+plt.yticks(y, d.lineage, fontsize=6); plt.xlabel("CRISPR gene effect"); plt.tight_layout(); plt.show()
 `;
   if (a.kind === "immune") return `import pandas as pd                        # pip install pandas scipy statsmodels
 from scipy import stats

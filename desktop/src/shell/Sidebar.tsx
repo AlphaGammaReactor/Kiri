@@ -1,14 +1,13 @@
 import type { ReactNode } from "react";
 import { GraduationCap,
   Home, LayoutGrid, Compass, SlidersHorizontal, ChartSpline, ChartLine, ChartArea, Share2, Shield, FlaskConical,
-  SquarePlus, NotebookPen, LayoutPanelLeft, Database, Layers,
-} from "lucide-react";
+  SquarePlus, NotebookPen, LayoutPanelLeft, Database, Layers, Crosshair, } from "lucide-react";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
 import type { EngineState } from "../lib/engine";
 import { APP_VERSION } from "../lib/platform";
 
-export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation" | "import" | "de" | "signature" | "across" | "immune" | "interactions" | "bench" | "board" | "tutorials";
+export type Screen = "firstrun" | "home" | "new" | "overview" | "settings" | "about" | "survival" | "expression" | "notebook" | "data" | "glossary" | "guide" | "correlation" | "import" | "de" | "signature" | "across" | "immune" | "interactions" | "bench" | "board" | "tutorials" | "dependency";
 
 const Item = ({ icon, label, active, disabled, onClick, title }: { icon: ReactNode; label: string; active?: boolean; disabled?: boolean; onClick?: () => void; title?: string }) => (
   <button className="nav-item" aria-current={active ? "page" : undefined} disabled={disabled} onClick={onClick} title={title}>
@@ -30,6 +29,7 @@ export function Sidebar({ screen, onNav, engine, projectOpen, onLater }: { scree
     ["nav.de", <ChartArea {...ic} />, "de"],
     ["nav.interactions", <Share2 {...ic} />, "interactions"],
     ["nav.immune", <Shield {...ic} />, "immune"],
+    ["nav.dependency", <Crosshair {...ic} />, "dependency"],
     ["nav.bench", <FlaskConical {...ic} />, "bench"],
     ["nav.optional", <SquarePlus {...ic} />],
   ];

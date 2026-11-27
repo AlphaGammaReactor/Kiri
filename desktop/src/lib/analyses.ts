@@ -31,12 +31,12 @@ export type CorrelationResult = {
 };
 export type ErrorResult = { kind: string; gene: string; error: string; [k: string]: unknown };
 export type DataVersion = { cohort: string; projects: string[]; source: string; units: string; built: string };
-export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "expression_mut" | "expression_cn" | "expression_subtype" | "correlation" | "de" | "signature" | "across" | "immune" | "interactions" | "bench";
+export type Kind = "survival" | "expression_tn" | "expression_stage" | "expression_group" | "expression_mut" | "expression_cn" | "expression_subtype" | "correlation" | "de" | "signature" | "across" | "immune" | "interactions" | "bench" | "dependency";
 export type RunParams = { kind: Kind; gene: string; gene2?: string; set_id?: string; members?: string[]; check_only?: boolean; cut?: "median" | "quartile" | "optimal" | "mutation"; adjust?: ("age" | "stage" | "purity")[]; endpoint?: "OS" | "PFI" | "DSS"; paired?: boolean; replace?: string;
   compare?: "tn" | "gene" | "group"; group_a?: string | null; group_b?: string | null; lfc?: number; q?: number; library?: PathwayLibrary; normal?: "tcga" | "tcga_gtex";
   mode?: "qpcr" | "values"; text?: string; ref?: string; control?: string | null; log?: boolean; title?: string; projects?: string[] };
 export type Headline = { p_report?: number | null; error?: string | null; hr?: number | null; p?: number | null; rho?: number | null; n?: number | null; worst?: "pass" | "caution" | "problem" | null };
-export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | DEResult | AcrossResult | ImmuneResult | InteractionsResult | BenchResult | ErrorResult> = {
+export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | DEResult | AcrossResult | ImmuneResult | InteractionsResult | BenchResult | DependencyResult | ErrorResult> = {
   id: string; kind: Kind; params: Omit<RunParams, "projects"> & { projects: string[] }; result: R; data_versions: DataVersion;
   created_at: string; updated_at: string; saved?: boolean;
 };
@@ -58,6 +58,12 @@ export type AcrossResult = {
   kind: "across"; gene: string; normal: "tcga" | "tcga_gtex"; units: string; n_tested: number; n_up: number; n_down: number; up: string[]; down: string[];
   rows: { code: string; tumour: Summary; normal: Summary; n_tcga_normal: number; n_gtex: number; gtex_site: string | null; p: number | null; p_adj?: number; diff: number | null; points_t: number[]; points_n: number[] }[];
   checks: Check[]; data_version: DataVersion; test: { name: string; correction: string };
+};
+export type DependencyRow = { lineage: string; n: number; q10: number | null; q25: number | null; median: number | null; q75: number | null; q90: number | null; dep: number | null; mine: boolean };
+export type DependencyResult = {
+  kind: "dependency"; gene: string; rows: DependencyRow[]; cut: number; focus: DependencyRow | null; common_essential: boolean;
+  all: { n: number; median: number | null; dep: number | null; q10: number | null; q90: number | null }; checks: Check[];
+  data_version: DataVersion & { cite: string; renamed?: Record<string, string> };
 };
 export type ImmuneCell = { id: string; name: string; zh: string; markers: string[]; have: string[]; missing: string[]; rho: number | null; lo?: number; hi?: number; p?: number; p_adj?: number;
   rho_adj?: number; p_adj_partial?: number; q_partial?: number; alpha?: number | null; self?: boolean; n?: number };
