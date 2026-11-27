@@ -96,6 +96,7 @@ export function Interactions({ p, figLang, onFigLang, say, onLater, onGuide, onC
     r.partners.length ? t("int.plain", { g: r.gene, k: r.partners.length, s: r.strong, top: r.partners.slice(0, 3).map((x) => x.gene).join(", ") }) : t("int.plainNone", { g: r.gene }),
     r.experimental.length ? t("int.plain.exp", { list: r.experimental.slice(0, 5).join(", ") }) : "",
     r.n > 0 ? t(r.together.length ? "int.plain.coexp" : "int.plain.coexpNone", { k: r.together.length, n: tested.length, list: r.together.slice(0, 5).join(", ") }) : t("int.plain.noCohort"),
+    r.n > 0 && r.opposite.length ? t("int.plain.opposite", { k: r.opposite.length, list: r.opposite.slice(0, 5).join(", ") }) : "",
   ].filter(Boolean).join(" ") : "";
   const protPlain = r?.protein ? [
     t("int.prot.plain", { name: r.protein.name, len: r.protein.length, loc: r.protein.locations.join(", ") || "–" }),
@@ -144,7 +145,7 @@ export function Interactions({ p, figLang, onFigLang, say, onLater, onGuide, onC
     <>
       <div className="tiles">
         <div className="tile"><span className="eyebrow">{t("int.tile.partners")}</span><b>{r.partners.length}</b><span className="small">{t("int.tile.strong", { s: r.strong })}</span></div>
-        <div className="tile"><span className="eyebrow">{t("int.tile.coexp")}</span><b className="de-up">{r.n ? r.together.length : "–"}</b><span className="small">{r.n ? t("int.tile.of", { n: tested.length }) : t("int.tile.noCohort")}</span></div>
+        <div className="tile"><span className="eyebrow">{t("int.tile.coexp")}</span><b className="de-up">{r.n ? r.together.length : "–"}</b><span className="small">{r.n ? t("int.tile.of", { n: tested.length }) + (r.opposite.length ? ` · ${t("int.tile.opposite", { k: r.opposite.length })}` : "") : t("int.tile.noCohort")}</span></div>
       </div>
       <div className="side-card shows">
         <span className="eyebrow">{t("ws.whatShows")}</span><span className="small muted">{t("ws.fromNumbers")}</span>

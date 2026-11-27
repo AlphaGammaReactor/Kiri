@@ -55,7 +55,7 @@ export const ProteinMap = forwardRef<SVGSVGElement, { length: number; features: 
           <>
             {[50, 70, 90].map((v) => <line key={v} x1={L} x2={W - R} y1={AY + AH - (v / 100) * AH} y2={AY + AH - (v / 100) * AH} stroke={FIG.grid} strokeDasharray="2 3" />)}
             {[0, 50, 100].map((v) => <text key={v} x={L - 6} y={AY + AH - (v / 100) * AH + 3} fontSize={9.5} textAnchor="end" fill={FIG.muted} fontFamily={FIG.mono}>{v}</text>)}
-            {plddt.map((v, i) => <rect key={i} x={L + i * bw} y={AY + AH - (v / 100) * AH} width={Math.max(0.6, bw)} height={(v / 100) * AH} fill={band(v)} />)}
+            {plddt.map((v, i) => <rect key={i} x={L + i * bw} y={AY + AH - (v / 100) * AH} width={Math.max(0.6, bw) + 0.4} height={(v / 100) * AH} fill={band(v)} />)}
             <text x={14} y={AY + AH / 2} fontSize={10} fill={FIG.ink} transform={`rotate(-90 14 ${AY + AH / 2})`} textAnchor="middle">{labels.plddt}</text>
             <g transform={`translate(${L} ${AY + AH + 22})`}>
               {labels.bands.map((b, i) => (

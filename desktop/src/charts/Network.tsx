@@ -32,7 +32,7 @@ export const Network = forwardRef<SVGSVGElement, { gene: string; nodes: NetNode[
         <text x={W - 10} y={18} fontSize={10} textAnchor="end" fill={FIG.muted} fontFamily={FIG.mono}>{labels.stat}</text>
         {edges.map(([a, b, s]) => {
           const p = pos.get(a), q = pos.get(b);
-          return p && q ? <line key={`${a}-${b}`} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={FIG.grid} strokeWidth={0.6 + s} /> : null;
+          return p && q ? <line key={`${a}-${b}`} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={FIG.grid} strokeOpacity={0.7} strokeWidth={0.3 + 0.7 * s} /> : null;
         })}
         {ordered.map((n) => {
           const p = pos.get(n.gene)!;
