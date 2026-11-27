@@ -2,12 +2,13 @@
 // so a panel exists even for an analysis that was never opened or sent to the notebook.
 import { renderToStaticMarkup } from "react-dom/server";
 import type { StringKey } from "../i18n/strings";
-import { fmt, fmtP, type Analysis, type Check, type AcrossResult, type CorrelationResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
+import { fmt, fmtP, type Analysis, type Check, type AcrossResult, type CorrelationResult, type ImmuneResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
 import { BoxPoints } from "./BoxPoints";
 import { KM } from "./KM";
 import { Scatter } from "./Scatter";
 import { Volcano } from "./Volcano";
 import { Across } from "./Across";
+import { Immune } from "./Immune";
 import { FIG } from "./figure";
 import { figText, fillFig, stars, type FigLang } from "./figStrings";
 import { plainSurvival } from "../screens/workspace/Survival";
@@ -51,6 +52,14 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
     el = <Across rows={rows} labels={{ x: zh ? `${r.gene} 表达量，log2(TPM + 1)` : `${r.gene} expression, log2(TPM + 1)`, tumour: zh ? "肿瘤" : "Tumour",
       normal: r.normal === "tcga_gtex" ? (zh ? "正常（TCGA + GTEx）" : "Normal (TCGA + GTEx)") : (zh ? "正常" : "Normal"), noNormal: zh ? "无正常" : "no normal", stat: "n T/N · BH q" }} />;
     summary = t(r.n_up + r.n_down ? "acr.plain" : "acr.plainNone", { g: r.gene, u: r.n_up, d: r.n_down, k: r.n_tested });
+  } else if (a.kind === "immune") {
+    const r = a.result as ImmuneResult;
+    const zh = figLang === "zh";
+    el = <Immune highlight={r.top ?? undefined}
+      rows={r.rows.map((x) => ({ id: x.id, label: zh ? x.zh : x.name, rho: x.rho, lo: x.lo, hi: x.hi, rho_adj: x.rho_adj, p_adj: x.p_adj, have: x.have.length, total: x.markers.length, self: x.self }))}
+      labels={{ x: zh ? `与 ${r.gene} 的 Spearman ρ（肿瘤样本）` : `Spearman ρ with ${r.gene} across tumours`, raw: zh ? "ρ 及 95% CI" : "ρ with 95% CI",
+        adj: zh ? "去除总体免疫含量后" : "after removing overall immune content", stat: zh ? "标志基因 · BH q" : "markers · BH q", none: zh ? "数据中无标志基因" : "markers not in the data" }} />;
+    summary = t(r.pos.length || r.neg.length ? "imm.plain" : "imm.plainNone", { g: r.gene, u: r.pos.length, d: r.neg.length, k: r.rows.filter((x) => x.rho != null && x.id !== "cd45").length });
   } else if (a.kind === "de") {
     const r = a.result as DEResult;
     const zh = figLang === "zh";

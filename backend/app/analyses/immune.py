@@ -2,7 +2,7 @@
 Immune context: which immune cell types rise and fall with my gene across tumours.
 
 Each cell type gets a marker score per tumour: the mean of the z-scored log expression of its
-marker genes (Danaher et al. 2017, J Immunother Cancer 5:18, open access CC BY 4.0, where the
+marker genes (Danaher et al. 2017, J Immunother Cancer 5:18, open access, where the
 markers were chosen because they track each other across TCGA and match flow and IHC data).
 My gene is then compared with each score by Spearman correlation, with Benjamini–Hochberg
 correction across the cell types.
@@ -27,10 +27,11 @@ MIN_TUMOURS = 20
 POINTS = 500
 RNG_SEED = 20171
 
-# Danaher et al. 2017, Table 2 (final marker genes per cell type). TPSAB1 stands for TPSAB1/TPSB2.
+# Danaher et al. 2017, Table 1 "Selected marker genes" (checked against the paper text by CI, immune.yml).
+# KIAA0125 is now FAM30A; the paper's "PTRPC" is PTPRC. CD4 cells have no markers of their own there.
 CELLS: list[dict] = [
     {"id": "cd45", "name": "All immune cells (CD45)", "zh": "全部免疫细胞（CD45）", "genes": ["PTPRC"]},
-    {"id": "t", "name": "T cells", "zh": "T 细胞", "genes": ["CD2", "CD3D", "CD3E", "CD3G", "CD6", "SH2D1A", "TRAT1"]},
+    {"id": "t", "name": "T cells", "zh": "T 细胞", "genes": ["CD3D", "CD3E", "CD3G", "CD6", "SH2D1A", "TRAT1"]},
     {"id": "cd8", "name": "CD8 T cells", "zh": "CD8 T 细胞", "genes": ["CD8A", "CD8B"]},
     {"id": "exhausted", "name": "Exhausted CD8 T cells", "zh": "耗竭 CD8 T 细胞", "genes": ["CD244", "EOMES", "LAG3", "PTGER4"]},
     {"id": "treg", "name": "Regulatory T cells", "zh": "调节性 T 细胞", "genes": ["FOXP3"]},
@@ -41,7 +42,7 @@ CELLS: list[dict] = [
     {"id": "b", "name": "B cells", "zh": "B 细胞", "genes": ["BLK", "CD19", "FCRL2", "MS4A1", "FAM30A", "TNFRSF17", "TCL1A", "SPIB", "PNOC"]},
     {"id": "macrophage", "name": "Macrophages", "zh": "巨噬细胞", "genes": ["CD163", "CD68", "CD84", "MS4A4A"]},
     {"id": "dc", "name": "Dendritic cells", "zh": "树突状细胞", "genes": ["CCL13", "CD209", "HSD11B1"]},
-    {"id": "mast", "name": "Mast cells", "zh": "肥大细胞", "genes": ["CPA3", "HDC", "MS4A2", "TPSAB1"]},
+    {"id": "mast", "name": "Mast cells", "zh": "肥大细胞", "genes": ["CPA3", "HDC", "MS4A2", "TPSAB1", "TPSB2"]},
     {"id": "neutrophil", "name": "Neutrophils", "zh": "中性粒细胞", "genes": ["CEACAM3", "CSF3R", "FCAR", "FCGR3B", "FPR1", "S100A12", "SIGLEC5"]},
 ]
 ALIASES = {"FAM30A": ["KIAA0125"]}
@@ -163,7 +164,7 @@ def run(c: Cohort, gene: str) -> dict:
         checks.append(check("data", "caution", "data.immuneMissing", list=names(missing_cells), list_zh=names(missing_cells, "zh")))
     return base | {"n": int(n), "rows": rows, "pos": [r["id"] for r in pos], "neg": [r["id"] for r in neg],
                    "top": top["id"] if top else None, "overall_rho": overall["rho"] if overall else None,
-                   "points": points, "checks": checks, "citation": CITATION}
+                   "points": points, "checks": checks, "citation": CITATION, "data_version": c.data_version()}
 
 
 def table(c: Cohort, gene: str) -> dict:

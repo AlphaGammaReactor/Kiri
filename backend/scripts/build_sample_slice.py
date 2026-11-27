@@ -19,11 +19,11 @@ from pathlib import Path
 import xenaPython as xena
 
 # Immune context: the Danaher et al. 2017 marker genes, so the sample projects run it offline.
-IMMUNE = ["PTPRC", "CD2", "CD3D", "CD3E", "CD3G", "CD6", "SH2D1A", "TRAT1", "CD8A", "CD8B", "CD244", "EOMES",
+IMMUNE = ["PTPRC", "CD3D", "CD3E", "CD3G", "CD6", "SH2D1A", "TRAT1", "CD8A", "CD8B", "CD244", "EOMES",
           "LAG3", "PTGER4", "FOXP3", "TBX21", "CTSW", "GNLY", "GZMA", "GZMB", "GZMH", "KLRB1", "KLRD1", "KLRK1",
           "NKG7", "PRF1", "NCR1", "XCL1", "XCL2", "IL21R", "KIR2DL3", "KIR3DL1", "KIR3DL2", "BLK", "CD19", "FCRL2",
           "MS4A1", "FAM30A", "TNFRSF17", "TCL1A", "SPIB", "PNOC", "CD163", "CD68", "CD84", "MS4A4A", "CCL13",
-          "CD209", "HSD11B1", "CPA3", "HDC", "MS4A2", "TPSAB1", "CEACAM3", "CSF3R", "FCAR", "FCGR3B", "FPR1",
+          "CD209", "HSD11B1", "CPA3", "HDC", "MS4A2", "TPSAB1", "TPSB2", "CEACAM3", "CSF3R", "FCAR", "FCGR3B", "FPR1",
           "S100A12", "SIGLEC5"]
 
 HUB = "https://gdc.xenahubs.net"

@@ -83,12 +83,14 @@ export function ReproduceDialog({ a, fileName, initialTab = "record", onClose, s
     ? [t(`surv.cut.${p.cut ?? "median"}` as StringKey), p.adjust?.length ? t("repro.adjusted", { c: p.adjust.map((x) => t(x === "age" ? "surv.adj.age" : "surv.adj.stage").toLowerCase()).join(", ") }) : t("repro.unadjusted")].join(" · ")
     : (a.kind as string) === "signature" ? t("sig.repro.settings", { s: String((a.result as { set_name?: string }).set_name ?? (p as { set_id?: string }).set_id ?? ""), n: sigMembers(a).length })
     : a.kind === "expression_tn" ? (p.paired ? t("repro.paired") : t("repro.unpaired"))
+    : a.kind === "immune" ? "Danaher 2017 · Spearman · BH"
     : a.kind === "across" ? (p.normal === "tcga" ? t("acr.normal.tcga") : t("acr.normal.gtex"))
     : a.kind === "de" ? t("repro.de", { c: t(`de.cmp.${p.compare ?? "tn"}` as StringKey, { g: p.gene ?? "" }), l: p.lfc ?? 1, q: p.q ?? 0.05, lib: t(`de.lib.${p.library ?? "hallmark"}` as StringKey) }) : (p as { gene2?: string }).gene2 ? t("repro.withGene", { g: (p as { gene2?: string }).gene2! }) : "–";
   const headline = (r: unknown) => {
     const x = r as Partial<Omit<SurvivalResult, "kind">> & Partial<Omit<ExpressionResult, "kind">> & { rho?: number; p?: number };
     if (a.kind === "survival") return `HR ${fmt((x.cox_adjusted ?? x.cox)?.hr)} · p = ${fmtP(x.p_report)}`;
     if (a.kind === "across") { const d = r as { n_up?: number; n_down?: number; n_tested?: number }; return `${d.n_up} up · ${d.n_down} down / ${d.n_tested}`; }
+    if (a.kind === "immune") { const d = r as { pos?: string[]; neg?: string[]; n?: number }; return `${d.pos?.length ?? 0} + · ${d.neg?.length ?? 0} − · n = ${d.n}`; }
     if (a.kind === "de") { const d = r as { n_up?: number; n_down?: number; n_tested?: number }; return `${d.n_up} up · ${d.n_down} down / ${d.n_tested}`; }
     if ((a.kind as string) === "correlation" || (a.kind as string) === "signature") return `ρ = ${fmt(x.rho)} · p = ${fmtP(x.p)}`;
     return `p = ${fmtP(x.test?.p)}`;
@@ -198,6 +200,23 @@ wilcox.test(pairs$expression.x, pairs$expression.y, paired = TRUE)
 boxplot(expression ~ group, data = d, outline = FALSE, ylab = "${a.data_versions.units}")
 stripchart(expression ~ group, data = d, vertical = TRUE, method = "jitter", add = TRUE, pch = 16, cex = 0.4)
 `;
+  if (a.kind === "immune") return `# One row per tumour: your gene and each immune cell type's marker score
+# (mean of z-scored log2 expression of its Danaher et al. 2017 marker genes).
+d <- read.csv("${csv}", check.names = FALSE)
+g <- d[[2]]
+cells <- names(d)[-(1:2)]
+out <- data.frame(cell = cells, rho = NA, p = NA)
+for (i in seq_along(cells)) {
+  ct <- cor.test(g, d[[cells[i]]], method = "spearman", exact = FALSE)
+  out$rho[i] <- ct$estimate; out$p[i] <- ct$p.value
+}
+out$q <- p.adjust(out$p, method = "BH")
+out[order(-abs(out$rho)), ]
+# Partial correlation removing overall immune content (cd45_score), on ranks:
+rk <- function(x) rank(x, na.last = "keep")
+res <- function(y) resid(lm(rk(y) ~ rk(d$cd45_score), na.action = na.exclude))
+sapply(setdiff(cells, "cd45_score"), function(c) cor(res(g), res(d[[c]]), use = "complete.obs"))
+`;
   if (a.kind === "across") return `# One row per sample, from the UCSC Toil recompute of TCGA and GTEx (log2(TPM + 1)).
 d <- read.csv("${csv}", check.names = FALSE)
 v <- d[[5]]
@@ -301,6 +320,23 @@ pn = d[d.group == "normal"].groupby("patient").expression.mean()
 both = pt.index.intersection(pn.index)
 print("signed-rank p =", stats.wilcoxon(pt[both], pn[both]).pvalue, "pairs =", len(both))
 ` : ""}`;
+  if (a.kind === "immune") return `import pandas as pd                        # pip install pandas scipy statsmodels
+from scipy import stats
+from statsmodels.stats.multitest import multipletests
+
+# One row per tumour: your gene and each immune cell type's marker score
+# (mean of z-scored log2 expression of its Danaher et al. 2017 marker genes).
+d = pd.read_csv("${csv}")
+g = d.columns[1]
+rows = []
+for c in d.columns[2:]:
+    ok = d[[g, c]].dropna()
+    r = stats.spearmanr(ok[g], ok[c])
+    rows.append((c, r.statistic, r.pvalue))
+out = pd.DataFrame(rows, columns=["cell", "rho", "p"])
+out["q"] = multipletests(out.p, method="fdr_bh")[1]
+print(out.reindex(out.rho.abs().sort_values(ascending=False).index))
+`;
   if (a.kind === "across") return `import pandas as pd                        # pip install pandas scipy statsmodels
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
