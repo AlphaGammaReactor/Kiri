@@ -75,7 +75,7 @@ def main(dest: str) -> None:
     r = parse_gmt(text, 1, lambda p: p[0])
     write(d / "reactome.json.gz", {
         "library": "reactome", "version": version, "source": REACTOME, "built": date.today().isoformat(),
-        "licence": "CC BY 4.0 (Reactome)",
+        "licence": "CC0 1.0 (Reactome data; attribution encouraged)",
         "citation": "Milacic M, et al. The Reactome Pathway Knowledgebase 2024. Nucleic Acids Res. 2024;52(D1):D672-D678.",
         "sets": r})
 
