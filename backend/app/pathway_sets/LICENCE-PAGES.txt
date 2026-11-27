@@ -1,6 +1,26 @@
-=== https://www.gsea-msigdb.org/gsea/msigdb/license_terms_list.jsp
-} h1 {font-size:22px;} h2 {font-size:16px;} h3 {font-size:14px;} p {font-size:12px;} a {color:black;} .line {height:1px;background-color:#525D76;border:none;} HTTP Status 404 – Not Found Type Status Report Message JSP file [&#47;msigdb&#47;license_terms_list.jsp] not found Description The origin server did not find a current representation for the target resource or is not willing to disclose that one exists. Apache Tomcat/10.1.62 
-=== https://docs.gsea-msigdb.org/#MSigDB/MSigDB_License/
+=== https://www.gsea-msigdb.org/gsea/msigdb_license_terms.jsp
+ GSEA | License Terms for MSigDB released after April 2017 
+ License Terms for MSigDB released after April 2017
+ Creative Commons Attribution 4.0 International License 
+These license terms apply to MSigDB versions v6.0 to v7.5.1, and v2022.1 and above . The contents
+ Creative Commons Attribution 4.0 International License . 
+ Creative Commons Attribution-ShareAlike 4.0 International License . 
+Laboratories, all rights reserved. They are provided for use in the MSigDB collection under license to the 
+copyright holder's academic and commercial licensing policies. Inclusion of these gene sets herein is conditioned upon 
+under license to the Broad Institute, Inc. with qualified permission to include in this release, subject to Biocarta's 
+MSigDB collection under license to the Broad Institute, Inc., with qualified permission to include in this release subject to the 
+=== https://raw.githubusercontent.com/GSEA-MSigDB/msigdb-documentation/main/docs/MSigDB_License.md
+=== https://www.gsea-msigdb.org/gsea/license_terms_list.jsp
+ License Terms for MSigDB Gene Sets and GSEA software 
+ License Terms for MSigDB Gene Sets
+MSigDB v6.0 to v7.5.1, and v2022.1 and above are available under a Creative Commons style license, plus additional
+terms for some gene sets. The full license terms are available here .
+Releases of MSigDB v5.2 and earlier are available under a single user license agreement for internal research 
+purposes. The full license terms are available here .
+ License Terms for GSEA Software 
+ a BSD-style license . The source code is available from our 
+available under a single user license agreement for internal research purposes. The 
+ full license terms are available here .
 === https://reactome.org/license
 	 License Agreement - Reactome Pathway Database 
  What is Reactome ? News Team Scientific Advisory Board Funding Editorial Calendar Release Calendar Statistics Our Logo License Agreement Privacy Notice Disclaimer Digital Preservation Contact us Content 
