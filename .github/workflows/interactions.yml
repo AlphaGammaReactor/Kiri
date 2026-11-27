@@ -65,4 +65,4 @@ jobs:
           git add backend/app/cohorts/samples/interactions
           git diff --cached --quiet && exit 0
           git commit -m "Sample data: interactions and protein maps for the sample genes, built by CI"
-          git pull --rebase origin claude/project-thread-2tc0ep && git push
+          git pull --rebase origin "$GITHUB_REF_NAME" && git push

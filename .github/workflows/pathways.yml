@@ -61,4 +61,4 @@ jobs:
           git add backend/app/pathway_sets
           git diff --cached --quiet && exit 0
           git commit -m "Pathway libraries: Hallmark and Reactome built by CI"
-          git pull --rebase origin claude/project-thread-2tc0ep && git push
+          git pull --rebase origin "$GITHUB_REF_NAME" && git push
