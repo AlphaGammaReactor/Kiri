@@ -45,19 +45,36 @@ class Cohort:
     copies: dict | None = None     # bundled slice: gene -> copy number per sample (copynumber.py)
     copy_reader: object | None = None  # pack: CopyReader
 
+    def _expr_has(self, g: str) -> bool:
+        return g in self._genes or (self.reader is not None and self.reader.has(g))
+
+    def stored_name(self, gene: str, test=None) -> str:
+        """The name this cohort keeps the gene under: as asked, or another HGNC name of the same gene
+        (an older symbol, an alias, or today's symbol when the data use an older one)."""
+        test = test or self._expr_has
+        if test(gene):
+            return gene
+        from app.kiri.genes import other_names
+
+        return next((n for n in other_names(gene) if test(n)), gene)
+
     def has(self, gene: str) -> bool:
-        return gene in self._genes or (self.reader is not None and self.reader.has(gene))
+        return self._expr_has(self.stored_name(gene))
 
     def gene(self, gene: str) -> np.ndarray:
+        gene = self.stored_name(gene)
         if gene in self._genes:
             return self._genes[gene]
         if self.reader is not None and self.reader.has(gene):
             return self.reader.gene(gene, self.samples["id"].tolist())
         raise CohortUnavailable("gene_not_in_cohort", gene=gene, cohort=self.name)
 
+    def _mut_has(self, gene: str) -> bool:
+        return bool(self.mutations) and (not self.mutations.get("partial") or gene in self.mutations["genes"])
+
     def has_mutation(self, gene: str) -> bool:
         """Mutation status is known for this gene (a bundled slice keeps only the commoner genes)."""
-        return bool(self.mutations) and (not self.mutations.get("partial") or gene in self.mutations["genes"])
+        return self._mut_has(self.stored_name(gene, self._mut_has))
 
     def mutation(self, gene: str) -> np.ndarray:
         """1 mutated, 0 sequenced and not mutated, NaN not sequenced (see mutations.py)."""
@@ -67,13 +84,17 @@ class Cohort:
             raise CohortUnavailable("no_mutation_data", cohort=self.name)
         if not self.has_mutation(gene):
             raise CohortUnavailable("gene_not_in_cohort", gene=gene, cohort=self.name)
-        return status(self.mutations, self.samples["id"].tolist(), gene)
+        return status(self.mutations, self.samples["id"].tolist(), self.stored_name(gene, lambda g: g in self.mutations["genes"]))
+
+    def _cn_has(self, gene: str) -> bool:
+        return (self.copies is not None and gene in self.copies) or (self.copy_reader is not None and self.copy_reader.has(gene))
 
     def has_copies(self, gene: str) -> bool:
-        return (self.copies is not None and gene in self.copies) or (self.copy_reader is not None and self.copy_reader.has(gene))
+        return self._cn_has(self.stored_name(gene, self._cn_has))
 
     def copy_number(self, gene: str) -> np.ndarray:
         """Whole copies of the gene per sample (NaN: no call)."""
+        gene = self.stored_name(gene, self._cn_has)
         if self.copies is not None and gene in self.copies:
             return np.array([np.nan if v is None else v for v in self.copies[gene]], dtype=float)
         if self.copy_reader is not None and self.copy_reader.has(gene):

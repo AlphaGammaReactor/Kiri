@@ -48,6 +48,9 @@ export function Frame({ crumb, title, badges, params, figure, side, onLater, ana
           <div className="crumb mono">{crumb}</div>
           <h1 className="page ws-title">{title}</h1>
           <div className="ws-badges">{badges}</div>
+          {usable && Object.entries(((analysis!.result as { data_version?: { renamed?: Record<string, string> } }).data_version?.renamed) ?? {}).map(([asked, used]) => (
+            <div key={asked} className="ws-other small" title={t("alias.tip")}><span>{t("alias.note", { a: asked, u: used })}</span></div>
+          ))}
           {cohorts?.other && <div className="ws-other small">
             <span>{t("other.now", { c: cohortLabel(cohorts.other) })}</span>
             <button className="link small" onClick={() => cohorts.checkIn(null)}>{t("other.back", { c: cohortLabel(cohorts.home) })}</button>

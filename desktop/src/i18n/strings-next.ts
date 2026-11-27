@@ -997,6 +997,8 @@ export const enNext = {
   "dl.copy": "Copy details",
   "dl.toast": "{c} is ready",
   "dl.toastMany": "{c} are ready",
+  "alias.note": "{a} is listed as {u} in this data, an older or other HGNC name of the same gene.",
+  "alias.tip": "Gene names change over time. Kiri matches them with the HGNC list of approved symbols, previous symbols and aliases (CC0).",
 } as const;
 
 export const zhNext: Record<keyof typeof enNext, string> = {
@@ -1995,4 +1997,6 @@ export const zhNext: Record<keyof typeof enNext, string> = {
   "dl.copy": "复制详情",
   "dl.toast": "{c} 已就绪",
   "dl.toastMany": "{c} 已就绪",
+  "alias.note": "{a} 在此数据中名为 {u}，是同一基因在 HGNC 中的旧名或别名。",
+  "alias.tip": "基因名称会随时间变化。Kiri 依据 HGNC 的批准符号、曾用符号与别名列表（CC0）进行匹配。",
 };

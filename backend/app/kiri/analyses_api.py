@@ -368,6 +368,15 @@ def run(body: RunBody):
                 result = run_signature(c, gene, body.set_id, body.members, _data_dir())
             else:
                 result = expression.by_stage(c, gene)
+        # A gene the data keep under another HGNC name (older symbol or alias): say which name was used.
+        renamed = {}
+        checks = [(g, None) for g in wanted] + ([(mut_gene, c._mut_has)] if mut_gene and c.mutations else []) + ([(cn_gene, c._cn_has)] if cn_gene else [])
+        for g, test in checks:
+            used = c.stored_name(g, test)
+            if used != g:
+                renamed[g] = used
+        if renamed and isinstance(result, dict) and isinstance(result.get("data_version"), dict):
+            result["data_version"]["renamed"] = renamed
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
 

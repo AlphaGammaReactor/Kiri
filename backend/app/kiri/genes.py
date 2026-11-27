@@ -26,6 +26,33 @@ def _table():
     return genes, alias, protein, sorted(genes)
 
 
+@lru_cache(maxsize=1)
+def _names():
+    """Approved symbol -> its aliases and previous symbols, in HGNC order."""
+    out: dict[str, list[str]] = {}
+    with gzip.open(_FILE, "rt", encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("#"):
+                continue
+            sym, _name, _group, aliases, prev, _ens = line.rstrip("\n").split("\t")
+            out[sym.upper()] = [x.strip() for x in (prev + "|" + aliases).split("|") if x.strip()]
+    return out
+
+
+@lru_cache(maxsize=4096)
+def other_names(gene: str) -> tuple[str, ...]:
+    """Other HGNC names of the same gene, most likely first: today's symbol (when given an old one or an alias),
+    then previous symbols, then aliases. Empty for an unknown name."""
+    q = gene.strip().upper()
+    genes, alias, _p, _e = _table()
+    sym = q if q in genes else alias.get(q, "").upper()
+    if not sym:
+        return ()
+    # Never a name that is another gene's approved symbol: that would quietly swap genes.
+    names = [genes[sym]["symbol"]] + [n for n in _names().get(sym, []) if n.upper() not in genes or n.upper() == sym]
+    return tuple(dict.fromkeys(n for n in names if n.upper() != q))
+
+
 def check(text: str) -> dict:
     """ok: an approved symbol. alias: an old or alternative name for one. unknown: with suggestions."""
     q = text.strip().upper()
