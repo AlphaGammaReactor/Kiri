@@ -2,7 +2,7 @@
 // so a panel exists even for an analysis that was never opened or sent to the notebook.
 import { renderToStaticMarkup } from "react-dom/server";
 import type { StringKey } from "../i18n/strings";
-import { fmt, fmtP, type Analysis, type Check, type AcrossResult, type CorrelationResult, type ImmuneResult, type BenchResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
+import { fmt, fmtP, type Analysis, type Check, type AcrossResult, type CorrelationResult, type ImmuneResult, type BenchResult, type InteractionsResult, type DEResult, type ExpressionResult, type Group, type SurvivalResult } from "../lib/analyses";
 import { BoxPoints } from "./BoxPoints";
 import { KM } from "./KM";
 import { Scatter } from "./Scatter";
@@ -10,6 +10,8 @@ import { Volcano } from "./Volcano";
 import { Across } from "./Across";
 import { Immune } from "./Immune";
 import { BenchDots } from "./BenchDots";
+import { Network } from "./Network";
+import { networkFigure, plainInteractions } from "../screens/workspace/Interactions";
 import { benchFigure, plainBench } from "../screens/workspace/Bench";
 import { FIG } from "./figure";
 import { figText, fillFig, stars, type FigLang } from "./figStrings";
@@ -66,6 +68,10 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
     const r = a.result as BenchResult;
     el = <BenchDots {...benchFigure(r, figLang)} />;
     summary = plainBench(r, t);
+  } else if (a.kind === "interactions") {
+    const r = a.result as InteractionsResult;
+    el = <Network {...networkFigure(r, figLang)} />;
+    summary = plainInteractions(r, t);
   } else if (a.kind === "de") {
     const r = a.result as DEResult;
     const zh = figLang === "zh";

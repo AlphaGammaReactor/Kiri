@@ -575,3 +575,85 @@ def export_summary(body: SummaryBody):
     tmp.write_bytes(data)
     os.replace(tmp, p)
     return {"path": str(p), "bytes": len(data), "entries": len(entries)}
+
+
+# ── Figure boards: multi-panel figures whose panels stay linked to their analyses ──
+class BoardSpec(BaseModel):
+    title: str = Field(default="", max_length=160)
+    panels: list[str] = Field(default_factory=list, max_length=12)  # analysis ids, in panel order
+    width: Literal["single", "onehalf", "double"] = "double"
+    cols: int = Field(default=2, ge=1, le=3)
+    font: Literal["Arial", "Helvetica"] = "Arial"
+    size: float = Field(default=7, ge=5, le=10)
+    letters: Literal["upper", "lower", "none"] = "upper"
+    align: Literal["top", "centre", "bottom"] = "top"
+
+
+def _board_out(row) -> dict:
+    spec = json.loads(row[1])
+    spec.pop("type", None)
+    return {"id": row[0], "created_at": row[2], **spec}
+
+
+def _board_op(write: bool):
+    op = ws().require()
+    if write and op.read_only:
+        raise KiriFileError("read_only")
+    return op
+
+
+def _saved() -> None:
+    try:
+        ws().autosave()
+    except KiriFileError:
+        pass
+
+
+@router.get("/boards")
+def list_boards():
+    try:
+        op = _board_op(False)
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    rows = op.con.execute("SELECT id, spec, created_at FROM figures WHERE analysis_id IS NULL ORDER BY created_at").fetchall()
+    return [_board_out(r) for r in rows if json.loads(r[1]).get("type") == "board"]
+
+
+@router.post("/boards")
+def create_board(body: BoardSpec):
+    try:
+        op = _board_op(True)
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    bid = uuid.uuid4().hex
+    created = now()
+    op.con.execute("INSERT INTO figures(id, analysis_id, spec, thumbnail, created_at) VALUES (?, NULL, ?, NULL, ?)",
+                   (bid, json.dumps({"type": "board", **body.model_dump()}, ensure_ascii=False), created))
+    _saved()
+    return {"id": bid, "created_at": created, **body.model_dump()}
+
+
+@router.put("/boards/{bid}")
+def save_board(bid: str, body: BoardSpec):
+    try:
+        op = _board_op(True)
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    cur = op.con.execute("UPDATE figures SET spec = ? WHERE id = ? AND analysis_id IS NULL",
+                         (json.dumps({"type": "board", **body.model_dump()}, ensure_ascii=False), bid))
+    if not cur.rowcount:
+        return JSONResponse(status_code=404, content={"error": "not_found"})
+    _saved()
+    row = op.con.execute("SELECT id, spec, created_at FROM figures WHERE id = ?", (bid,)).fetchone()
+    return _board_out(row)
+
+
+@router.delete("/boards/{bid}")
+def delete_board(bid: str):
+    try:
+        op = _board_op(True)
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    op.con.execute("DELETE FROM figures WHERE id = ? AND analysis_id IS NULL", (bid,))
+    _saved()
+    return {"ok": True}

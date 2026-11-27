@@ -53,6 +53,51 @@ def _flatten_opacity(svg: str) -> str:
     return re.sub(r"<[^>]+>", tag, svg)
 
 
+_SANS_BOLD = ("/System/Library/Fonts/Supplemental/Arial Bold.ttf", "/Library/Fonts/Arial Bold.ttf",
+              "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "C:/Windows/Fonts/arialbd.ttf")
+_SANS_FONTS = ("/System/Library/Fonts/Supplemental/Arial.ttf", "/Library/Fonts/Arial.ttf",
+               "/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+               "C:/Windows/Fonts/arial.ttf")
+
+
+def _sans_font() -> str | None:
+    """A TrueType sans with Greek and maths signs (Δ, ρ, −), for figures the built-in Helvetica can't draw."""
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    if "KiriSans" in pdfmetrics.getRegisteredFontNames():
+        return "KiriSans"
+    for path in _SANS_BOLD:
+        if os.path.exists(path):
+            try:
+                pdfmetrics.registerFont(TTFont("KiriSans-Bold", path))
+                break
+            except Exception:  # noqa: BLE001 - try the next font
+                continue
+    for path in _SANS_FONTS:
+        if os.path.exists(path):
+            try:
+                pdfmetrics.registerFont(TTFont("KiriSans", path))
+                return "KiriSans"
+            except Exception:  # noqa: BLE001 - try the next font
+                continue
+    return None
+
+
+def _registered() -> list[str]:
+    from reportlab.pdfbase import pdfmetrics
+
+    return pdfmetrics.getRegisteredFontNames()
+
+
+def _outside_winansi(svg: str) -> bool:
+    try:
+        re.sub(r"<[^>]+>", "", svg).encode("cp1252")
+        return False
+    except UnicodeEncodeError:
+        return True
+
+
 def svg_drawing(svg: str, bitmap: bool = False):
     """An app SVG as a ReportLab drawing. svglib cannot pick fonts per glyph, so a figure
     with Chinese text is drawn entirely in the CJK font."""
@@ -65,6 +110,13 @@ def svg_drawing(svg: str, bitmap: bool = False):
         font = _cjk_font()
         svg = re.sub(r'font-family="[^"]*"', f'font-family="{font}"', svg)
         svg = re.sub(r"font-family:[^;\"]*", f"font-family:{font}", svg)
+    elif _outside_winansi(svg) and (font := _sans_font()):
+        svg = re.sub(r'font-family="[^"]*"', f'font-family="{font}"', svg)
+        svg = re.sub(r"font-family:[^;\"]*", f"font-family:{font}", svg)
+        if "KiriSans-Bold" in _registered():
+            svg = re.sub(r'<text\b[^>]*font-weight="(?:bold|[6-9]00)"[^>]*>',
+                         lambda m: m.group(0).replace(f'font-family="{font}"', 'font-family="KiriSans-Bold"')
+                         if "font-family=" in m.group(0) else m.group(0).replace("<text", '<text font-family="KiriSans-Bold"', 1), svg)
     return svg2rlg(io.BytesIO(svg.encode("utf-8")))
 
 

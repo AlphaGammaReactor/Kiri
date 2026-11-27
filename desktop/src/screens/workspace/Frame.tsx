@@ -9,6 +9,7 @@ import { copyPng, pngBytes, svgText } from "../../charts/figure";
 import { pickExportPath } from "../../lib/files";
 import { progress } from "../../lib/progress";
 import { FigureViewer } from "../../charts/FigureViewer";
+import { addToBoard } from "../../charts/board";
 
 export const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 export const runKeys = isMac ? "⌘ Enter" : "Ctrl Enter";
@@ -100,6 +101,11 @@ export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang,
     const bytes = ext === "png" ? await pngBytes(svgRef.current) : new TextEncoder().encode(svgText(svgRef.current));
     try { const r = await analyses.exportFile(path, bytes); onSaid(t("fig.saved", { p: r.path })); } catch { onSaid(t("fig.saveFailed")); }
   };
+  const toBoard = async () => {
+    if (readOnly) { onSaid(t("fig.readOnly")); return; }
+    if (!analysis) { onLater(); return; }
+    try { onSaid(await addToBoard(analysis.id, t)); } catch { onSaid(t("fig.readOnly")); }
+  };
   const send = async () => {
     if (readOnly) { onSaid(t("fig.readOnly")); return; }
     try {
@@ -126,7 +132,7 @@ export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang,
             )}
           </div>
           <button className="btn primary sm" onClick={send}><NotebookPen size={15} />{t("fig.sendNotebook")}</button>
-          <button className="tool" title={t("fig.board") + " · " + t("common.notYet")} onClick={onLater}><LayoutPanelLeft size={16} /></button>
+          <button className="tool" title={t("fig.board")} aria-label={t("fig.board")} onClick={toBoard}><LayoutPanelLeft size={16} /></button>
           <button className="tool" title={t("fig.table")} aria-label={t("fig.table")} onClick={() => (analysis ? setTool("table") : onLater())}><Table2 size={16} /></button>
           <button className="tool" title={t("fig.code")} aria-label={t("fig.code")} onClick={() => (analysis ? setTool("code") : onLater())}><Code2 size={16} /></button>
         </div>

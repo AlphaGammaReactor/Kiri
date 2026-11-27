@@ -66,7 +66,7 @@ export function Overview({ p, say, onOpen, onNotebook, onGuide, onRefresh, figLa
     return t("ov.stat.p", { v: fmtP(h.p) });
   };
   const inNotebook = useMemo(() => new Set(notes.map((n) => n.body.analysis_id).filter(Boolean) as string[]), [notes]);
-  const genesOf = (r: Row) => r.params.gene + ((r.params as { gene2?: string }).gene2 ? ` · ${(r.params as { gene2?: string }).gene2}` : "");
+  const genesOf = (r: Row) => r.kind === "bench" ? ((r.params as { title?: string }).title || "–") : r.params.gene + ((r.params as { gene2?: string }).gene2 ? ` · ${(r.params as { gene2?: string }).gene2}` : "");
 
   // Where you left off
   const last = rows?.[0];

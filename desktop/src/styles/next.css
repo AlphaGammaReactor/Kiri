@@ -199,3 +199,27 @@
 /* Bench data */
 .bench-paste { width: 100%; min-height: 170px; resize: vertical; font-size: 11.5px; line-height: 1.45; white-space: pre; }
 .bench-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+/* ── Figure board ── */
+.board-grid { grid-template-columns: 250px minmax(0, 1fr) 270px; }
+.board-title { font: 400 28px/1.15 var(--font-display); letter-spacing: -0.01em; height: 38px; display: block; width: 100%; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent; color: inherit; padding: 0 4px; margin-left: -5px; }
+.board-title:hover:not([readonly]), .board-title:focus { border-color: var(--color-border-default); background: var(--color-bg-surface); outline: 0; }
+.board-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.board-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-md); background: var(--color-bg-sunken); }
+.board-list li.gone .board-name { color: var(--color-status-danger); }
+.board-letter { font: 700 15px/1 var(--font-display); }
+.board-name { border: 0; background: none; padding: 0; text-align: left; font-size: 13px; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.board-name:hover { text-decoration: underline; }
+.board-tools { display: inline-flex; gap: 0; }
+.board-tools .icon-btn { width: 24px; height: 24px; }
+.board-add { left: 0; right: auto; top: 26px; max-height: 300px; overflow: auto; min-width: 240px; }
+.board-canvas { min-width: 0; min-height: 0; overflow: auto; background: var(--color-bg-sunken); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.board-page { width: 100%; height: auto; background: #fff; box-shadow: 0 1px 3px rgba(30,28,24,.12), 0 6px 20px rgba(30,28,24,.06); }
+.board-spec { text-align: center; }
+.board-hint { flex: 1; display: grid; place-items: center; max-width: 320px; text-align: center; }
+.board-pair { display: grid; grid-template-columns: 1fr 86px; gap: 8px; }
+.board-empty { max-width: 560px; display: grid; gap: 10px; padding: 24px; }
+.board-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; font-size: 13.5px; line-height: 1.45; }
+.board-checks li { display: grid; grid-template-columns: 14px 1fr; align-items: baseline; }
+.link.danger { color: var(--color-status-danger); }
+.btn.danger { background: var(--color-status-danger); border-color: var(--color-status-danger); color: #fff; }

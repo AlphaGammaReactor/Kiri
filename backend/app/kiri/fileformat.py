@@ -192,6 +192,8 @@ class OpenProject:
                          for r in c.execute("SELECT id, kind, params, result, data_versions FROM analyses")],
             "notebook": [dict(zip(("id", "kind", "body", "pinned", "created_at"), r))
                          for r in c.execute("SELECT id, kind, body, pinned, created_at FROM notebook")],
+            "figures": [dict(zip(("id", "analysis_id", "spec", "created_at"), r))
+                        for r in c.execute("SELECT id, analysis_id, spec, created_at FROM figures")],
         }
         return json.dumps(snap, ensure_ascii=False).encode()
 

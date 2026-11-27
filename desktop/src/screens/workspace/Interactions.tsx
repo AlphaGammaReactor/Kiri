@@ -25,6 +25,26 @@ const FIGT = {
 };
 const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
 
+type TFn = (k: StringKey, v?: Record<string, string | number>) => string;
+
+/** Plain-language reading of the partner network, shared with the one-page summary and figure board. */
+export function plainInteractions(r: InteractionsResult, t: TFn) {
+  const tested = r.partners.filter((x) => x.p_adj != null);
+  return [
+    r.partners.length ? t("int.plain", { g: r.gene, k: r.partners.length, s: r.strong, top: r.partners.slice(0, 3).map((x) => x.gene).join(", ") }) : t("int.plainNone", { g: r.gene }),
+    r.experimental.length ? t("int.plain.exp", { list: r.experimental.slice(0, 5).join(", ") }) : "",
+    r.n > 0 ? t(r.together.length ? "int.plain.coexp" : "int.plain.coexpNone", { k: r.together.length, n: tested.length, list: r.together.slice(0, 5).join(", ") }) : t("int.plain.noCohort"),
+    r.n > 0 && r.opposite.length ? t("int.plain.opposite", { k: r.opposite.length, list: r.opposite.slice(0, 5).join(", ") }) : "",
+  ].filter(Boolean).join(" ");
+}
+
+/** Props for the partner network in the chosen figure language. */
+export function networkFigure(r: InteractionsResult, figLang: FigLang) {
+  const F = FIGT[figLang];
+  return { gene: r.gene, nodes: r.partners.map((x) => ({ gene: x.gene, score: x.score, rho: x.rho, q: x.p_adj })), edges: r.edges,
+    labels: { width: F.width, colour: F.colour, missing: F.missing, stat: fill(F.stat, { v: r.string_version ?? "" }) } };
+}
+
 export function Interactions({ p, figLang, onFigLang, say, onLater, onGuide, onCorrelate }: {
   p: ProjectSummary; figLang: FigLang; onFigLang: (l: FigLang) => void; say: (s: string) => void; onLater: () => void; onGuide: () => void;
   onCorrelate: (a: string, b: string) => void;
@@ -92,12 +112,7 @@ export function Interactions({ p, figLang, onFigLang, say, onLater, onGuide, onC
     body = <ErrorState {...e} code={a.phase.code} actions={<button className="btn primary" onClick={run}>{t("err.ws.retry")}</button>} />;
   } else if (!r) body = a.loaded ? <EmptyState title={t("int.empty.title")} body={t("int.empty.body", { g: gene.toUpperCase() })} onRun={run} onGuide={onGuide} /> : null;
 
-  const plain = r ? [
-    r.partners.length ? t("int.plain", { g: r.gene, k: r.partners.length, s: r.strong, top: r.partners.slice(0, 3).map((x) => x.gene).join(", ") }) : t("int.plainNone", { g: r.gene }),
-    r.experimental.length ? t("int.plain.exp", { list: r.experimental.slice(0, 5).join(", ") }) : "",
-    r.n > 0 ? t(r.together.length ? "int.plain.coexp" : "int.plain.coexpNone", { k: r.together.length, n: tested.length, list: r.together.slice(0, 5).join(", ") }) : t("int.plain.noCohort"),
-    r.n > 0 && r.opposite.length ? t("int.plain.opposite", { k: r.opposite.length, list: r.opposite.slice(0, 5).join(", ") }) : "",
-  ].filter(Boolean).join(" ") : "";
+  const plain = r ? plainInteractions(r, t) : "";
   const protPlain = r?.protein ? [
     t("int.prot.plain", { name: r.protein.name, len: r.protein.length, loc: r.protein.locations.join(", ") || "–" }),
     r.bands ? t("int.prot.bands", { hi: r.bands.very_high + r.bands.confident, lo: r.bands.low + r.bands.very_low }) : "",
@@ -113,8 +128,7 @@ export function Interactions({ p, figLang, onFigLang, say, onLater, onGuide, onC
         figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only} analysis={a.current} caption={caption}
         notebookBody={() => ({ analysis_id: a.current?.id, kind: "interactions", gene: r.gene, title, summary: view === "partners" ? plain : protPlain, checks: r.checks, meta: `STRING ${r.string_version ?? ""} · UniProt · AlphaFold DB · ${r.fetched}` })}>
         {view === "partners" || !r.protein ? (
-          <Network ref={svgRef} gene={r.gene} nodes={r.partners.map((x) => ({ gene: x.gene, score: x.score, rho: x.rho, q: x.p_adj }))} edges={r.edges}
-            labels={{ width: F.width, colour: F.colour, missing: F.missing, stat: fill(F.stat, { v: r.string_version ?? "" }) }} />
+          <Network ref={svgRef} {...networkFigure(r, figLang)} />
         ) : (
           <ProteinMap ref={svgRef} length={r.protein.length} features={r.protein.features} plddt={r.plddt}
             labels={{ title: fill(F.title, { g: r.gene, name: r.protein.name, len: r.protein.length }), residues: F.residues, plddt: F.plddt, bands: F.bands, tm: F.tm, signal: F.signal, site: F.site, noModel: F.noModel }} />

@@ -98,6 +98,12 @@ export async function call<T>(path: string, method = "GET", body?: unknown): Pro
   return data as T;
 }
 
+export type BoardSpec = {
+  title: string; panels: string[]; width: "single" | "onehalf" | "double"; cols: number;
+  font: "Arial" | "Helvetica"; size: number; letters: "upper" | "lower" | "none"; align: "top" | "centre" | "bottom";
+};
+export type Board = BoardSpec & { id: string; created_at: string };
+
 export const analyses = {
   run: (p: RunParams) => call<Analysis>("/analyses/run", "POST", p),
   pathways: () => call<PathwayInfo[]>("/pathways"),
@@ -115,6 +121,10 @@ export const analyses = {
     call<{ path: string; entries: number }>("/notebook/export", "POST", b),
   exportSummary: (b: { path: string; format: "pdf" | "html" | "docx"; title: string; intro: string[]; items: { analysis_id: string; title: string; summary: string; checks: unknown[]; svg?: string }[]; labels: Record<string, string>; one_page?: boolean; byline?: string; footer?: string }) =>
     call<{ path: string; entries: number }>("/summary/export", "POST", b),
+  boards: () => call<Board[]>("/boards"),
+  createBoard: (b: Partial<BoardSpec>) => call<Board>("/boards", "POST", b),
+  saveBoard: (b: Board) => { const { id, created_at: _c, ...spec } = b; return call<Board>(`/boards/${id}`, "PUT", spec); },
+  deleteBoard: (id: string) => call(`/boards/${id}`, "DELETE"),
   exportFile: (path: string, data: Uint8Array) => {
     let s = "";
     for (let i = 0; i < data.length; i += 0x8000) s += String.fromCharCode(...data.subarray(i, i + 0x8000));
