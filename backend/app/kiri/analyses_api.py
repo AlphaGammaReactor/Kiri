@@ -17,7 +17,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app.analyses import expression, survival
+from app.analyses import correlation, expression, survival
 from app.cohorts import packs
 from app.cohorts.store import CohortUnavailable, cohort_for, slice_for
 from app.core.config import settings
@@ -38,8 +38,9 @@ def _projects(project: dict) -> list[str]:
 
 
 class RunBody(BaseModel):
-    kind: Literal["survival", "expression_tn", "expression_stage"]
+    kind: Literal["survival", "expression_tn", "expression_stage", "correlation"]
     gene: str
+    gene2: Optional[str] = None  # correlation: the second gene
     cut: Literal["median", "quartile", "optimal"] = "median"
     adjust: list[Literal["age", "stage"]] = Field(default_factory=list)
     paired: bool = False
@@ -90,7 +91,7 @@ def list_analyses():
         checks = res.get("checks") or []
         worst = next((s for s in ("problem", "caution", "pass") if any(c.get("status") == s for c in checks)), None)
         a["headline"] = {k: res.get(k) for k in ("p_report", "error")} | {
-            "hr": (res.get("cox_adjusted") or res.get("cox") or {}).get("hr"), "p": (res.get("test") or {}).get("p"),
+            "hr": (res.get("cox_adjusted") or res.get("cox") or {}).get("hr"), "p": (res.get("test") or {}).get("p", res.get("p")),
             "rho": res.get("rho"), "n": (res.get("counts") or {}).get("patients") or res.get("n"), "worst": worst}
         out.append(a)
     return out
@@ -136,16 +137,23 @@ def run(body: RunBody):
     except KiriFileError as e:
         return JSONResponse(status_code=409, content={"error": e.code})
     gene = body.gene.strip().upper()
+    gene2 = (body.gene2 or "").strip().upper()
+    if body.kind == "correlation" and not gene2:
+        return JSONResponse(status_code=400, content={"error": "needs_second_gene"})
     projects = _projects(op.project())
     if not projects:
         return JSONResponse(status_code=400, content={"error": "no_cohort"})
     try:
-        c = cohort_for(projects, [gene], _data_dir())
-        if not c.has(gene):
-            raise CohortUnavailable("gene_not_in_cohort", gene=gene, cohort=c.name)
+        wanted = [gene] + ([gene2] if body.kind == "correlation" else [])
+        c = cohort_for(projects, wanted, _data_dir())
+        for g in wanted:
+            if not c.has(g):
+                raise CohortUnavailable("gene_not_in_cohort", gene=g, cohort=c.name)
         with _run_lock:
             if body.kind == "survival":
                 result = survival.run(c, gene, cut=body.cut, adjust=list(body.adjust))
+            elif body.kind == "correlation":
+                result = correlation.run(c, gene, gene2)
             elif body.kind == "expression_tn":
                 result = expression.tumour_vs_normal(c, gene, paired=body.paired)
             else:
@@ -154,6 +162,10 @@ def run(body: RunBody):
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
 
     params = body.model_dump(exclude={"replace", "check_only"}) | {"gene": gene, "projects": projects}
+    if body.kind == "correlation":
+        params["gene2"] = gene2
+    else:
+        params.pop("gene2", None)
     record = {"id": body.replace or uuid.uuid4().hex, "kind": body.kind, "params": params, "result": result,
               "data_versions": c.data_version(), "created_at": now(), "updated_at": now()}
     if body.check_only:

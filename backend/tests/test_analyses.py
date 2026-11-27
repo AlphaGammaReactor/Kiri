@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from app.analyses import expression, survival
+from app.analyses import correlation, expression, survival
 from app.cohorts.store import Cohort
 
 
@@ -84,6 +84,25 @@ def test_results_are_json_safe():
     json.dumps(survival.run(make_cohort(), "G"), allow_nan=False)
     json.dumps(expression.tumour_vs_normal(make_cohort(), "G"), allow_nan=False)
     json.dumps(expression.by_stage(make_cohort(), "G"), allow_nan=False)
+
+
+def test_correlation_finds_link_and_flags_strength():
+    c = make_cohort()
+    rng = np.random.default_rng(3)
+    g = c.gene("G")
+    c._genes["H"] = -0.6 * g + rng.normal(0, 0.5, len(g))  # negative link
+    c._genes["N"] = rng.normal(0, 1, len(g))  # no link
+    res = correlation.run(c, "G", "H")
+    assert res["rho"] < -0.5 and res["p"] < 1e-6 and res["n"] == 300  # tumours only, one per patient
+    assert res["rho_ci"][0] < res["rho"] < res["rho_ci"][1]
+    assert codes(res)["effect"] == ("pass", "effect.rho.strong") and len(res["points"]) == 300
+    null = correlation.run(c, "G", "N")
+    assert null["p"] > 0.01 and codes(null)["effect"][1] in ("effect.rho.negligible", "effect.rho.weak")
+    assert correlation.run(c, "G", "G")["error"] == "same_gene"
+    from app.analyses.tables import rows_for
+
+    t = rows_for(c, "correlation", {"gene": "G", "gene2": "H"})
+    assert len(t["rows"]) == 300
 
 
 def test_api_runs_and_stores_in_the_kiri_file(tmp_path, monkeypatch):
@@ -188,4 +207,8 @@ def test_sample_projects_open_and_run(tmp_path, monkeypatch):
         for g in r.json()["project"]["targets"]:
             run = cl.post("/api/v1/kiri/analyses/run", json={"kind": "expression_stage", "gene": g})
             assert run.status_code == 200 and not run.json()["result"].get("error"), run.text
+    r = cl.post("/api/v1/kiri/sample?language=en&id=parl-mavs")
+    run = cl.post("/api/v1/kiri/analyses/run", json={"kind": "correlation", "gene": "PARL", "gene2": "MAVS"})
+    assert run.status_code == 200 and run.json()["params"]["gene2"] == "MAVS" and run.json()["result"]["rho"] < 0, run.text
+    assert cl.post("/api/v1/kiri/analyses/run", json={"kind": "correlation", "gene": "PARL"}).json()["error"] == "needs_second_gene"
     assert cl.post("/api/v1/kiri/sample?id=nope").status_code == 404

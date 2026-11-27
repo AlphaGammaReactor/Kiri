@@ -2,7 +2,7 @@
 import type { StringKey } from "../../i18n/strings";
 
 type T = (k: StringKey, v?: Record<string, string | number>) => string;
-const KNOWN = ["gene_not_in_cohort", "too_few_patients", "too_few_normal", "too_few_stages", "no_cohort", "read_only", "slice_missing"];
+const KNOWN = ["gene_not_in_cohort", "too_few_patients", "too_few_normal", "too_few_stages", "no_cohort", "read_only", "slice_missing", "too_few_pairs", "same_gene"];
 
 export function errorText(t: T, code: string, extra: Record<string, unknown>) {
   const v: Record<string, string | number> = {};

@@ -23,12 +23,17 @@ export type ExpressionResult = {
   per_project?: { project: string; tumour: Group; normal: Group; p: number | null; p_adj: number | null }[];
   excluded: number; matched_cases?: number; checks: Check[]; data_version: DataVersion; error?: undefined;
 };
+export type CorrelationResult = {
+  kind: "correlation"; gene: string; gene2: string; units: string; n: number; rho: number; rho_ci: [number, number]; p: number;
+  pearson: { r: number; p: number }; line: { slope: number; intercept: number }; points: [number, number][];
+  outliers: number; rho_without_outliers: number; excluded: number; checks: Check[]; data_version: DataVersion; error?: undefined;
+};
 export type ErrorResult = { kind: string; gene: string; error: string; [k: string]: unknown };
 export type DataVersion = { cohort: string; projects: string[]; source: string; units: string; built: string };
-export type Kind = "survival" | "expression_tn" | "expression_stage";
+export type Kind = "survival" | "expression_tn" | "expression_stage" | "correlation";
 export type RunParams = { kind: Kind; gene: string; gene2?: string; check_only?: boolean; cut?: "median" | "quartile" | "optimal"; adjust?: ("age" | "stage")[]; paired?: boolean; replace?: string };
 export type Headline = { p_report?: number | null; error?: string | null; hr?: number | null; p?: number | null; rho?: number | null; n?: number | null; worst?: "pass" | "caution" | "problem" | null };
-export type Analysis<R = SurvivalResult | ExpressionResult | ErrorResult> = {
+export type Analysis<R = SurvivalResult | ExpressionResult | CorrelationResult | ErrorResult> = {
   id: string; kind: Kind; params: RunParams & { projects: string[] }; result: R; data_versions: DataVersion;
   created_at: string; updated_at: string; saved?: boolean;
 };

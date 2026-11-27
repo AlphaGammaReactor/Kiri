@@ -25,7 +25,7 @@ export function Sidebar({ screen, onNav, engine, projectOpen, onLater }: { scree
     ["nav.figureGuide", <Compass {...ic} />, "guide"],
     ["nav.expression", <SlidersHorizontal {...ic} />, "expression"],
     ["nav.survival", <ChartSpline {...ic} />, "survival"],
-    ["nav.correlation", <ChartLine {...ic} />],
+    ["nav.correlation", <ChartLine {...ic} />, "correlation"],
     ["nav.de", <ChartArea {...ic} />],
     ["nav.interactions", <Share2 {...ic} />],
     ["nav.immune", <Shield {...ic} />],

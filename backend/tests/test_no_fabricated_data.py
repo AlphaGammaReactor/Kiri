@@ -36,6 +36,7 @@ class TestSourceScan:
             "services/mito_coexpression.py",  # thins a scatter plot to 300 real points
             "analyses/expression.py",         # bootstrap interval for the effect size (seeded)
             "analyses/survival.py",           # bootstrap stability of the hazard ratio (seeded)
+            "analyses/correlation.py",        # bootstrap stability of the sign of rho (seeded)
         }
         offenders = []
         for path in APP_DIR.rglob("*.py"):
