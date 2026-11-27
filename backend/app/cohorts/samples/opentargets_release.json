@@ -1,0 +1,135 @@
+{
+ "release": "Open Targets Platform 26.09",
+ "licence": "CC0 1.0",
+ "diseases": {
+  "COADREAD": {
+   "id": "MONDO_0005008",
+   "name": "colorectal adenocarcinoma"
+  },
+  "BRCA": {
+   "id": "MONDO_0004989",
+   "name": "breast carcinoma"
+  },
+  "LUAD": {
+   "id": "MONDO_0005061",
+   "name": "lung adenocarcinoma"
+  },
+  "LUSC": {
+   "id": "MONDO_0005097",
+   "name": "squamous cell lung carcinoma"
+  },
+  "SKCM": {
+   "id": "MONDO_0005012",
+   "name": "cutaneous melanoma"
+  },
+  "GBM": {
+   "id": "MONDO_0018177",
+   "name": "glioblastoma"
+  },
+  "LGG": {
+   "id": "MONDO_0021637",
+   "name": "low grade glioma"
+  },
+  "OV": {
+   "id": "MONDO_0005211",
+   "name": "ovarian serous adenocarcinoma"
+  },
+  "PAAD": {
+   "id": "MONDO_0006047",
+   "name": "pancreatic adenocarcinoma"
+  },
+  "STAD": {
+   "id": "MONDO_0005036",
+   "name": "gastric adenocarcinoma"
+  },
+  "ESCA": {
+   "id": "MONDO_0019086",
+   "name": "carcinoma of esophagus"
+  },
+  "LIHC": {
+   "id": "MONDO_0007256",
+   "name": "hepatocellular carcinoma"
+  },
+  "KIRC": {
+   "id": "MONDO_0005005",
+   "name": "clear cell renal carcinoma"
+  },
+  "KIRP": {
+   "id": "MONDO_0017884",
+   "name": "papillary renal cell carcinoma"
+  },
+  "PRAD": {
+   "id": "MONDO_0005082",
+   "name": "prostate adenocarcinoma"
+  },
+  "UCEC": {
+   "id": "MONDO_0002447",
+   "name": "endometrial carcinoma"
+  },
+  "HNSC": {
+   "id": "MONDO_0010150",
+   "name": "head and neck squamous cell carcinoma"
+  },
+  "BLCA": {
+   "id": "MONDO_0004986",
+   "name": "urinary bladder carcinoma"
+  },
+  "LAML": {
+   "id": "MONDO_0018874",
+   "name": "acute myeloid leukemia"
+  },
+  "THCA": {
+   "id": "MONDO_0015075",
+   "name": "thyroid gland carcinoma"
+  },
+  "CESC": {
+   "id": "MONDO_0006143",
+   "name": "cervical squamous cell carcinoma"
+  },
+  "SARC": {
+   "id": "MONDO_0005089",
+   "name": "sarcoma"
+  },
+  "DLBC": {
+   "id": "MONDO_0018905",
+   "name": "diffuse large B-cell lymphoma"
+  },
+  "MESO": {
+   "id": "MONDO_0005065",
+   "name": "mesothelioma"
+  },
+  "UVM": {
+   "id": "MONDO_0006486",
+   "name": "uveal melanoma"
+  },
+  "ACC": {
+   "id": "MONDO_0006639",
+   "name": "adrenal cortex carcinoma"
+  },
+  "PCPG": {
+   "id": "MONDO_0008233",
+   "name": "pheochromocytoma"
+  },
+  "TGCT": {
+   "id": "MONDO_0010108",
+   "name": "testicular germ cell tumor"
+  },
+  "THYM": {
+   "id": "MONDO_0006456",
+   "name": "thymoma"
+  },
+  "CHOL": {
+   "id": "MONDO_0019087",
+   "name": "cholangiocarcinoma"
+  },
+  "KICH": {
+   "id": "MONDO_0017885",
+   "name": "chromophobe renal cell carcinoma"
+  },
+  "UCS": {
+   "id": "MONDO_0006485",
+   "name": "uterine carcinosarcoma"
+  }
+ },
+ "min_score": 0.02
+}
