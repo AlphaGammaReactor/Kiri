@@ -88,9 +88,13 @@ if settings.CORS_ORIGINS:
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Kiri-Token"],
     )
 app.add_middleware(SecurityHeadersMiddleware)
+if settings.desktop_mode:
+    from app.core.desktop import DesktopTokenMiddleware
+
+    app.add_middleware(DesktopTokenMiddleware)
 if settings.KIRI_SERVER_MODE:
     # Outermost: nothing below is reachable without the test-build password.
     app.add_middleware(AccessGateMiddleware)
@@ -106,6 +110,7 @@ async def meta() -> dict:
     return {
         "version": __version__,
         "server_mode": settings.KIRI_SERVER_MODE,
+        "desktop": settings.desktop_mode,
         "uploads_enabled": settings.uploads_enabled,
         "invite_code_required": bool(settings.INVITE_CODE),
     }

@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # Wrong passwords allowed per address before a lockout
     KIRI_ACCESS_MAX_ATTEMPTS: int = 8
     KIRI_ACCESS_LOCKOUT_MINUTES: int = 15
+    # Desktop app: the Mac/Windows shell starts the engine with a fresh random
+    # token on every launch, and every API call must carry it in X-Kiri-Token.
+    # This keeps other programs and web pages on the same computer out.
+    KIRI_DESKTOP_TOKEN: str = ""
+
     # Folder with the built frontend (index.html). Served by the API when present.
     KIRI_STATIC_DIR: str = ""
     # Product website (app.site): folder of built pages, and the GitHub repo whose releases hold the .dmg.
@@ -131,6 +136,11 @@ class Settings(BaseSettings):
         elif len(self.JWT_SECRET_KEY) < 32:
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters.")
 
+        if self.KIRI_DESKTOP_TOKEN and len(self.KIRI_DESKTOP_TOKEN) < 32:
+            raise ValueError("KIRI_DESKTOP_TOKEN must be at least 32 characters.")
+        if self.KIRI_DESKTOP_TOKEN and self.KIRI_SERVER_MODE:
+            raise ValueError("Desktop mode and server mode cannot both be on.")
+
         if self.KIRI_SERVER_MODE:
             # Fail closed: a hosted build must never come up without its password.
             if len(self.KIRI_ACCESS_PASSWORD) < 12:
@@ -140,6 +150,10 @@ class Settings(BaseSettings):
             if self.DEBUG:
                 raise ValueError("DEBUG must be off in server mode.")
         return self
+
+    @property
+    def desktop_mode(self) -> bool:
+        return bool(self.KIRI_DESKTOP_TOKEN)
 
     @property
     def uploads_enabled(self) -> bool:

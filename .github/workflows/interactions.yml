@@ -1,0 +1,68 @@
+name: Interactions (live sources, sample bundle)
+
+# Fetches STRING, UniProt and AlphaFold DB the way the app does, prints the licence pages and
+# the results for a few genes, runs the cohort part on a real TCGA download, and commits the
+# bundled data for the sample-project genes.
+on:
+  push:
+    branches: [claude/project-thread-2tc0ep]
+    paths: ["backend/app/analyses/interactions.py", ".github/workflows/interactions.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Licence pages (printed for review)
+        continue-on-error: true
+        run: |
+          for u in https://string-db.org/cgi/access https://www.uniprot.org/help/license https://alphafold.ebi.ac.uk/faq; do
+            echo "=== $u"; curl -s -L "$u" | sed -e 's/<[^>]*>/ /g' | tr -s ' \n' | grep -i -o '.\{0,200\}\(licen[cs]e\|creative commons\|CC BY\|CC-BY\).\{0,200\}' | head -8
+          done
+      - name: System libraries for the report renderer (cairo)
+        run: sudo apt-get update -q && sudo apt-get install -y -q libcairo2-dev pkg-config
+      - name: Install the engine's packages
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Fetch and run
+        working-directory: backend
+        run: |
+          uv run python - <<'PY'
+          import time, tempfile, json
+          from pathlib import Path
+          from app.analyses import interactions as I
+          from app.cohorts import packs
+          I.BUNDLED = Path("/nonexistent")
+          d = Path(tempfile.mkdtemp())
+          for g in ("PARL", "TP53"):
+              t = time.time(); x = I.fetch(g); dt = round(time.time() - t, 1)
+              print(g, "fetched in", dt, "s; STRING", x.get("string_version"), "partners", [(p["gene"], p["score"]) for p in x["partners"]])
+              print("  evidence of first:", x["partners"][:1])
+              print("  edges among partners:", len(x["edges"]))
+              pr = x.get("protein") or {}
+              print("  protein:", pr.get("accession"), pr.get("name"), pr.get("length"), pr.get("locations"))
+              print("  features:", [(f["kind"], f["start"], f["end"], f["label"]) for f in pr.get("features", [])][:20])
+              af = x.get("alphafold") or {}
+              print("  alphafold:", af.get("id"), af.get("version"), af.get("mean"), "plddt n", len(af.get("plddt") or []))
+          packs.build_pack(d, "TCGA-READ", lambda k, a, b: None)
+          c = packs.open_packs(["TCGA-READ"], d)
+          r = I.run(c, "PARL", d)
+          print("READ PARL n", r["n"], "together", r["together"], "opposite", r["opposite"], "bands", r["bands"])
+          print("checks", [x["code"] for x in r["checks"]])
+          I.BUNDLED = Path("app/cohorts/samples/interactions")
+          I.build_bundle(I.BUNDLED, I.SAMPLE_GENES)
+          print("bundled", sorted(p.name for p in I.BUNDLED.iterdir()))
+          PY
+      - name: Commit the bundle
+        run: |
+          git config user.name "kiri-ci"; git config user.email "kiri-ci@users.noreply.github.com"
+          git add backend/app/cohorts/samples/interactions
+          git diff --cached --quiet && exit 0
+          git commit -m "Sample data: interactions and protein maps for the sample genes, built by CI"
+          git pull --rebase origin "$GITHUB_REF_NAME" && git push

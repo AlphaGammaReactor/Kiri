@@ -1,0 +1,94 @@
+name: Sample project data
+
+# Builds the small TCGA slices bundled with Kiri for the sample projects and
+# commits them to the branch. Runs when the build script changes.
+on:
+  push:
+    branches: [claude/project-thread-btcqwn, claude/project-thread-bdrb9s, claude/project-thread-2tc0ep]
+    paths: ["backend/scripts/build_sample_slice.py", "backend/scripts/build_cdr.py", "backend/scripts/build_pancan.py", "backend/scripts/build_depmap.py", "backend/scripts/build_opentargets.py", "backend/scripts/build_hpa.py", "backend/app/cohorts/mutations.py", "backend/app/cohorts/**", ".github/workflows/sample-data.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install "xenaPython==1.0.14" "pandas>=2.2" "openpyxl==3.1.5"
+      - name: Cohort pack files are reachable (what the app downloads)
+        continue-on-error: true
+        run: |
+          for hub in https://gdc.xenahubs.net/download https://gdc-hub.s3.us-east-1.amazonaws.com/download; do
+            for f in TCGA-COAD.star_tpm.tsv.gz TCGA-COAD.survival.tsv TCGA-COAD.clinical.tsv.gz gencode.v36.annotation.gtf.gene.probemap; do
+              echo "$hub/$f -> $(curl -s -L -o /dev/null -r 0-99 -w '%{http_code} %{url_effective}' "$hub/$f")"
+            done
+          done
+      - name: Build the slices
+        run: python backend/scripts/build_sample_slice.py backend/app/cohorts/samples
+      - name: Build the TCGA-CDR endpoints table (PFI, DSS)
+        run: python backend/scripts/build_cdr.py backend/app/cohorts/samples
+      - name: Build the PanCanAtlas subtype and purity tables
+        run: python backend/scripts/build_pancan.py backend/app/cohorts/samples
+      - name: Build the DepMap dependency summary (CC BY 4.0, licence checked by the script)
+        continue-on-error: true
+        run: python backend/scripts/build_depmap.py backend/app/cohorts/samples
+      - name: Build the Open Targets cancer association summary (CC0)
+        continue-on-error: true
+        run: python backend/scripts/build_opentargets.py backend/app/cohorts/samples
+      - name: Build the Human Protein Atlas tables (CC BY 4.0, licence checked by the script; CPTAC protein)
+        continue-on-error: true
+        run: python backend/scripts/build_hpa.py backend/app/cohorts/samples
+      - name: Commit them
+        run: |
+          git config user.name "kiri-ci"; git config user.email "kiri-ci@users.noreply.github.com"
+          git add backend/app/cohorts/samples
+          git diff --cached --quiet && exit 0
+          git commit -m "Sample project data: TCGA slices built by CI"
+          git pull --rebase origin "$GITHUB_REF_NAME" && git push
+
+  pack:
+    name: Full cohort download works (as the app does it)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: System libraries for the report renderer (cairo)
+        run: sudo apt-get update -q && sudo apt-get install -y -q libcairo2-dev pkg-config
+      - name: Install the engine's packages
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Download TCGA-READ, convert it, run survival and expression on a gene not in the sample slice
+        working-directory: backend
+        run: |
+          uv run python - <<'PY'
+          import time, tempfile
+          from pathlib import Path
+          from app.cohorts import packs
+          from app.cohorts.store import cohort_for
+          from app.analyses import survival, expression
+          d = Path(tempfile.mkdtemp())
+          t = time.time()
+          packs.build_pack(d, "TCGA-READ", lambda k, a, b: None)
+          print("downloaded and converted in", round(time.time() - t), "s;", (packs.pack_dir(d, "TCGA-READ") / "ready.json").read_text())
+          c = cohort_for(["TCGA-READ"], ["EGFR"], d)
+          r = survival.run(c, "EGFR")
+          print("survival EGFR READ: n", r["groups"]["high"]["n"] + r["groups"]["low"]["n"], "HR", r["cox"]["hr"], "p", r["logrank"]["p"])
+          e = expression.tumour_vs_normal(c, "EGFR")
+          print("expression EGFR READ:", e.get("error") or (e["groups"][0]["n"], e["groups"][1]["n"], e["test"]["p"]))
+          assert c.mutations, "no mutation calls in the pack"
+          print("mutations:", len(c.mutations["profiled"]), "sequenced;", {g: len(c.mutations["genes"].get(g, [])) for g in ("APC", "TP53", "KRAS")})
+          m = survival.run(c, "TP53", cut="mutation")
+          print("survival by TP53 mutation READ:", m.get("error") or (m["groups"]["high"]["n"], m["groups"]["low"]["n"], m["cox"]["hr"]))
+          assert c.copy_reader, "no copy number in the pack"
+          y = expression.by_copies(c, "MYC", "MYC")
+          print("MYC by MYC copies READ:", y.get("error") or ([(g["key"], g["n"]) for g in y["groups"]], y["dosage"]))
+          x = expression.by_mutation(c, "EGFR", "KRAS")
+          print("EGFR by KRAS mutation READ:", x.get("error") or [(g["key"], g["n"]) for g in x["groups"]])
+          PY

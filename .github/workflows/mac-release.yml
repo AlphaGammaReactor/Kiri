@@ -1,0 +1,265 @@
+name: Mac app release
+
+# Raising the version in desktop/src-tauri/tauri.conf.json (and Cargo.toml and
+# package.json) and pushing builds Kiri for macOS on GitHub's Macs and publishes
+# release v<version>. Pushes that keep a version already released do nothing.
+# The release gets one .dmg per chip, the updater bundles with their signatures,
+# and latest.json, which installed copies of Kiri read to find updates.
+on:
+  push:
+    branches: [main, claude/project-thread-btcqwn]
+    paths: ["desktop/**", "backend/app/**", "backend/uv.lock", ".github/workflows/mac-release.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mac-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Is this a new version?
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      new: ${{ steps.v.outputs.new }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          v=$(python3 -c "import json;print(json.load(open('desktop/src-tauri/tauri.conf.json'))['version'])")
+          echo "tag=v$v" >> "$GITHUB_OUTPUT"
+          if gh release view "v$v" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "new=false" >> "$GITHUB_OUTPUT"; echo "v$v is already released: nothing to do."
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"; echo "Building and releasing v$v."
+          fi
+
+  build:
+    name: Build (${{ matrix.arch }})
+    needs: version
+    if: needs.version.outputs.new == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: aarch64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches the app version
+        run: |
+          v="${VERSION#v}"
+          grep -q "\"version\": \"$v\"" desktop/src-tauri/tauri.conf.json || { echo "tauri.conf.json version is not $v"; exit 1; }
+          grep -q "^version = \"$v\"" desktop/src-tauri/Cargo.toml || { echo "Cargo.toml version is not $v"; exit 1; }
+          grep -q "\"version\": \"$v\"" desktop/package.json || { echo "package.json version is not $v"; exit 1; }
+
+      # ── Python engine ──
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install the engine's packages from the lockfile
+        working-directory: backend
+        run: |
+          uv sync --frozen --python 3.11 --no-dev
+          uv pip install pyinstaller==6.16.0
+      - name: Package the engine
+        working-directory: desktop/engine
+        run: |
+          ../../backend/.venv/bin/pyinstaller --noconfirm --log-level WARN kiri-engine.spec
+          rm -rf ../src-tauri/resources/kiri-engine
+          mkdir -p ../src-tauri/resources
+          cp -R dist/kiri-engine ../src-tauri/resources/kiri-engine
+          du -sh ../src-tauri/resources/kiri-engine
+      - name: Engine starts and refuses calls without its token
+        run: |
+          export KIRI_ENGINE_PORT=8799 KIRI_DESKTOP_TOKEN=$(openssl rand -hex 32) KIRI_DATA_DIR=$RUNNER_TEMP/eng KIRI_ENGINE_WATCH_STDIN=0
+          desktop/src-tauri/resources/kiri-engine/kiri-engine > $RUNNER_TEMP/engine.log 2>&1 &
+          for i in $(seq 1 90); do curl -fs http://127.0.0.1:8799/api/health && break; sleep 1; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8799/api/v1/meta)" = "401"
+          curl -fs -H "X-Kiri-Token: $KIRI_DESKTOP_TOKEN" http://127.0.0.1:8799/api/v1/meta
+          kill %1
+
+      # ── App ──
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Build Kiri.app and the .dmg
+        working-directory: desktop
+        env:
+          RAW_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: |
+          test -n "$RAW_UPDATER_KEY" || { echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing"; exit 1; }
+          # The key is one base64 line. A pasted secret can carry a trailing newline or the
+          # note lines from the key file, so keep only the base64 line.
+          TAURI_SIGNING_PRIVATE_KEY="$(printf '%s\n' "$RAW_UPDATER_KEY" | tr -d '\r' | sed 's/[[:space:]]//g' | grep -E '^[A-Za-z0-9+/=]{200,}$' | tail -n 1)"
+          test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret has no base64 key line"; exit 1; }
+          export TAURI_SIGNING_PRIVATE_KEY
+          npm ci --no-audit --no-fund
+          npm run check-i18n
+          npx tauri build --bundles app,dmg
+      - name: Collect release files
+        run: |
+          v="${VERSION#v}"
+          b=desktop/src-tauri/target/release/bundle
+          mkdir -p out
+          cp "$b"/dmg/*.dmg "out/Kiri_${v}_${{ matrix.arch }}.dmg"
+          cp "$b/macos/Kiri.app.tar.gz" "out/Kiri_${v}_${{ matrix.arch }}.app.tar.gz"
+          cp "$b/macos/Kiri.app.tar.gz.sig" "out/Kiri_${v}_${{ matrix.arch }}.app.tar.gz.sig"
+          ls -la out
+      - name: The built app opens and its engine starts
+        run: |
+          set -x
+          cp -R desktop/src-tauri/target/release/bundle/macos/Kiri.app /Applications/
+          codesign -dv /Applications/Kiri.app 2>&1 | head -5 || true
+          open /Applications/Kiri.app
+          for i in $(seq 1 90); do
+            log=$(ls ~/Library/Logs/science.kiri.app/engine.log 2>/dev/null) && grep -q "Kiri ready" "$log" && break
+            sleep 1
+          done
+          sleep 8
+          mkdir -p shots
+          screencapture -x "shots/first-launch-${{ matrix.arch }}.png" || true
+          grep -q "Kiri ready" ~/Library/Logs/science.kiri.app/engine.log || { cat ~/Library/Logs/science.kiri.app/engine.log; exit 1; }
+          pgrep -fl kiri-engine
+          osascript -e 'quit app "Kiri"'; sleep 4
+          if pgrep -f kiri-engine; then echo "::error::engine still running after Kiri quit"; exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-${{ matrix.arch }}
+          path: out/*
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots-${{ matrix.arch }}
+          path: shots/*
+          if-no-files-found: ignore
+
+  publish:
+    name: Publish the release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mac-*
+          path: out
+          merge-multiple: true
+      - name: Write latest.json for the updater
+        run: python3 desktop/scripts/latest_json.py "$TAG" out "${{ github.repository }}" > out/latest.json && cat out/latest.json
+      - name: Create the GitHub release
+        run: |
+          notes="desktop/release-notes/${TAG}.md"
+          [ -f "$notes" ] || notes=/dev/null
+          # Push the tag with git first: if a rule blocks it, git says which rule, where the
+          # release API only answers "403 Resource not accessible by integration".
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG" 2>&1 || { echo "::error::could not push tag $TAG (see the message above)"; exit 1; }
+          gh release create "$TAG" out/* --verify-tag --title "Kiri ${TAG#v} for Mac (test build)" --notes-file "$notes" \
+            || { echo "::error::the tag was pushed but the release API refused; check Settings > Rules and Settings > Actions"; exit 1; }
+
+  update-test:
+    name: Update from the previous release on a real Mac
+    needs: [version, publish]
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.version.outputs.tag }}
+    steps:
+      - name: Find the previous release
+        id: prev
+        run: |
+          prev=$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 20 --json tagName -q '.[].tagName' | grep -v "^$TAG$" | head -1)
+          echo "tag=$prev" >> "$GITHUB_OUTPUT"
+          echo "Previous release: ${prev:-none}"
+      - name: Install the previous version
+        if: steps.prev.outputs.tag != ''
+        run: |
+          gh release download "${{ steps.prev.outputs.tag }}" -R "$GITHUB_REPOSITORY" -p "*_aarch64.dmg" -D old
+          hdiutil attach old/*.dmg -mountpoint /Volumes/KiriOld -nobrowse
+          cp -R /Volumes/KiriOld/Kiri.app /Applications/
+          hdiutil detach /Volumes/KiriOld
+          /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" /Applications/Kiri.app/Contents/Info.plist
+      - name: The old version finds the update and shows "Update ready"
+        if: steps.prev.outputs.tag != ''
+        run: |
+          mkdir -p shots
+          # A fresh install opens on first-run setup, which has no update banner. Mark setup as
+          # done (the app's own settings file) so the old version opens on Home, where it shows.
+          d="$HOME/Library/Application Support/science.kiri.app"; mkdir -p "$d"
+          echo '{"settings":{"lang":"en","firstRunDone":true,"autoUpdate":true}}' > "$d/settings.json"
+          open /Applications/Kiri.app
+          sleep 100
+          screencapture -x shots/update-ready-banner.png || true
+          osascript -e 'quit app "Kiri"'; sleep 4
+      - name: Install the update the way "Restart to update" does
+        if: steps.prev.outputs.tag != ''
+        run: |
+          KIRI_UPDATE_SELFTEST=$RUNNER_TEMP/selftest.json /Applications/Kiri.app/Contents/MacOS/kiri
+          cat $RUNNER_TEMP/selftest.json; echo
+          now=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" /Applications/Kiri.app/Contents/Info.plist)
+          echo "Installed version is now $now"
+          test "$now" = "${TAG#v}" || { echo "::error::expected ${TAG#v} after the update, found $now"; exit 1; }
+      - name: The updated app opens
+        if: steps.prev.outputs.tag != ''
+        run: |
+          rm -f ~/Library/Logs/science.kiri.app/engine.log
+          open /Applications/Kiri.app
+          for i in $(seq 1 90); do grep -qs "Kiri ready" ~/Library/Logs/science.kiri.app/engine.log && break; sleep 1; done
+          sleep 8
+          screencapture -x shots/after-update.png || true
+          grep -q "Kiri ready" ~/Library/Logs/science.kiri.app/engine.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots-update
+          path: shots/*
+          if-no-files-found: ignore
+
+  screenshots:
+    name: Keep the screenshots
+    needs: [version, build, update-test]
+    if: always() && needs.version.outputs.new == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.version.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shots-*
+          path: shots
+          merge-multiple: true
+      - name: Push them to the ci-screenshots branch
+        run: |
+          ls -la shots || exit 0
+          git init -q site && cd site
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q origin ci-screenshots && git checkout -q -b ci-screenshots FETCH_HEAD || git checkout -q --orphan ci-screenshots
+          mkdir -p "$TAG" && cp ../shots/* "$TAG/"
+          git add -A
+          git diff --cached --quiet && { echo "screenshots already kept"; exit 0; }
+          git -c user.name="kiri-ci" -c user.email="kiri-ci@users.noreply.github.com" commit -qm "Screenshots for $TAG" && git push -q origin ci-screenshots

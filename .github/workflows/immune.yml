@@ -1,0 +1,60 @@
+name: Immune context (marker check and real-data run)
+
+# Checks every marker gene against the text of Danaher et al. 2017 (open access, Europe PMC)
+# and runs the analysis on a real TCGA download. Prints only; commits nothing.
+on:
+  push:
+    branches: [claude/project-thread-2tc0ep]
+    paths: ["backend/app/analyses/immune.py", ".github/workflows/immune.yml"]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: System libraries for the report renderer (cairo)
+        run: sudo apt-get update -q && sudo apt-get install -y -q libcairo2-dev pkg-config
+      - name: Install the engine's packages
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Markers against the paper
+        working-directory: backend
+        continue-on-error: true
+        run: |
+          uv run python - <<'PY'
+          import json, re, urllib.request
+          from app.analyses import immune
+          q = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:%2210.1186/s40425-017-0215-8%22&format=json&resultType=lite"
+          hit = json.load(urllib.request.urlopen(q))["resultList"]["result"][0]
+          print("paper:", hit.get("title"), hit.get("pmcid"), hit.get("license"))
+          xml = urllib.request.urlopen(f"https://www.ebi.ac.uk/europepmc/webservices/rest/{hit['pmcid']}/fullTextXML").read().decode()
+          words = set(re.findall(r"[A-Z0-9]{2,}[A-Z0-9-]*", re.sub(r"<[^>]+>", " ", xml)))
+          for c in immune.CELLS:
+              miss = [g for g in c["genes"] if g not in words and not any(a in words for a in immune.ALIASES.get(g, []))]
+              print(f"{c['name']:28s} {len(c['genes'])} genes, not in paper text: {miss or '-'}")
+          tab = re.findall(r"<table-wrap.*?</table-wrap>", xml, re.S)
+          for t in tab:
+              txt = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", t))
+              if "PTPRC" in txt or "GZMB" in txt:
+                  print("TABLE:", txt[:3000])
+          PY
+      - name: Immune context on TCGA-READ (real download)
+        working-directory: backend
+        run: |
+          uv run python - <<'PY'
+          import time, tempfile
+          from pathlib import Path
+          from app.cohorts import packs
+          from app.analyses import immune
+          d = Path(tempfile.mkdtemp())
+          packs.build_pack(d, "TCGA-READ", lambda k, a, b: None)
+          c = packs.open_packs(["TCGA-READ"], d)
+          for g in ("CD274", "PARL", "MAVS"):
+              t = time.time(); r = immune.run(c, g)
+              print(g, "n", r.get("n"), "top", r.get("top"), "overall", r.get("overall_rho"), round(time.time() - t, 1), "s", r.get("error") or "")
+              for x in r.get("rows", []):
+                  print(f"   {x['id']:11s} have {len(x['have'])}/{len(x['markers'])} rho {x.get('rho')} adj {x.get('rho_adj')} q {x.get('p_adj')} alpha {x.get('alpha')}")
+          PY

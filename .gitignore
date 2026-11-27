@@ -44,4 +44,5 @@ npm-debug.log*
 # Kiri data folder (database, signing key, uploads)
 backend/data/
 data/
+!backend/app/kiri/data/
 .venv/

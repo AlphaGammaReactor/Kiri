@@ -1,0 +1,43 @@
+=== https://www.gsea-msigdb.org/gsea/msigdb_license_terms.jsp
+ GSEA | License Terms for MSigDB released after April 2017 
+ License Terms for MSigDB released after April 2017
+ Creative Commons Attribution 4.0 International License 
+These license terms apply to MSigDB versions v6.0 to v7.5.1, and v2022.1 and above . The contents
+ Creative Commons Attribution 4.0 International License . 
+ Creative Commons Attribution-ShareAlike 4.0 International License . 
+Laboratories, all rights reserved. They are provided for use in the MSigDB collection under license to the 
+copyright holder's academic and commercial licensing policies. Inclusion of these gene sets herein is conditioned upon 
+under license to the Broad Institute, Inc. with qualified permission to include in this release, subject to Biocarta's 
+MSigDB collection under license to the Broad Institute, Inc., with qualified permission to include in this release subject to the 
+=== https://raw.githubusercontent.com/GSEA-MSigDB/msigdb-documentation/main/docs/MSigDB_License.md
+=== https://www.gsea-msigdb.org/gsea/license_terms_list.jsp
+ License Terms for MSigDB Gene Sets and GSEA software 
+ License Terms for MSigDB Gene Sets
+MSigDB v6.0 to v7.5.1, and v2022.1 and above are available under a Creative Commons style license, plus additional
+terms for some gene sets. The full license terms are available here .
+Releases of MSigDB v5.2 and earlier are available under a single user license agreement for internal research 
+purposes. The full license terms are available here .
+ License Terms for GSEA Software 
+ a BSD-style license . The source code is available from our 
+available under a single user license agreement for internal research purposes. The 
+ full license terms are available here .
+=== https://reactome.org/license
+=== https://www.wikipathways.org/about.html
+=== https://geneontology.org/docs/go-citation-policy/
+ GO citation policy and license 
+ GO citation policy and license | Gene Ontology Resource 
+{"@context":"https://schema.org","@type":"WebPage","dateModified":"2026-11-18T20:18:18-08:00","datePublished":"2026-11-18T20:18:18-08:00","description":"GO citation policy and license","headline":"GO citation policy and license","url":"http://geneontology.org/docs/go-citation-policy/"} 
+ About the GO Who we are Collaborations Annotation contributors Scientific literature GO citation policy and license 
+ GO citation policy and license 
+ License 
+ Gene Ontology Consortium data and data products are licensed under the Creative Commons Attribution 4.0 Unported License . A human-readable version and explanation is available at the Creative Commons website . For information about how to properly credit data use, please review the Creative Commons FAQ or contact the GO Helpdesk. 
+ According to the terms of GO’s CC BY 4.0 license , those using our data publicly or redistributing it must provide: 
+ “identification of the creator(s) of the Licensed Material and any others designated to receive attribution, in any reasonable manner requested by the Licensor (including by pseudonym if designated);” 
+ “a notice that refers to this Public License;” 
+ “a URI or hyperlink to the Licensed Material to the extent reasonably practicable;” 
+ For example, if you are offering downloads containing GO data, have a data licensing page in your application, or refer to licensed data in your documentation, an appropriate notice may be: 
+ Gene Ontology data from the 2024-01-17 release ( DOI:10.5281/zenodo.10536401 ) is made available under the terms of the CC BY 4.0 license . 
+ Creative Commons Recommended Practices for Attribution 
+ Creative Commons FAQ 
+ GOC software and tools are under their own licenses; please see their respective homepages for further details. 
+ If you intend to use the logo on your website, please include a link to the GO home page, https://geneontology.org. Please contact the GO Helpdesk if you need a larger or higher resolution version. The logo is subject to our use and license. 

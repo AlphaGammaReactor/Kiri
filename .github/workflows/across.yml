@@ -1,0 +1,57 @@
+name: Expression across cancers (live hub check)
+
+# Queries the UCSC Xena Toil hub the way the app does, for two genes, and reports
+# which TCGA cancer names matched and how long the first fetch takes.
+on:
+  push:
+    branches: [claude/project-thread-2tc0ep]
+    paths: ["backend/app/analyses/across.py", ".github/workflows/across.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: System libraries for the report renderer (cairo)
+        run: sudo apt-get update -q && sudo apt-get install -y -q libcairo2-dev pkg-config
+      - name: Install the engine's packages
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Query the hub
+        working-directory: backend
+        run: |
+          uv run python - <<'PY'
+          import time, tempfile, collections
+          from pathlib import Path
+          from app.analyses import across
+          d = Path(tempfile.mkdtemp())
+          across.BUNDLED = Path("/nonexistent")  # measure the real download, not the bundle
+          t = time.time(); ph = across.phenotype(d); print("phenotype", len(ph["samples"]), "samples in", round(time.time() - t, 1), "s")
+          print("fields:", [k for k in ph if k not in ("samples",)])
+          dis = collections.Counter(zip(ph.get("study", []), ph.get("disease", ph.get("detail", []))))
+          print("TCGA names not matched:", sorted({n for (s, n) in dis if (s or "").upper() == "TCGA" and across._key(n) not in across._NAME2CODE}))
+          print("codes found:", collections.Counter(c for c in ph["code"] if c))
+          print("GTEx sites:", collections.Counter(s for s, st in zip(ph.get("site", []), ph.get("study", [])) if (st or "").upper() == "GTEX"))
+          print("sample types:", collections.Counter(ph.get("type", [])))
+          for g in ("TP53", "PARL"):
+              t = time.time(); r = across.run(g, d); dt = round(time.time() - t, 1)
+              print(g, "in", dt, "s:", r["n_tested"], "tested; up", r["up"], "down", r["down"])
+              for x in r["rows"][:6]:
+                  print("  ", x["code"], "T", x["tumour"].get("n"), x["tumour"].get("median"), "N", x["normal"].get("n"), x["normal"].get("median"), "gtex", x["n_gtex"], "q", x.get("p_adj"))
+          PY
+      - name: Bundle the sample genes
+        working-directory: backend
+        run: uv run python -c "from pathlib import Path; from app.analyses import across; across.BUNDLED = Path('/nonexistent'); across.build_bundle(Path('app/cohorts/samples/across'))" && rm -rf app/cohorts/samples/across/_tmp && ls -la app/cohorts/samples/across
+      - name: Commit the bundle
+        run: |
+          git config user.name "kiri-ci"; git config user.email "kiri-ci@users.noreply.github.com"
+          git add backend/app/cohorts/samples/across
+          git diff --cached --quiet && exit 0
+          git commit -m "Sample data: across-cancers values for the sample genes, built by CI"
+          git pull --rebase origin "$GITHUB_REF_NAME" && git push

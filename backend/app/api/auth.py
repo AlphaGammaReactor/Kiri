@@ -236,8 +236,9 @@ async def refresh(
     db: AsyncSession = Depends(get_db),
 ):
     """Rotate access token using the refresh token cookie."""
-    if settings.KIRI_SERVER_MODE:
+    if settings.KIRI_SERVER_MODE or settings.desktop_mode:
         # Test build: the access gate already let this person in. No second sign-in.
+        # Desktop app: one person on their own computer, no sign-in at all.
         guest = await _guest_user(db)
         return TokenResponse(access_token=create_access_token(str(guest.id)), user=_user_dict(guest))
 

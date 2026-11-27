@@ -1,0 +1,64 @@
+name: Pathway libraries
+
+# Downloads MSigDB Hallmark and Reactome gene sets, bundles them for offline DE
+# enrichment, and runs DE + enrichment on a real downloaded TCGA project.
+on:
+  push:
+    branches: [claude/project-thread-2tc0ep]
+    paths: ["backend/scripts/build_pathways.py", "backend/app/analyses/de.py", "backend/app/analyses/pathways.py", ".github/workflows/pathways.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Licence pages (printed for review)
+        continue-on-error: true
+        run: |
+          mkdir -p backend/app/pathway_sets
+          for u in https://www.gsea-msigdb.org/gsea/msigdb_license_terms.jsp https://raw.githubusercontent.com/GSEA-MSigDB/msigdb-documentation/main/docs/MSigDB_License.md https://www.gsea-msigdb.org/gsea/license_terms_list.jsp https://reactome.org/license https://www.wikipathways.org/about.html https://geneontology.org/docs/go-citation-policy/; do
+            echo "=== $u"; curl -s -L "$u" | sed -e 's/<[^>]*>/ /g' | tr -s ' \n' | grep -i -o '.\{0,240\}\(licen[cs]e\|creative commons\|CC BY\|CC0\|commercial\).\{0,240\}' | head -25
+          done | tee backend/app/pathway_sets/LICENCE-PAGES.txt
+      - name: Build the libraries
+        run: python3 backend/scripts/build_pathways.py backend/app/pathway_sets
+      - name: System libraries for the report renderer (cairo)
+        run: sudo apt-get update -q && sudo apt-get install -y -q libcairo2-dev pkg-config
+      - name: Install the engine's packages
+        working-directory: backend
+        run: uv sync --frozen
+      - name: DE and enrichment on TCGA-READ (real download)
+        working-directory: backend
+        run: |
+          uv run python - <<'PY'
+          import time, tempfile
+          from pathlib import Path
+          from app.cohorts import packs
+          from app.cohorts.store import cohort_for
+          from app.analyses import de, pathways
+          d = Path(tempfile.mkdtemp())
+          packs.build_pack(d, "TCGA-READ", lambda k, a, b: None)
+          c = cohort_for(["TCGA-READ"], ["EGFR"], d)
+          for lib in ("hallmark", "reactome", "gobp", "wikipathways"):
+              t = time.time()
+              r = de.run(c, "tn", sets=pathways.load(lib))
+              print(lib, "DE tumour vs normal READ:", r.get("error") or (r["n"], r["n_tested"], r["n_up"], r["n_down"]), round(time.time() - t, 1), "s")
+              print("  top up:", [x["gene"] for x in r["top_up"][:8]])
+              print("  top down:", [x["gene"] for x in r["top_down"][:8]])
+              print("  enriched up:", [(x["name"], x["p_adj"]) for x in r["enrichment"]["up"][:5]])
+              print("  enriched down:", [(x["name"], x["p_adj"]) for x in r["enrichment"]["down"][:5]])
+          r = de.run(c, "gene", gene="EGFR", sets=pathways.load("hallmark"))
+          print("EGFR high vs low:", r.get("error") or (r["n"], r["n_up"], r["n_down"]))
+          PY
+      - name: Commit them
+        run: |
+          git config user.name "kiri-ci"; git config user.email "kiri-ci@users.noreply.github.com"
+          git add backend/app/pathway_sets
+          git diff --cached --quiet && exit 0
+          git commit -m "Pathway libraries: Hallmark and Reactome built by CI"
+          git pull --rebase origin "$GITHUB_REF_NAME" && git push
