@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -197,6 +197,39 @@ def close():
 @router.get("/genes/check")
 def gene_check(q: str):
     return genes.check(q)
+
+
+@router.get("/genes/search")
+def gene_search(q: str, limit: int = 8):
+    return {"items": genes.search(q, max(1, min(limit, 20)))}
+
+
+@router.get("/genes/availability")
+def gene_availability(genes_: str = Query("", alias="genes"), cancers_: str = Query("", alias="cancers")):
+    """Which genes can be analysed for these cancer types without a download.
+
+    "offline": in the sample data bundled with Kiri, or the full cohort is already
+    downloaded. "download": the first analysis downloads the full cohort.
+    """
+    from pathlib import Path
+
+    from app.cohorts import packs
+    from app.cohorts.store import CohortUnavailable, load_slice, slice_for
+
+    names = [g.strip().upper() for g in genes_.split(",") if g.strip()]
+    projects = [f"TCGA-{c.strip().upper()}" for c in cancers_.split(",") if c.strip()]
+    if not projects:
+        return {"items": {}, "packs_ready": False, "sample": None}
+    ready = all(packs.is_ready(Path(settings.KIRI_DATA_DIR), p) for p in projects)
+    name = slice_for(projects)
+    have: set[str] = set()
+    if name:
+        try:
+            have = {g.upper() for g in load_slice(name)._genes}
+        except CohortUnavailable:
+            pass
+    return {"items": {g: "offline" if ready or g in have else "download" for g in names},
+            "packs_ready": ready, "sample": name}
 
 
 @router.get("/cancers")

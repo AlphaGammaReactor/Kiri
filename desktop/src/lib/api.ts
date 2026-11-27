@@ -19,6 +19,7 @@ export type RecentItem = {
 export type SampleInfo = { id: string; name: string; question: string; targets: string[]; cancers: string[]; template: TemplateId };
 export type TemplateId = "blank" | "one_gene" | "two_gene" | "own_table" | "course";
 export type GeneCheck = { input: string; status: "ok" | "alias" | "unknown"; symbol?: string; name?: string; suggestions?: string[] };
+export type GeneHit = { symbol: string; name: string; match: "symbol" | "alias"; via?: string };
 export type Cancer = { code: string; en: string; zh: string; project: string };
 
 export class ApiError extends Error {
@@ -53,5 +54,8 @@ export const api = {
   restoreAutosave: (path: string) => call<ProjectSummary>("/restore-autosave", "POST", { path }),
   close: () => call("/close", "POST"),
   checkGene: (q: string) => call<GeneCheck>(`/genes/check?q=${encodeURIComponent(q)}`),
+  searchGenes: (q: string) => call<{ items: GeneHit[] }>(`/genes/search?q=${encodeURIComponent(q)}`).then((r) => r.items),
+  geneAvailability: (genes: string[], cancers: string[]) =>
+    call<{ items: Record<string, "offline" | "download">; packs_ready: boolean; sample: string | null }>(`/genes/availability?genes=${encodeURIComponent(genes.join(","))}&cancers=${encodeURIComponent(cancers.join(","))}`),
   cancers: () => call<{ items: Cancer[] }>("/cancers").then((r) => r.items),
 };

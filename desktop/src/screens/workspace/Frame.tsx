@@ -8,6 +8,7 @@ import { DataTableDialog, ReproduceDialog } from "./Tools";
 import { copyPng, pngBytes, svgText } from "../../charts/figure";
 import { pickExportPath } from "../../lib/files";
 import { progress } from "../../lib/progress";
+import { FigureViewer } from "../../charts/FigureViewer";
 
 export const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 export const runKeys = isMac ? "⌘ Enter" : "Ctrl Enter";
@@ -140,7 +141,7 @@ export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang,
         </div>
         <span className="badge ok sm fig-check"><ShieldCheck size={13} />{t("fig.checkPassed")}</span>
       </div>
-      <div className="fig-canvas">{children}</div>
+      <FigureViewer>{children}</FigureViewer>
       {tool === "table" && analysis && <DataTableDialog a={analysis} fileName={fileName} onClose={() => setTool(null)} say={onSaid} />}
       {tool === "code" && analysis && <ReproduceDialog a={analysis} fileName={fileName} initialTab="r" onClose={() => setTool(null)} say={onSaid} />}
       <div className="fig-foot">

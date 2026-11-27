@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, TriangleAlert, X } from "lucide-react";
+import { Check, ChevronDown, CloudDownload, Search, TriangleAlert, X } from "lucide-react";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
-import { api, type Cancer, type GeneCheck, type TemplateId } from "../lib/api";
+import { api, type Cancer, type GeneCheck, type GeneHit, type TemplateId } from "../lib/api";
 
-type Chip = { text: string; check: GeneCheck | null };
+type Chip = { text: string; check: GeneCheck | null; name?: string; from?: string };
 
 export type NewProjectData = {
   name: string; question: string; template: TemplateId; targets: string[]; cancers: string[]; datasets: string[]; standard_panel: boolean;
@@ -19,8 +19,7 @@ export function NewProject({ initialTemplate, onCancel, onCreate, notYet }: {
   const [question, setQuestion] = useState("");
   const [template, setTemplate] = useState<TemplateId>(initialTemplate);
   const [chips, setChips] = useState<Chip[]>([]);
-  const [typing, setTyping] = useState("");
-  const [cancerList, setCancerList] = useState<Cancer[]>([]);
+    const [cancerList, setCancerList] = useState<Cancer[]>([]);
   const [cancers, setCancers] = useState<string[]>([]);
   const [panel, setPanel] = useState(true);
 
@@ -32,18 +31,44 @@ export function NewProject({ initialTemplate, onCancel, onCreate, notYet }: {
   ];
   const fileName = `${(name || "Untitled").trim()}.kiri`;
 
-  const addChip = async (raw: string) => {
-    const text = raw.trim();
-    if (!text || chips.some((c) => c.text.toUpperCase() === text.toUpperCase())) return;
-    setChips((c) => [...c, { text, check: null }]);
+  // Adds a gene. An approved symbol goes straight in; another name for one gene (p53, HER2)
+  // is swapped for the official symbol with a note; anything else stays flagged with suggestions.
+  const addChip = async (raw: string, known?: GeneHit) => {
+    const text = (known?.symbol ?? raw).trim();
+    if (!text) return;
+    const has = (cs: Chip[], x: string) => cs.some((c) => c.text.toUpperCase() === x.toUpperCase());
+    if (known) {
+      setChips((cs) => (has(cs, text) ? cs : [...cs, { text, name: known.name, check: { input: text, status: "ok", symbol: text, name: known.name } }]));
+      return;
+    }
+    if (has(chips, text)) return;
+    setChips((cs) => [...cs, { text, check: null }]);
     const check = await api.checkGene(text).catch(() => null);
-    setChips((cs) => cs.map((c) => (c.text === text ? { ...c, check } : c)));
+    setChips((cs) => {
+      const i = cs.findIndex((c) => c.text === text && !c.check);
+      if (i < 0) return cs;
+      if (check?.status === "alias" && check.symbol) {
+        if (has(cs, check.symbol)) return cs.filter((_, j) => j !== i);
+        const next = { text: check.symbol, name: check.name, from: text, check: { ...check, status: "ok" as const, suggestions: (check.suggestions ?? []).filter((x) => x !== check.symbol) } };
+        return cs.map((c, j) => (j === i ? next : c));
+      }
+      return cs.map((c, j) => (j === i ? { ...c, check, name: check?.name } : c));
+    });
   };
   const replaceChip = (from: string, to: string) =>
     setChips((cs) => cs.map((c) => (c.text === from ? { text: to, check: { input: to, status: "ok", symbol: to } } : c)));
-  const problem = chips.find((c) => c.check && c.check.status !== "ok");
   const targets = chips.filter((c) => c.check?.status === "ok").map((c) => c.check!.symbol!);
   const datasets = cancers.map((c) => `TCGA-${c}`);
+  // Which genes need a cohort download for the chosen cancer types (the sample data covers only a few).
+  const [avail, setAvail] = useState<Awaited<ReturnType<typeof api.geneAvailability>> | null>(null);
+  const targetKey = targets.join(",") + "|" + cancers.join(",");
+  useEffect(() => {
+    if (!targets.length || !cancers.length) { setAvail(null); return; }
+    let live = true;
+    api.geneAvailability(targets, cancers).then((r) => live && setAvail(r)).catch(() => live && setAvail(null));
+    return () => { live = false; };
+  }, [targetKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const needDownload = avail ? targets.filter((g) => avail.items[g.toUpperCase()] === "download") : [];
 
   return (
     <div className="np">
@@ -70,30 +95,19 @@ export function NewProject({ initialTemplate, onCancel, onCreate, notYet }: {
             </div>
           ) : (
             <div className="np-fields">
-              <div className="field"><span>{t("np.targets")}</span>
-                <div className="chip-input" onClick={(e) => (e.currentTarget.querySelector("input") as HTMLInputElement)?.focus()}>
-                  {chips.map((c) => (
-                    <span key={c.text} className={`gene ${c.check?.status === "ok" ? "ok" : c.check ? "bad" : ""}`}>
-                      {c.check?.status === "ok" ? <Check size={13} /> : c.check ? <TriangleAlert size={13} /> : null}
-                      {c.check?.status === "ok" ? c.check.symbol : c.text}
-                      <button aria-label="remove" onClick={() => setChips((cs) => cs.filter((x) => x !== c))}><X size={12} /></button>
-                    </span>
-                  ))}
-                  <input value={typing} placeholder={chips.length ? "" : t("np.targets.placeholder")} onChange={(e) => setTyping(e.target.value)}
-                    onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === "," || e.key === " ") && !e.nativeEvent.isComposing) { e.preventDefault(); addChip(typing); setTyping(""); }
-                      if (e.key === "Backspace" && !typing && chips.length) setChips((cs) => cs.slice(0, -1));
-                    }}
-                    onBlur={() => { if (typing) { addChip(typing); setTyping(""); } }} />
-                </div>
-                {problem && problem.check && (
-                  <div className="suggest">
-                    {problem.check.status === "alias" ? t("np.aliasOf", { g: problem.text, s: problem.check.symbol! }) : t("np.notGene", { g: problem.text })}
-                    {(problem.check.suggestions ?? []).map((sug, i) => (
-                      <button key={sug} className={`chip ${i === 0 ? "on" : ""}`} onClick={() => replaceChip(problem.text, sug)}>{sug}</button>
+              <div className="field"><span className="row-between"><span>{t("np.targets")}</span>
+                {chips.length > 0 && <span className="muted mono" style={{ fontSize: 11.5, fontWeight: 400 }}>{t("np.targets.count", { n: chips.length })}</span>}</span>
+                <GeneInput chips={chips} setChips={setChips} onAdd={addChip} />
+                {chips.filter((c) => c.check && c.check.status !== "ok" || c.from).map((c) => (
+                  <div key={c.text} className={`suggest ${c.from ? "info" : ""}`}>
+                    <span>{c.from ? t("np.aliasAdded", { g: c.from, s: c.text }) : c.check!.status === "alias" ? t("np.aliasOf", { g: c.text, s: c.check!.symbol! }) : t("np.notGene", { g: c.text })}</span>
+                    {!c.from && (c.check?.suggestions ?? []).filter((sug) => sug !== c.text).map((sug, i) => (
+                      <button key={sug} className={`chip ${i === 0 && !c.from ? "on" : ""}`} onClick={() => replaceChip(c.text, sug)}>{sug}</button>
                     ))}
+                    {c.from && <button className="link" style={{ marginLeft: "auto" }} onClick={() => setChips((cs) => cs.map((x) => (x === c ? { ...x, from: undefined } : x)))}>OK</button>}
                   </div>
-                )}
+                ))}
+                <span className="help">{t("np.targets.help")}</span>
               </div>
               <div className="field"><span>{t("np.cancers")}</span>
                 <CancerPicker list={cancerList} value={cancers} onChange={setCancers} lang={lang} placeholder={t("np.cancers.placeholder")} />
@@ -105,6 +119,12 @@ export function NewProject({ initialTemplate, onCancel, onCreate, notYet }: {
                     <div key={c} className="data-row"><span className="box on"><Check size={12} strokeWidth={3} /></span><span>TCGA-{c} · GDC</span>
                       <span className="mono muted" style={{ marginLeft: "auto", fontSize: 11.5 }}>{t("np.data.tcga")}</span></div>
                   ))}
+                </div>
+              )}
+              {avail && (
+                <div className={`avail ${needDownload.length ? "warn" : "ok"}`} role="status">
+                  {needDownload.length ? <CloudDownload size={15} /> : <Check size={15} />}
+                  <span>{!needDownload.length ? t("np.avail.ok") : !avail.sample ? t("np.avail.all") : t("np.avail.some", { g: needDownload.join(", ") })}</span>
                 </div>
               )}
               <div className="note ok" style={{ justifyContent: "space-between", alignItems: "center" }}>
@@ -130,36 +150,140 @@ export function NewProject({ initialTemplate, onCancel, onCreate, notYet }: {
   );
 }
 
+function GeneInput({ chips, setChips, onAdd }: { chips: Chip[]; setChips: (f: (c: Chip[]) => Chip[]) => void; onAdd: (raw: string, known?: GeneHit) => void }) {
+  const { t } = useT();
+  const [typing, setTyping] = useState("");
+  const [hits, setHits] = useState<GeneHit[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [hitsFor, setHitsFor] = useState("");
+  const [hi, setHi] = useState(0); // highlighted row: Enter adds it, as in any search box
+  const [open, setOpen] = useState(false);
+  const seq = useRef(0);
+
+  useEffect(() => {
+    const q = typing.trim();
+    if (!q) { setHits([]); setBusy(false); return; }
+    const n = ++seq.current;
+    setBusy(true);
+    const h = setTimeout(() => {
+      api.searchGenes(q).then((r) => { if (n === seq.current) { setHits(r); setHitsFor(q); setHi(0); setBusy(false); } })
+        .catch(() => { if (n === seq.current) { setHits([]); setBusy(false); } });
+    }, 90);
+    return () => clearTimeout(h);
+  }, [typing]);
+
+  const taken = new Set(chips.map((c) => c.text.toUpperCase()));
+  const commit = (hit?: GeneHit) => {
+    const q = typing.trim();
+    if (hit) onAdd(hit.symbol, hit);
+    else if (q) onAdd(q); // no list for this text yet (typed fast or pasted): checked on its own
+    setTyping(""); setHi(0); setHits([]); setHitsFor("");
+  };
+  const onPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const parts = e.clipboardData.getData("text").split(/[\s,;，、]+/).filter(Boolean);
+    if (parts.length > 1) { e.preventDefault(); parts.forEach((p) => onAdd(p)); }
+  };
+  const showMenu = open && typing.trim().length > 0;
+  const fresh = !busy && hitsFor === typing.trim() && hits.length > 0;
+
+  return (
+    <div className="gene-box" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setOpen(false); if (typing.trim()) commit(); } }}>
+      <div className="chip-input" onClick={(e) => (e.currentTarget.querySelector("input") as HTMLInputElement)?.focus()}>
+        {chips.map((c) => (
+          <span key={c.text} className={`gene ${c.check?.status === "ok" ? "ok" : c.check ? "bad" : ""}`} title={c.name ?? c.check?.name ?? ""}>
+            {c.check?.status === "ok" ? <Check size={13} /> : c.check ? <TriangleAlert size={13} /> : null}
+            {c.text}
+            <button aria-label={t("np.gene.remove", { g: c.text })} onClick={() => setChips((cs) => cs.filter((x) => x !== c))}><X size={12} /></button>
+          </span>
+        ))}
+        <input value={typing} placeholder={chips.length ? "" : t("np.targets.placeholder")} spellCheck={false} autoCapitalize="characters"
+          role="combobox" aria-expanded={showMenu} aria-autocomplete="list" aria-controls="gene-hits" aria-label={t("np.targets")}
+          onFocus={() => setOpen(true)} onPaste={onPaste}
+          onChange={(e) => { setTyping(e.target.value); setOpen(true); }}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
+            if (e.key === "ArrowDown" && hits.length) { e.preventDefault(); setHi((i) => (i + 1) % hits.length); }
+            else if (e.key === "ArrowUp" && hits.length) { e.preventDefault(); setHi((i) => (i <= 0 ? hits.length - 1 : i - 1)); }
+            else if (e.key === "Enter" || e.key === "Tab" && typing.trim() || e.key === "," || e.key === " ") {
+              if (!typing.trim()) { if (e.key !== "Tab") e.preventDefault(); return; }
+              e.preventDefault(); commit(fresh ? hits[hi] : undefined);
+            }
+            else if (e.key === "Escape") setOpen(false);
+            else if (e.key === "Backspace" && !typing && chips.length) setChips((cs) => cs.slice(0, -1));
+          }} />
+      </div>
+      {showMenu && (
+        <div className="menu gene-menu" id="gene-hits" role="listbox">
+          {hits.map((h, i) => (
+            <button key={h.symbol} role="option" aria-selected={i === hi} tabIndex={-1} className={i === hi ? "hi" : ""}
+              onMouseEnter={() => setHi(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => commit(h)}>
+              <span className="gene-hit">
+                <b className="mono">{h.symbol}</b>
+                <span className="gene-name">{h.name}</span>
+                {h.via && <span className="badge sm">{t("np.gene.alias", { a: h.via })}</span>}
+              </span>
+              {taken.has(h.symbol.toUpperCase()) && <Check size={14} />}
+            </button>
+          ))}
+          {!hits.length && <div className="menu-note muted">{busy ? t("np.gene.searching") : t("np.gene.none", { q: typing.trim() })}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CancerPicker({ list, value, onChange, lang, placeholder }: { list: Cancer[]; value: string[]; onChange: (v: string[]) => void; lang: string; placeholder: string }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const label = (c: Cancer) => (lang === "en" ? `${c.en} (${c.code})` : lang === "zh" ? `${c.zh}（${c.code}）` : `${c.zh} ${c.en}（${c.code}）`);
-  const shown = useMemo(() => list.filter((c) => !q || `${c.code} ${c.en} ${c.zh}`.toLowerCase().includes(q.toLowerCase())), [list, q]);
+  const name = (c: Cancer) => (lang === "en" ? c.en : lang === "zh" ? c.zh : `${c.zh} · ${c.en}`);
+  const shown = useMemo(() => list.filter((c) => !q || `${c.code} ${c.en} ${c.zh}`.toLowerCase().includes(q.trim().toLowerCase())), [list, q]);
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+  const toggle = (code: string) => onChange(value.includes(code) ? value.filter((v) => v !== code) : [...value, code]);
   return (
     <div className="picker" ref={ref}>
-      <button className="text picker-btn" onClick={() => setOpen(!open)}>
-        <span>{value.length ? value.map((v) => { const c = list.find((x) => x.code === v); return c ? label(c) : v; }).join(lang === "en" ? ", " : "、") : <span className="muted">{placeholder}</span>}</span>
+      <div className={`text picker-btn ${open ? "open" : ""}`} role="button" tabIndex={0} aria-expanded={open}
+        onClick={() => setOpen(!open)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") { e.preventDefault(); setOpen(true); } }}>
+        <span className="picker-chips">
+          {value.length ? value.map((v) => {
+            const c = list.find((x) => x.code === v);
+            return (
+              <span key={v} className="gene ok" title={c ? name(c) : v}>
+                <span className="mono">{v}</span>{c && <span className="cancer-name">{name(c)}</span>}
+                <button aria-label={t("np.cancers.remove", { c: v })} onClick={(e) => { e.stopPropagation(); toggle(v); }}><X size={12} /></button>
+              </span>
+            );
+          }) : <span className="muted">{placeholder}</span>}
+        </span>
         <ChevronDown size={16} />
-      </button>
+      </div>
       {open && (
         <div className="menu picker-menu">
-          <input className="text" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} style={{ width: "100%", marginBottom: 4 }} />
-          <div style={{ maxHeight: 240, overflow: "auto" }}>
+          <div className="menu-search"><Search size={14} />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder}
+              onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && shown.length === 1) { toggle(shown[0].code); setQ(""); } }} /></div>
+          <div style={{ maxHeight: 260, overflow: "auto" }}>
             {shown.map((c) => {
               const on = value.includes(c.code);
               return (
-                <button key={c.code} onClick={() => onChange(on ? value.filter((v) => v !== c.code) : [...value, c.code])}>
-                  <span><span className="mono" style={{ display: "inline-block", width: 48 }}>{c.code}</span>{lang === "en" ? c.en : lang === "zh" ? c.zh : `${c.zh} · ${c.en}`}</span>
-                  {on && <Check size={14} />}
+                <button key={c.code} role="option" aria-selected={on} onClick={() => toggle(c.code)}>
+                  <span className="cancer-row"><span className={`box ${on ? "on" : ""}`}>{on && <Check size={12} strokeWidth={3} />}</span>
+                    <span className="mono" style={{ display: "inline-block", width: 48 }}>{c.code}</span>{name(c)}</span>
                 </button>
               );
             })}
+          </div>
+          <div className="menu-foot">
+            <span className="muted">{t("np.cancers.selected", { n: value.length })}</span>
+            <span style={{ display: "flex", gap: 8 }}>
+              {value.length > 0 && <button className="btn ghost sm" onClick={() => onChange([])}>{t("np.cancers.clear")}</button>}
+              <button className="btn sm" onClick={() => { setOpen(false); setQ(""); }}>{t("np.cancers.done")}</button>
+            </span>
           </div>
         </div>
       )}

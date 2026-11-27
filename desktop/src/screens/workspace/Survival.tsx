@@ -69,6 +69,13 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
       <Param label={t("ws.gene")} help={t("ws.gene.help")}>
         <input className="text mono" list="kiri-targets" value={gene} onChange={(e) => setGene(e.target.value)} spellCheck={false} aria-label={t("ws.gene")} />
         <datalist id="kiri-targets">{targets.map((g) => <option key={g} value={g} />)}</datalist>
+        {p.project.targets.length > 1 && (
+          <div className="ws-genes" role="group" aria-label={t("ws.projectGenes")}>
+            {p.project.targets.map((g) => (
+              <button key={g} className={`chip ${gene.trim().toUpperCase() === g.toUpperCase() ? "on" : ""}`} aria-pressed={gene.trim().toUpperCase() === g.toUpperCase()} onClick={() => setGene(g)}>{g}</button>
+            ))}
+          </div>
+        )}
       </Param>
       <Param label={t("surv.endpoint")} help={t("surv.endpoint.help")}>
         <Select value="os" options={[{ value: "os", label: t("surv.os") }, { value: "pfi", label: t("surv.pfi"), disabled: true }]} onChange={() => {}} />

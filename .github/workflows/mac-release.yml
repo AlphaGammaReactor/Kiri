@@ -203,6 +203,10 @@ jobs:
         if: steps.prev.outputs.tag != ''
         run: |
           mkdir -p shots
+          # A fresh install opens on first-run setup, which has no update banner. Mark setup as
+          # done (the app's own settings file) so the old version opens on Home, where it shows.
+          d="$HOME/Library/Application Support/science.kiri.app"; mkdir -p "$d"
+          echo '{"settings":{"lang":"en","firstRunDone":true,"autoUpdate":true}}' > "$d/settings.json"
           open /Applications/Kiri.app
           sleep 100
           screencapture -x shots/update-ready-banner.png || true
