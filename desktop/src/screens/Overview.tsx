@@ -7,6 +7,7 @@ import type { ProjectSummary } from "../lib/api";
 import { analyses, fmt, fmtP, type Kind, type Note, type RunParams } from "../lib/analyses";
 import { busy } from "../lib/busy";
 import { pickExportPath } from "../lib/files";
+import { progress } from "../lib/progress";
 import { APP_VERSION } from "../lib/platform";
 import { Dialog } from "../shell/Dialog";
 import { cohortLabel } from "./workspace/useAnalysis";
@@ -106,7 +107,7 @@ export function Overview({ p, say, onOpen, onNotebook, onGuide, onRefresh }: {
         code = (a.result as { error?: string }).error;
       } catch (e) { code = (e as { code?: string }).code ?? "engine"; }
       busy.end(id, code);
-      if (code) bad.push(what); else done++;
+      if (code) bad.push(what); else { done++; progress.mark("run"); }
       await load();
     }
     setPanel({ done, n: panelJobs.length, bad });
@@ -260,6 +261,7 @@ function SummaryDialog({ p, rows, inNotebook, kindName, stat, genesOf, onClose, 
       const r = await analyses.exportSummary({ path, format: fmtSel, title: pr.question || pr.name, intro, items,
         labels: { question: t("nb.l.question"), reliability: t("ws.reliability"), pass: t("nb.l.pass"), caution: t("nb.l.caution"), problem: t("nb.l.problem"), generated: t("nb.l.generated") } });
       say(t("ov.sum.done", { p: r.path })); onClose();
+      if (fmtSel === "docx") progress.mark("word");
     } catch { say(t("ov.sum.failed")); }
     setBusy(false);
   };

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LangProvider, systemLang, useT, type Lang } from "./i18n";
 import { TitleBar } from "./shell/TitleBar";
 import { Sidebar, type Screen } from "./shell/Sidebar";
@@ -15,6 +15,9 @@ import { Expression } from "./screens/workspace/Expression";
 import { Notebook } from "./screens/Notebook";
 import { Data } from "./screens/Data";
 import { Glossary } from "./screens/Glossary";
+import { Guide, type GuideAction } from "./screens/Guide";
+import type { Recipe } from "./i18n/guide";
+import { progress } from "./lib/progress";
 import { Palette } from "./shell/Palette";
 import { SamplePicker } from "./shell/SamplePicker";
 import { ActivityPanel, HelpMenu, ReportProblem, Shortcuts } from "./shell/Help";
@@ -50,6 +53,18 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
   const [versionDialog, setVersionDialog] = useState(false);
   const [pendingDoor, setPendingDoor] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  const [guideAt, setGuideAt] = useState<{ q?: string; id?: Recipe["id"]; n: number }>({ n: 0 });
+  const openGuide = (q?: string, id?: Recipe["id"]) => { setGuideAt((g) => ({ q, id, n: g.n + 1 })); setScreen("guide"); };
+  const guideAction = (a: GuideAction) => {
+    const g = proj.project?.project.targets[0] ?? "";
+    if (a === "survival") openGene("survival", g);
+    else if (a === "correlation") setScreen("correlation");
+    else openGene("expression", g);
+  };
+  // Getting-started checklist: remember each first step in the settings file.
+  const progressRef = useRef(settings.progress);
+  progressRef.current = settings.progress;
+  useEffect(() => progress.on((step) => { if (!progressRef.current.includes(step)) update({ progress: [...progressRef.current, step] }); }), [update]);
   const [survGene, setSurvGene] = useState<string>("");
   const [expGene, setExpGene] = useState<string>("");
   const [term, setTerm] = useState<string | undefined>(undefined);
@@ -136,7 +151,7 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
   const inProject = screen === "overview" || screen === "survival" || screen === "expression" || screen === "notebook" || screen === "data";
   const openGene = (k: "survival" | "expression", g: string) => { if (k === "survival") setSurvGene(g); else setExpGene(g); setScreen(k); };
   const docName = proj.project && inProject ? proj.project.file_name
-    : screen === "home" ? t("home.title") : screen === "new" ? t("home.new") : screen === "settings" ? t("settings.title") : screen === "about" ? t("about.title") : screen === "glossary" ? t("gl.title") : "Kiri";
+    : screen === "guide" ? t("nav.figureGuide") : screen === "home" ? t("home.title") : screen === "new" ? t("home.new") : screen === "settings" ? t("settings.title") : screen === "about" ? t("about.title") : screen === "glossary" ? t("gl.title") : "Kiri";
 
   return (
     <div className="app">
@@ -156,23 +171,25 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
               notYet, onOpenFile: openDialog, onNew: startNew, onSample: openSample, onOpenRecent: openPath,
               onLocate: async (item) => { const p = await pickKiriToOpen(t("file.openTitle")); if (p) { await api.forget(item.path); openPath(p); } },
               onForget: async (path) => { await api.forget(path); loadRecent(); },
+              onGuide: openGuide, progress: settings.progress,
             }} />
           )}
           {screen === "new" && <NewProject key={newTpl} initialTemplate={newTpl} onCancel={() => setScreen("home")} onCreate={create} notYet={notYet} />}
           {screen === "overview" && proj.project && <Overview key={`o-${proj.project.path}`} p={proj.project} say={say}
             onOpen={(o) => { if (o.kind === "survival") openGene("survival", o.gene ?? ""); else if (o.kind === "correlation") notYet(); else openGene("expression", o.gene ?? ""); }}
-            onNotebook={() => setScreen("notebook")} onGuide={() => notYet()} onRefresh={proj.refresh} />}
-          {screen === "survival" && proj.project && <Survival key={`s-${proj.project.path}-${survGene}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} initialGene={survGene} />}
-          {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}-${expGene}`} initialGene={expGene} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
+            onNotebook={() => setScreen("notebook")} onGuide={(q) => openGuide(q)} onRefresh={proj.refresh} />}
+          {screen === "survival" && proj.project && <Survival key={`s-${proj.project.path}-${survGene}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "survival")} initialGene={survGene} />}
+          {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}-${expGene}`} initialGene={expGene} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={() => openGuide(undefined, "tn")} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
           {screen === "notebook" && proj.project && <Notebook key={`n-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onOpenAnalysis={(k, g) => { if (k === "survival") setSurvGene(g ?? ""); setScreen(k === "survival" ? "survival" : "expression"); }} />}
           {screen === "data" && proj.project && <Data key={`d-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} />}
           {screen === "glossary" && <Glossary key={term} initial={term} />}
+          {screen === "guide" && <Guide key={guideAt.n} initialQuery={guideAt.q} initialId={guideAt.id} projectOpen={!!proj.project} onAction={guideAction} onSample={openSample} />}
           {screen === "settings" && <Settings s={settings} update={update} engineReady={ready} />}
           {screen === "about" && <About update={updater.state} onCheck={updater.check} engine={engine} project={proj.project} />}
         </main>
       </div>
       {dragging && <div className="drop-overlay">{t("home.dropHere")}</div>}
-      {versionDialog && proj.project && <SaveVersion onClose={() => setVersionDialog(false)} onSaved={(n) => { setVersionDialog(false); say(t("file.version.saved", { n })); proj.refresh(); }} versions={proj.project.versions} />}
+      {versionDialog && proj.project && <SaveVersion onClose={() => setVersionDialog(false)} onSaved={(n) => { setVersionDialog(false); progress.mark("version"); say(t("file.version.saved", { n })); proj.refresh(); }} versions={proj.project.versions} />}
       {proj.problem && <ProblemDialog problem={proj.problem} onClose={() => proj.setProblem(null)} onRestore={(p) => proj.restore(p).then(opened)} />}
       {overlay === "palette" && <Palette onClose={closeOverlay} a={{
         projectOpen: !!proj.project, go: setScreen, openGene, glossary: (id) => { setTerm(id); setScreen("glossary"); },

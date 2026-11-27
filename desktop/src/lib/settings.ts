@@ -14,8 +14,9 @@ export type Settings = {
   familiarity: "new" | "class" | "often" | null;
   textSize: "normal" | "large";
   reduceMotion: boolean;
+  progress: string[]; // getting-started steps done (lib/progress.ts)
 };
-const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true, firstRunDone: false, purpose: null, familiarity: null, textSize: "normal", reduceMotion: false };
+const DEFAULTS: Settings = { lang: null, figureLang: "en", level: "learn", autoUpdate: true, firstRunDone: false, purpose: null, familiarity: null, textSize: "normal", reduceMotion: false, progress: [] };
 
 type StoreLike = { get<T>(k: string): Promise<T | undefined>; set(k: string, v: unknown): Promise<void>; save(): Promise<void> };
 let storePromise: Promise<StoreLike | null> | null = null;

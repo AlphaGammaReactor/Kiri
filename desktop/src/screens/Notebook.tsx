@@ -6,6 +6,7 @@ import type { StringKey } from "../i18n/strings";
 import type { ProjectSummary } from "../lib/api";
 import { analyses, type Note } from "../lib/analyses";
 import { pickExportPath } from "../lib/files";
+import { progress } from "../lib/progress";
 import { Dialog } from "../shell/Dialog";
 import { svgDataUrl } from "../charts/figure";
 import { CHECK_TITLE, fmtVars, isMac } from "./workspace/Frame";
@@ -195,6 +196,7 @@ function ExportDialog({ title, count, onClose, say }: { title: string; count: nu
         pass: t("nb.l.pass"), caution: t("nb.l.caution"), problem: t("nb.l.problem"),
       } });
       say(t("nb.export.done", { p: r.path, n: r.entries }));
+      if (format === "docx") progress.mark("word");
       onClose();
     } catch { say(t("fig.saveFailed")); } finally { setBusy(false); }
   };

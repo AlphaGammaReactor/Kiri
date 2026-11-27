@@ -1,8 +1,9 @@
 // Glossary (design page 18): both names, pinyin search, what it is / how to read it / a common mistake.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, FlaskConical, Search } from "lucide-react";
 import { useT } from "../i18n";
 import { TERMS, fold, type Term } from "../i18n/glossary";
+import { progress } from "../lib/progress";
 
 const CATS = ["all", "survival", "statistics", "genomics"] as const;
 
@@ -11,6 +12,7 @@ export function Glossary({ initial }: { initial?: string }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<(typeof CATS)[number]>("all");
   const [sel, setSel] = useState(initial ?? TERMS[0].id);
+  useEffect(() => { progress.mark("glossary"); }, []);
   const name = (x: Term) => (lang === "zh" ? x.zh : x.en);
   const other = (x: Term) => (lang === "zh" ? x.en : x.zh);
   const two = (p: [string, string]) => (lang === "en" ? [p[0]] : lang === "zh" ? [p[1]] : p);

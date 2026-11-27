@@ -7,6 +7,7 @@ import { analyses, fmt, fmtP, type Analysis, type Check as CheckT } from "../../
 import { DataTableDialog, ReproduceDialog } from "./Tools";
 import { copyPng, pngBytes, svgText } from "../../charts/figure";
 import { pickExportPath } from "../../lib/files";
+import { progress } from "../../lib/progress";
 
 export const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 export const runKeys = isMac ? "⌘ Enter" : "Ctrl Enter";
@@ -104,6 +105,7 @@ export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang,
       const svg = svgRef.current ? svgText(svgRef.current) : "";
       const r = await analyses.note("figure", { ...notebookBody(), svg, caption });
       onSaid(t("fig.sent", { n: r.count }));
+      progress.mark("save");
     } catch { onSaid(t("fig.sendFailed")); }
   };
   return (
@@ -162,7 +164,7 @@ export function SideTabs({ explain, checks }: { explain: ReactNode; checks: Chec
     <>
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === "explain"} onClick={() => setTab("explain")}>{t("ws.explain")}</button>
-        <button role="tab" aria-selected={tab === "rel"} onClick={() => setTab("rel")}>
+        <button role="tab" aria-selected={tab === "rel"} onClick={() => { setTab("rel"); if (checks) progress.mark("reliable"); }}>
           {t("ws.reliability")}{worst && <span className={`rel-dot ${worst}`} />}
         </button>
       </div>

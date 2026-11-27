@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../lib/api";
 import { analyses, type Analysis, type CohortStatus, type Kind, type RunParams } from "../../lib/analyses";
 import { busy } from "../../lib/busy";
+import { progress } from "../../lib/progress";
 
 export type Phase =
   | { kind: "idle" }
@@ -46,7 +47,7 @@ export function useAnalysis(kinds: Kind[]) {
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       failed = (a.result as { error?: string }).error;
       if ((a.result as { error?: string }).error) setPhase({ kind: "error", code: (a.result as { error: string }).error, extra: a.result as Record<string, unknown> });
-      else setPhase({ kind: "idle" });
+      else { setPhase({ kind: "idle" }); progress.mark("run"); }
       setCurrent(a);
     } catch (e) {
       failed = e instanceof ApiError ? e.code : "engine";

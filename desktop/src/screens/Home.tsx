@@ -1,5 +1,5 @@
 import type React from "react";
-import { Compass, Search, Folder, FileText, Activity, Table2, BookOpen, Play, TriangleAlert, MoreHorizontal } from "lucide-react";
+import { Check, Compass, Search, Folder, FileText, Activity, Table2, BookOpen, Play, TriangleAlert, MoreHorizontal } from "lucide-react";
 import type { RecentItem, TemplateId } from "../lib/api";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
@@ -7,7 +7,11 @@ import type { StringKey } from "../i18n/strings";
 export type HomeActions = {
   notYet: () => void; onOpenFile: () => void; onNew: (tpl?: TemplateId) => void; onSample: () => void;
   onOpenRecent: (path: string) => void; onLocate: (item: RecentItem) => void; onForget: (path: string) => void;
+  onGuide: (query?: string, id?: GuideId) => void; progress: string[];
 };
+type GuideId = "tn" | "stage" | "survival" | "correlation" | "across" | "pathways" | "bench";
+const CHIP_GUIDE: GuideId[] = ["tn", "survival", "correlation", "across", "pathways", "bench"];
+const CHECK_KEY = ["run", "save", "reliable", "word", "version", "glossary"];
 
 export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
   const { t, lang } = useT();
@@ -19,6 +23,7 @@ export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
     if (new Date(now.getTime() - 864e5).toDateString() === d.toDateString()) return t("home.yesterday");
     return d.toLocaleDateString(loc, { day: "numeric", month: "short" });
   };
+  const done = CHECK_KEY.filter((k) => a.progress.includes(k)).length;
   const qs: StringKey[] = ["home.show.q1", "home.show.q2", "home.show.q3", "home.show.q4", "home.show.q5", "home.show.q6"];
   const checks: StringKey[] = ["home.check.run", "home.check.save", "home.check.reliable", "home.check.word", "home.check.version", "home.check.glossary"];
   const tuts: [StringKey, number][] = [["home.tut.1", 8], ["home.tut.2", 6], ["home.tut.3", 7], ["home.tut.4", 9], ["home.tut.5", 10], ["home.tut.6", 8]];
@@ -48,14 +53,14 @@ export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Compass size={18} color="var(--color-accent-text)" />
               <h2 className="card-title">{t("home.show.title")}</h2>
-              <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={notYet}>{t("home.show.guide")}</button>
+              <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => a.onGuide()}>{t("home.show.guide")}</button>
             </div>
             <label className="input" style={{ marginTop: 12 }}>
               <Search size={15} color="var(--color-text-muted)" />
-              <input placeholder={t("home.show.placeholder")} onKeyDown={(e) => e.key === "Enter" && notYet()} />
+              <input placeholder={t("guide.homePlaceholder")} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) a.onGuide((e.target as HTMLInputElement).value); }} />
             </label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-              {qs.map((q) => <button key={q} className="chip" onClick={notYet}>{t(q)}</button>)}
+              {qs.map((q, i) => <button key={q} className="chip" onClick={() => a.onGuide(undefined, CHIP_GUIDE[i])}>{t(q)}</button>)}
             </div>
           </section>
           <section className="card recent">
@@ -111,10 +116,10 @@ export function Home({ recent, a }: { recent: RecentItem[]; a: HomeActions }) {
         </div>
         <aside className="home-right">
           <section className="card">
-            <div className="row-between"><span className="eyebrow">{t("home.getting")}</span><span className="mono muted">0 / 6</span></div>
-            <div className="progress"><span style={{ width: "2%" }} /></div>
+            <div className="row-between"><span className="eyebrow">{t("home.getting")}</span><span className="mono muted">{done} / 6</span></div>
+            <div className="progress"><span style={{ width: `${Math.max(2, (done / 6) * 100)}%` }} /></div>
             <ul className="checklist">
-              {checks.map((c) => <li key={c}><span className="box" />{t(c)}</li>)}
+              {checks.map((c, i) => <li key={c} className={a.progress.includes(CHECK_KEY[i]) ? "done" : ""}><span className="box">{a.progress.includes(CHECK_KEY[i]) && <Check size={11} strokeWidth={3} />}</span>{t(c)}</li>)}
             </ul>
           </section>
           <section className="card" style={{ flex: 1 }}>
