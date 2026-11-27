@@ -156,7 +156,9 @@ function Shell({ settings, update, lang }: { settings: ReturnType<typeof useSett
             }} />
           )}
           {screen === "new" && <NewProject key={newTpl} initialTemplate={newTpl} onCancel={() => setScreen("home")} onCreate={create} notYet={notYet} />}
-          {screen === "overview" && proj.project && <Overview p={proj.project} notYet={notYet} />}
+          {screen === "overview" && proj.project && <Overview key={`o-${proj.project.path}`} p={proj.project} say={say}
+            onOpen={(o) => { if (o.kind === "survival") openGene("survival", o.gene ?? ""); else if (o.kind === "correlation") notYet(); else openGene("expression", o.gene ?? ""); }}
+            onNotebook={() => setScreen("notebook")} onGuide={() => notYet()} onRefresh={proj.refresh} />}
           {screen === "survival" && proj.project && <Survival key={`s-${proj.project.path}-${survGene}`} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} initialGene={survGene} />}
           {screen === "expression" && proj.project && <Expression key={`e-${proj.project.path}-${expGene}`} initialGene={expGene} p={proj.project} figLang={settings.figureLang} onFigLang={(l) => update({ figureLang: l })} say={say} onLater={notYet} onGuide={notYet} onSurvival={(g) => { setSurvGene(g); setScreen("survival"); }} />}
           {screen === "notebook" && proj.project && <Notebook key={`n-${proj.project.path}`} p={proj.project} say={say} onLater={notYet} onOpenAnalysis={(k, g) => { if (k === "survival") setSurvGene(g ?? ""); setScreen(k === "survival" ? "survival" : "expression"); }} />}

@@ -133,7 +133,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
   const figure = body ? <div className="fig-state">{body}</div> : r && (
     <>
       {stale && <OutOfDate onRun={run} />}
-      <FigureCard svgRef={svgRef} fileName={title} chartName={t("expr.chart")} why={t("expr.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only}
+      <FigureCard svgRef={svgRef} fileName={title} chartName={t("expr.chart")} why={t("expr.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only} analysis={a.current}
         caption={caption} notebookBody={() => ({ analysis_id: a.current?.id, kind: r.kind, gene: r.gene, title, summary: plainExpression(r, t), checks: r.checks, meta: `${r.data_version.source} · ${r.data_version.built}` })}>
         <BoxPoints ref={svgRef} groups={groups} colors={colors} showPoints={points}
           labels={{ yTitle: `${r.gene} ${F.expr}`, group: groupLabel, stat: statLine, brackets }} />
@@ -174,7 +174,7 @@ export function Expression({ p, figLang, onFigLang, say, onLater, onGuide, onSur
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.expression")}`} title={title} badges={badges} params={params}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
 }
 
 function plainExpression(r: ExpressionResult, t: ReturnType<typeof useT>["t"]) {

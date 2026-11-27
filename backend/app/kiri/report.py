@@ -30,12 +30,13 @@ def _checks_line(checks: list, L: dict) -> str:
     return f"{L['reliability']}: {n['pass']} {L['pass']}, {n['caution']} {L['caution']}, {n['problem']} {L['problem']}"
 
 
-def build(fmt: str, title: str, project: dict, notes: list, labels: dict) -> bytes:
+def build(fmt: str, title: str, project: dict, notes: list, labels: dict, intro: list[str] | None = None) -> bytes:
     L = DEFAULT_LABELS | {k: v for k, v in labels.items() if isinstance(v, str)}
-    return _pdf(title, project, notes, L) if fmt == "pdf" else _html(title, project, notes, L)
+    intro = [x for x in (intro or []) if isinstance(x, str) and x.strip()]
+    return _pdf(title, project, notes, L, intro) if fmt == "pdf" else _html(title, project, notes, L, intro)
 
 
-def _html(title: str, project: dict, notes: list, L: dict) -> bytes:
+def _html(title: str, project: dict, notes: list, L: dict, intro: list[str]) -> bytes:
     e = html.escape
     parts = [f"<!doctype html><html><head><meta charset='utf-8'><title>{e(title)}</title><style>"
              "body{font-family:-apple-system,'PingFang SC',Helvetica,Arial,sans-serif;max-width:820px;margin:40px auto;padding:0 20px;color:#1e1c18;line-height:1.5}"
@@ -43,8 +44,9 @@ def _html(title: str, project: dict, notes: list, L: dict) -> bytes:
              ".meta{color:#57514a;font-size:13px}.fig svg{max-width:100%;height:auto}.cap{font-size:13px;color:#57514a}"
              ".rel{font-size:13px;background:#f4f0e6;padding:8px 12px;border-radius:6px}</style></head><body>",
              f"<h1>{e(title)}</h1>"]
-    if project.get("question"):
+    if project.get("question") and project["question"].strip() != title.strip():
         parts.append(f"<p class='meta'>{e(L['question'])}: {e(project['question'])}</p>")
+    parts += [f"<p class='meta'>{e(x)}</p>" for x in intro]
     fig = 0
     for n in notes:
         b = n["body"]
@@ -100,7 +102,7 @@ def _cjk_font() -> str:
     return "STSong-Light"
 
 
-def _pdf(title: str, project: dict, notes: list, L: dict) -> bytes:
+def _pdf(title: str, project: dict, notes: list, L: dict, intro: list[str]) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
@@ -125,8 +127,9 @@ def _pdf(title: str, project: dict, notes: list, L: dict) -> bytes:
 
     e = html.escape
     story = [Para(e(title), "h1")]
-    if project.get("question"):
+    if project.get("question") and project["question"].strip() != title.strip():
         story.append(Para(e(f"{L['question']}: {project['question']}"), "meta"))
+    story += [Para(e(x), "meta") for x in intro]
     width = A4[0] - 40 * mm
     fig = 0
     for n in notes:

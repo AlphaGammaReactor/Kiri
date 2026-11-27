@@ -110,7 +110,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
   const figure = body ? <div className="fig-state">{body}</div> : r && (
     <>
       {stale && <OutOfDate onRun={run} />}
-      <FigureCard svgRef={svgRef} fileName={title} chartName={t("surv.chart")} why={t("surv.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only}
+      <FigureCard svgRef={svgRef} fileName={title} chartName={t("surv.chart")} why={t("surv.why")} figLang={figLang} onFigLang={onFigLang} onSaid={say} onLater={onLater} readOnly={p.read_only} analysis={a.current}
         caption={t("surv.caption", { c: cohortLabel(r.data_version.projects), cut: cutText(r.cut).toLowerCase(), g: r.gene })}
         notebookBody={() => ({ analysis_id: a.current?.id, kind: "survival", gene: r.gene, title: `${t("surv.chart")} · ${title}`, summary: cox ? plainSurvival(r, cox, pShown, n, t) : "", checks: r.checks, meta: `${r.data_version.source} · ${r.data_version.built}` })}>
         <KM ref={svgRef} r={r} labels={{
@@ -146,7 +146,7 @@ export function Survival({ p, figLang, onFigLang, say, onLater, onGuide, initial
   );
 
   return <Frame crumb={`${p.project.name}  /  ${t("nav.analyses")}  /  ${t("nav.survival")}`} title={title} badges={badges} params={params}
-    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} />;
+    figure={figure} side={<SideTabs explain={explain} checks={r?.checks ?? null} />} onLater={onLater} analysis={r ? a.current : null} say={say} />;
 }
 
 function medianText(m: number | null, t: ReturnType<typeof useT>["t"]) { return m == null ? t("surv.notReached") : t("surv.months", { m: fmt(m, 1) }); }

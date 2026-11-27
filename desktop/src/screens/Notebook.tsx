@@ -7,6 +7,7 @@ import type { ProjectSummary } from "../lib/api";
 import { analyses, type Note } from "../lib/analyses";
 import { pickExportPath } from "../lib/files";
 import { Dialog } from "../shell/Dialog";
+import { svgDataUrl } from "../charts/figure";
 import { CHECK_TITLE, fmtVars, isMac } from "./workspace/Frame";
 
 const tagsOf = (s: string) => [...new Set((s.match(/#[\p{L}\p{N}_-]+/gu) ?? []).map((x) => x.toLowerCase()))];
@@ -126,7 +127,7 @@ export function Notebook({ p, say, onOpenAnalysis, onLater }: { p: ProjectSummar
                   {n.kind === "text" ? <p className="nb-text">{n.body.text}</p> : (
                     <>
                       <div className="nb-fig">
-                        {n.body.svg && <div className="nb-thumb" dangerouslySetInnerHTML={{ __html: n.body.svg.split("?>").pop() ?? "" }} />}
+                        {n.body.svg && <div className="nb-thumb"><img alt="" src={svgDataUrl(n.body.svg)} /></div>}
                         <div className="nb-body">
                           <p>{n.body.summary}</p>
                           {n.body.meta && <p className="mono small muted">{n.body.meta}</p>}

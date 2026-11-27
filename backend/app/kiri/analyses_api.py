@@ -44,6 +44,7 @@ class RunBody(BaseModel):
     adjust: list[Literal["age", "stage"]] = Field(default_factory=list)
     paired: bool = False
     replace: Optional[str] = None  # analysis id to overwrite (changing options)
+    check_only: bool = False  # Reproduce: compute again and return the numbers without saving
 
 
 def _row(r) -> dict:
@@ -86,7 +87,11 @@ def list_analyses():
     for r in rows:
         a = _row(r)
         res = a.pop("result") or {}
-        a["headline"] = {k: res.get(k) for k in ("p_report", "error")} | {"hr": (res.get("cox") or {}).get("hr"), "p": (res.get("test") or {}).get("p")}
+        checks = res.get("checks") or []
+        worst = next((s for s in ("problem", "caution", "pass") if any(c.get("status") == s for c in checks)), None)
+        a["headline"] = {k: res.get(k) for k in ("p_report", "error")} | {
+            "hr": (res.get("cox_adjusted") or res.get("cox") or {}).get("hr"), "p": (res.get("test") or {}).get("p"),
+            "rho": res.get("rho"), "n": (res.get("counts") or {}).get("patients") or res.get("n"), "worst": worst}
         out.append(a)
     return out
 
@@ -101,6 +106,27 @@ def get_analysis(aid: str):
     if not r:
         return JSONResponse(status_code=404, content={"error": "not_found"})
     return _row(r)
+
+
+@router.get("/analyses/{aid}/rows")
+def analysis_rows(aid: str):
+    """The per-sample rows behind a stored analysis (data table, CSV, scripts)."""
+    from app.analyses.tables import rows_for
+
+    try:
+        op = ws().require()
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    r = op.con.execute("SELECT kind, params FROM analyses WHERE id = ?", (aid,)).fetchone()
+    if not r:
+        return JSONResponse(status_code=404, content={"error": "not_found"})
+    params = json.loads(r[1])
+    genes = [params["gene"]] + ([params["gene2"]] if params.get("gene2") else [])
+    try:
+        c = cohort_for(params.get("projects") or _projects(op.project()), genes, _data_dir())
+        return rows_for(c, r[0], params) | {"units": c.units, "data_version": c.data_version()}
+    except CohortUnavailable as e:
+        return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
 
 
 @router.post("/analyses/run")
@@ -127,9 +153,12 @@ def run(body: RunBody):
     except CohortUnavailable as e:
         return JSONResponse(status_code=409, content={"error": e.code, **e.extra})
 
-    params = body.model_dump(exclude={"replace"}) | {"gene": gene, "projects": projects}
+    params = body.model_dump(exclude={"replace", "check_only"}) | {"gene": gene, "projects": projects}
     record = {"id": body.replace or uuid.uuid4().hex, "kind": body.kind, "params": params, "result": result,
               "data_versions": c.data_version(), "created_at": now(), "updated_at": now()}
+    if body.check_only:
+        record["saved"] = False
+        return record
     if not op.read_only:
         existing = op.con.execute("SELECT created_at FROM analyses WHERE id = ?", (record["id"],)).fetchone()
         if existing:
@@ -188,12 +217,53 @@ def list_notes():
 
 
 # ── Saving a figure or table to a file the person picked in the Save dialog ──
-EXPORT_TYPES = {".png", ".svg", ".pdf", ".csv", ".tsv", ".txt"}
+EXPORT_TYPES = {".png", ".svg", ".pdf", ".csv", ".tsv", ".txt", ".r", ".py"}
 
 
 class ExportBody(BaseModel):
     path: str
     data_base64: str
+
+
+class PdfBody(BaseModel):
+    path: str
+    svg: str
+
+
+@router.post("/export/pdf")
+def export_pdf(body: PdfBody):
+    """A figure as a vector PDF, drawn from the same SVG the app shows."""
+    import io
+    import os
+
+    from reportlab.graphics import renderPDF
+    from svglib.svglib import svg2rlg
+
+    p = Path(body.path).expanduser()
+    if p.suffix.lower() != ".pdf" or not p.is_absolute():
+        return JSONResponse(status_code=400, content={"error": "bad_export_path"})
+    if not p.parent.is_dir():
+        return JSONResponse(status_code=400, content={"error": "folder_missing"})
+    from app.kiri.report import _cjk_font
+
+    svg = body.svg.split("?>", 1)[-1]
+    # svglib cannot pick fonts per glyph: figures with Chinese text are drawn with the CJK font.
+    if any("\u2e80" <= ch <= "\u9fff" for ch in svg):
+        font = _cjk_font()
+        import re
+
+        svg = re.sub(r'font-family="[^"]*"', f'font-family="{font}"', svg)
+        svg = re.sub(r"font-family:[^;\"]*", f"font-family:{font}", svg)
+    d = svg2rlg(io.BytesIO(svg.encode("utf-8")))
+    if d is None:
+        return JSONResponse(status_code=400, content={"error": "bad_svg"})
+    buf = io.BytesIO()
+    renderPDF.drawToFile(d, buf)
+    data = buf.getvalue()
+    tmp = p.with_name(f".{p.name}.{uuid.uuid4().hex[:8]}.tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, p)
+    return {"path": str(p), "bytes": len(data)}
 
 
 @router.post("/export")
@@ -284,3 +354,53 @@ def export_report(body: ReportBody):
 
     os.replace(tmp, p)
     return {"path": str(p), "bytes": len(data), "entries": len(notes)}
+
+
+# ── One-page summary of the project (Overview) ──
+class SummaryItem(BaseModel):
+    title: str
+    summary: str = ""
+    analysis_id: Optional[str] = None
+    checks: list = Field(default_factory=list)
+
+
+class SummaryBody(BaseModel):
+    path: str
+    format: Literal["pdf", "html"]
+    title: str
+    intro: list[str] = Field(default_factory=list)  # translated lines under the title
+    items: list[SummaryItem] = Field(default_factory=list)
+    labels: dict = Field(default_factory=dict)
+
+
+@router.post("/summary/export")
+def export_summary(body: SummaryBody):
+    """A short report a supervisor can read: the question, then one block per analysis with its
+    headline numbers, reliability line and the latest figure sent to the notebook for it."""
+    import os
+
+    from app.kiri import report
+
+    try:
+        op = ws().require()
+    except KiriFileError as e:
+        return JSONResponse(status_code=409, content={"error": e.code})
+    p = Path(body.path).expanduser()
+    if p.suffix.lower() != f".{body.format}" or not p.is_absolute() or not p.parent.is_dir():
+        return JSONResponse(status_code=400, content={"error": "bad_export_path"})
+    figs: dict[str, str] = {}
+    for n in list_notes():  # oldest first, so the newest figure per analysis wins
+        b = n["body"]
+        if b.get("analysis_id") and b.get("svg"):
+            figs[b["analysis_id"]] = b["svg"]
+    when = {r[0]: r[1] for r in op.con.execute("SELECT id, updated_at FROM analyses")}
+    entries = []
+    for it in body.items:
+        entries.append({"kind": "result", "created_at": when.get(it.analysis_id or "", now()),
+                        "body": {"title": it.title, "summary": it.summary, "checks": it.checks,
+                                 "svg": figs.get(it.analysis_id or "")}})
+    data = report.build(body.format, body.title, op.project(), entries, body.labels, intro=body.intro)
+    tmp = p.with_name(f".{p.name}.{uuid.uuid4().hex[:8]}.tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, p)
+    return {"path": str(p), "bytes": len(data), "entries": len(entries)}

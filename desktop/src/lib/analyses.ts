@@ -26,7 +26,8 @@ export type ExpressionResult = {
 export type ErrorResult = { kind: string; gene: string; error: string; [k: string]: unknown };
 export type DataVersion = { cohort: string; projects: string[]; source: string; units: string; built: string };
 export type Kind = "survival" | "expression_tn" | "expression_stage";
-export type RunParams = { kind: Kind; gene: string; cut?: "median" | "quartile" | "optimal"; adjust?: ("age" | "stage")[]; paired?: boolean; replace?: string };
+export type RunParams = { kind: Kind; gene: string; gene2?: string; check_only?: boolean; cut?: "median" | "quartile" | "optimal"; adjust?: ("age" | "stage")[]; paired?: boolean; replace?: string };
+export type Headline = { p_report?: number | null; error?: string | null; hr?: number | null; p?: number | null; rho?: number | null; n?: number | null; worst?: "pass" | "caution" | "problem" | null };
 export type Analysis<R = SurvivalResult | ExpressionResult | ErrorResult> = {
   id: string; kind: Kind; params: RunParams & { projects: string[] }; result: R; data_versions: DataVersion;
   created_at: string; updated_at: string; saved?: boolean;
@@ -51,8 +52,10 @@ export async function call<T>(path: string, method = "GET", body?: unknown): Pro
 
 export const analyses = {
   run: (p: RunParams) => call<Analysis>("/analyses/run", "POST", p),
-  list: () => call<(Omit<Analysis, "result"> & { headline: Record<string, number | null> })[]>("/analyses"),
+  list: () => call<(Omit<Analysis, "result"> & { headline: Headline })[]>("/analyses"),
   get: (id: string) => call<Analysis>(`/analyses/${id}`),
+  rows: (id: string) => call<{ columns: string[]; rows: (string | number | null)[][]; units: string; cut_value?: number; data_version: DataVersion }>(`/analyses/${id}/rows`),
+  exportPdf: (path: string, svg: string) => call<{ path: string; bytes: number }>("/export/pdf", "POST", { path, svg }),
   cohort: () => call<CohortStatus>("/cohort"),
   download: (project: string) => call<CohortStatus["packs"][string]>(`/cohort/download?project=${encodeURIComponent(project)}`, "POST"),
   note: (kind: "figure" | "text" | "result", body: Record<string, unknown>) => call<{ id: string; count: number }>("/notebook", "POST", { kind, body }),
@@ -61,6 +64,8 @@ export const analyses = {
   deleteNote: (id: string) => call(`/notebook/${id}`, "DELETE"),
   exportReport: (b: { path: string; format: "pdf" | "html"; title: string; labels: Record<string, string> }) =>
     call<{ path: string; entries: number }>("/notebook/export", "POST", b),
+  exportSummary: (b: { path: string; format: "pdf" | "html"; title: string; intro: string[]; items: { analysis_id: string; title: string; summary: string; checks: unknown[] }[]; labels: Record<string, string> }) =>
+    call<{ path: string; entries: number }>("/summary/export", "POST", b),
   exportFile: (path: string, data: Uint8Array) => {
     let s = "";
     for (let i = 0; i < data.length; i += 0x8000) s += String.fromCharCode(...data.subarray(i, i + 0x8000));

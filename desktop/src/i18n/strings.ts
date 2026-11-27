@@ -1,3 +1,5 @@
+import { enNext, zhNext } from "./strings-next";
+
 // Interface strings. Every key must exist in both languages: scripts/check-i18n.mjs fails the build otherwise.
 export const en = {
   "app.search": "Search genes, analyses, notes…",
@@ -315,7 +317,7 @@ export const en = {
   "fig.copyFailed": "Could not copy the figure. Use Save image instead.",
   "fig.saved": "Saved {p}",
   "fig.saveFailed": "Could not save the file.",
-  "fig.sent": "Sent to the notebook ({n} entries). The Notebook screen arrives in a later update.",
+  "fig.sent": "Sent to the notebook ({n} entries).",
   "fig.sendFailed": "Could not add to the notebook.",
   "fig.readOnly": "This project is read-only, so nothing can be added to it.",
   "rel.empty": "Run the analysis to see its reliability checks.",
@@ -672,6 +674,7 @@ export const en = {
   "set.access.large": "Large",
   "set.access.motion": "Reduce motion",
   "set.access.motion.help": "Turns off animations and progress movement.",
+  ...enNext,
 } as const;
 
 export type StringKey = keyof typeof en;
@@ -992,7 +995,7 @@ export const zh: Record<StringKey, string> = {
   "fig.copyFailed": "无法复制图片，请改用“保存图片”。",
   "fig.saved": "已保存 {p}",
   "fig.saveFailed": "无法保存文件。",
-  "fig.sent": "已发送到笔记本（共 {n} 条）。笔记本页面将在后续更新中提供。",
+  "fig.sent": "已发送到笔记本（共 {n} 条）。",
   "fig.sendFailed": "无法添加到笔记本。",
   "fig.readOnly": "该项目为只读，无法添加内容。",
   "rel.empty": "运行分析后可查看可靠性检查。",
@@ -1349,6 +1352,7 @@ export const zh: Record<StringKey, string> = {
   "set.access.large": "大",
   "set.access.motion": "减少动态效果",
   "set.access.motion.help": "关闭动画和进度动效。",
+  ...zhNext,
 };
 
 // Technical terms. In Bilingual mode the Chinese term is followed by the English one.

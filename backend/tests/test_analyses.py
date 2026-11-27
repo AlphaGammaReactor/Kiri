@@ -137,6 +137,24 @@ def test_api_runs_and_stores_in_the_kiri_file(tmp_path, monkeypatch):
     assert (tmp_path / "report.pdf").read_bytes()[:4] == b"%PDF"
     assert "生存 KM" in (tmp_path / "report.html").read_text()
     assert cl.delete(f"/api/v1/kiri/notebook/{nid}").status_code == 200
+    # Rows behind the analysis, re-check without saving, summary and figure PDF
+    rows = cl.get(f"/api/v1/kiri/analyses/{rec['id']}/rows").json()
+    assert rows["columns"][:5] == ["sample", "patient", "project", "expression", "group"] and len(rows["rows"]) > 100
+    before = cl.get(f"/api/v1/kiri/analyses/{rec['id']}").json()["updated_at"]
+    chk = cl.post("/api/v1/kiri/analyses/run", json={"kind": "survival", "gene": "G", "cut": "quartile", "check_only": True}).json()
+    assert chk["saved"] is False and chk["result"]["logrank"]["p"] == cl.get(f"/api/v1/kiri/analyses/{rec['id']}").json()["result"]["logrank"]["p"]
+    assert cl.get(f"/api/v1/kiri/analyses/{rec['id']}").json()["updated_at"] == before
+    assert cl.get("/api/v1/kiri/analyses").json()[0]["headline"]["worst"] in ("pass", "caution", "problem")
+    r = cl.post("/api/v1/kiri/summary/export", json={"path": str(tmp_path / "s.pdf"), "format": "pdf", "title": "P", "intro": ["Targets: G"],
+                                                      "items": [{"title": "Survival · G", "summary": "HR 2", "analysis_id": rec["id"], "checks": []}]})
+    assert r.status_code == 200, r.text
+    assert (tmp_path / "s.pdf").read_bytes()[:4] == b"%PDF"
+    r = cl.post("/api/v1/kiri/summary/export", json={"path": str(tmp_path / "s.html"), "format": "html", "title": "P",
+                                                      "items": [{"title": "Survival · G", "analysis_id": rec["id"]}]})
+    assert "生存 KM" in (tmp_path / "s.html").read_text()  # the notebook figure for that analysis
+    r = cl.post("/api/v1/kiri/export/pdf", json={"path": str(tmp_path / "fig.pdf"), "svg": svg})
+    assert r.status_code == 200, r.text
+    assert (tmp_path / "fig.pdf").read_bytes()[:4] == b"%PDF"
     # Re-running the analysis marks the figure entry as changed since
     cl.post("/api/v1/kiri/analyses/run", json={"kind": "survival", "gene": "G", "cut": "median", "replace": rec["id"]})
     assert cl.get("/api/v1/kiri/notebook").json()[0]["changed_since"] is True

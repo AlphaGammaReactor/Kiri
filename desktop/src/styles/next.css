@@ -1,0 +1,39 @@
+/* Styles for the features built after 0.1.1 (kept apart from app.css to avoid collisions with parallel work). */
+.nb-thumb img { width: 100%; height: auto; display: block; }
+
+/* Overview */
+.ov-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; overflow: auto; }
+.ov-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 8px; border: 0; background: transparent; text-align: left; border-radius: var(--radius-md); }
+.ov-row:hover { background: var(--color-bg-raised); }
+.ov-row + .ov-row, .ov-list li + li { border-top: 1px solid var(--color-border-subtle, var(--color-border-default)); }
+.ov-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ov-row-text b { font-weight: 500; font-size: 13.5px; }
+.ov-row-text .mono { font-size: 11.5px; }
+.ov-stat { font-size: 12.5px; white-space: nowrap; }
+.ov-nb-gap { width: 86px; }
+.ov-row .when { width: 84px; text-align: right; font-size: 11.5px; }
+.ov-note { display: flex; gap: 10px; align-items: center; border: 1px solid var(--color-border-default); background: var(--color-bg-surface); border-radius: var(--radius-md); padding: 6px; text-align: left; }
+.ov-note:hover { background: var(--color-bg-raised); }
+.ov-thumb { width: 64px; height: 44px; object-fit: contain; background: #fff; border-radius: 4px; flex: none; border: 1px solid var(--color-border-default); }
+.ov-thumb.text { display: grid; place-items: center; color: var(--color-text-muted); background: var(--color-bg-sunken); }
+.ov-note-text { display: flex; flex-direction: column; min-width: 0; font-size: 12.5px; }
+.ov-note-text b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-note-text .muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-panel-bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--color-bg-surface); border: 1px solid var(--color-border-default); font-size: 13px; }
+.ov-panel-bar.ok { background: var(--color-accent-subtle); }
+.ov-panel-bar.warn { border-color: var(--color-status-warning, #94570f); }
+.ov-panel-bar .progress { margin: 0; }
+.ov-panel-list { margin: 4px 0 12px; padding-left: 18px; font-size: 13px; columns: 2; }
+.ov-panel-list li { margin: 2px 0; break-inside: avoid; }
+
+/* Data table and Reproduce */
+.tbl-wrap { max-height: 380px; overflow: auto; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); }
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th { position: sticky; top: 0; background: var(--color-bg-sunken); text-align: left; font-weight: 500; padding: 6px 8px; white-space: nowrap; }
+.tbl td { padding: 4px 8px; border-top: 1px solid var(--color-border-default); white-space: nowrap; font-family: var(--font-mono, monospace); }
+.tbl td.num { text-align: right; }
+.rep-grid { display: grid; grid-template-columns: 130px 1fr; gap: 6px 14px; margin: 8px 0 14px; font-size: 13px; }
+.rep-grid dt { color: var(--color-text-secondary); }
+.rep-grid dd { margin: 0; }
+.code-block { max-height: 380px; overflow: auto; background: var(--color-bg-sunken); border-radius: var(--radius-md); padding: 12px 14px; font-size: 12px; line-height: 1.5; white-space: pre; font-family: var(--font-mono, monospace); margin: 0; }
+.note.ok { background: var(--color-accent-subtle); }

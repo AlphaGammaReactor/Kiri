@@ -36,3 +36,6 @@ export const FIG = {
   high: "#c8641a", low: "#2a6fa8", ink: "#1e1c18", muted: "#57514a", grid: "#ddd5c3", tumour: "#c8641a", normal: "#2a6fa8",
   font: "IBM Plex Sans, Helvetica, Arial, PingFang SC, sans-serif", mono: "IBM Plex Mono, Menlo, monospace",
 };
+
+/** An SVG string as an image source. Shown through <img>, so nothing inside a shared .kiri file can run. */
+export const svgDataUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.split("?>").pop() ?? "")}`;

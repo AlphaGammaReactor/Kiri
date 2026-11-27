@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import { Copy, Download, NotebookPen, LayoutPanelLeft, Table2, Code2, ChevronDown, CircleHelp, ShieldCheck, Check, TriangleAlert, CircleX, Info, Loader2, RotateCcw, CloudDownload, Activity } from "lucide-react";
 import { useT } from "../../i18n";
 import type { StringKey } from "../../i18n/strings";
-import { analyses, fmt, fmtP, type Check as CheckT } from "../../lib/analyses";
+import { analyses, fmt, fmtP, type Analysis, type Check as CheckT } from "../../lib/analyses";
+import { DataTableDialog, ReproduceDialog } from "./Tools";
 import { copyPng, pngBytes, svgText } from "../../charts/figure";
 import { pickExportPath } from "../../lib/files";
 
@@ -18,10 +19,13 @@ export function useRunShortcut(run: () => void, enabled: boolean) {
   }, [run, enabled]);
 }
 
-export function Frame({ crumb, title, badges, params, figure, side, onLater }: {
+export function Frame({ crumb, title, badges, params, figure, side, onLater, analysis, say }: {
   crumb: string; title: string; badges: ReactNode; params: ReactNode; figure: ReactNode; side: ReactNode; onLater: () => void;
+  analysis?: Analysis | null; say?: (s: string) => void;
 }) {
   const { t } = useT();
+  const [repro, setRepro] = useState(false);
+  const usable = !!analysis && !(analysis.result as { error?: string }).error;
   return (
     <div className="ws">
       <div className="ws-head">
@@ -31,7 +35,7 @@ export function Frame({ crumb, title, badges, params, figure, side, onLater }: {
           <div className="ws-badges">{badges}</div>
         </div>
         <div className="ws-actions">
-          <button className="btn ghost" onClick={onLater} title={t("common.notYet")}>{t("ws.reproduce")}</button>
+          <button className="btn ghost" onClick={() => (usable ? setRepro(true) : say?.(t("repro.none")))} title={t("repro.tip")}>{t("ws.reproduce")}</button>
           <button className="btn" onClick={onLater} title={t("common.notYet")}>{t("ws.checkOther")}</button>
         </div>
       </div>
@@ -40,6 +44,7 @@ export function Frame({ crumb, title, badges, params, figure, side, onLater }: {
         <section className="card ws-fig">{figure}</section>
         <aside className="ws-side">{side}</aside>
       </div>
+      {repro && analysis && <ReproduceDialog a={analysis} fileName={title} onClose={() => setRepro(false)} say={say ?? (() => {})} />}
     </div>
   );
 }
@@ -68,11 +73,20 @@ export function Select<T extends string>({ value, options, onChange }: { value: 
   );
 }
 
-export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang, onFigLang, children, notebookBody, onSaid, onLater, readOnly }: {
+export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang, onFigLang, children, notebookBody, onSaid, onLater, readOnly, analysis }: {
   svgRef: RefObject<SVGSVGElement | null>; chartName: string; why: string; caption: string; fileName: string; figLang: "en" | "zh"; onFigLang: (l: "en" | "zh") => void;
   children: ReactNode; notebookBody: () => Record<string, unknown>; onSaid: (s: string) => void; onLater: () => void; readOnly: boolean;
+  analysis?: Analysis | null;
 }) {
   const { t } = useT();
+  const [tool, setTool] = useState<null | "table" | "code">(null);
+  const savePdf = async () => {
+    setSaveMenu(false);
+    if (!svgRef.current) return;
+    const path = await pickExportPath(t("fig.saveTitle"), fileName, "pdf");
+    if (!path) return;
+    try { const r = await analyses.exportPdf(path, svgText(svgRef.current)); onSaid(t("fig.saved", { p: r.path })); } catch { onSaid(t("fig.saveFailed")); }
+  };
   const [whyOpen, setWhyOpen] = useState(false);
   const [saveMenu, setSaveMenu] = useState(false);
   const copy = async () => { if (svgRef.current) onSaid((await copyPng(svgRef.current)) ? t("fig.copied") : t("fig.copyFailed")); };
@@ -104,14 +118,14 @@ export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang,
               <div className="menu" style={{ right: "auto", left: 0 }}>
                 <button onClick={() => save("png")}>{t("fig.savePng")}</button>
                 <button onClick={() => save("svg")}>{t("fig.saveSvg")}</button>
-                <button onClick={() => { setSaveMenu(false); onLater(); }} className="muted">{t("fig.savePdf")}</button>
+                <button onClick={savePdf}>{t("fig.savePdfVector")}</button>
               </div>
             )}
           </div>
           <button className="btn primary sm" onClick={send}><NotebookPen size={15} />{t("fig.sendNotebook")}</button>
           <button className="tool" title={t("fig.board") + " · " + t("common.notYet")} onClick={onLater}><LayoutPanelLeft size={16} /></button>
-          <button className="tool" title={t("fig.table") + " · " + t("common.notYet")} onClick={onLater}><Table2 size={16} /></button>
-          <button className="tool" title={t("fig.code") + " · " + t("common.notYet")} onClick={onLater}><Code2 size={16} /></button>
+          <button className="tool" title={t("fig.table")} aria-label={t("fig.table")} onClick={() => (analysis ? setTool("table") : onLater())}><Table2 size={16} /></button>
+          <button className="tool" title={t("fig.code")} aria-label={t("fig.code")} onClick={() => (analysis ? setTool("code") : onLater())}><Code2 size={16} /></button>
         </div>
       </div>
       <div className="fig-row">
@@ -125,6 +139,8 @@ export function FigureCard({ svgRef, chartName, why, caption, fileName, figLang,
         <span className="badge ok sm fig-check"><ShieldCheck size={13} />{t("fig.checkPassed")}</span>
       </div>
       <div className="fig-canvas">{children}</div>
+      {tool === "table" && analysis && <DataTableDialog a={analysis} fileName={fileName} onClose={() => setTool(null)} say={onSaid} />}
+      {tool === "code" && analysis && <ReproduceDialog a={analysis} fileName={fileName} initialTab="r" onClose={() => setTool(null)} say={onSaid} />}
       <div className="fig-foot">
         <p className="caption">{caption}</p>
         <label className="sel small-sel">
