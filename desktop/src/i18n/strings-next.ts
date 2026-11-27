@@ -1049,7 +1049,7 @@ export const enNext = {
   "ot.type.rna_expression": "RNA expression",
   "ot.type.literature": "Literature",
   "ot.type.animal_model": "Animal models",
-  "ot.type.clinical": "Clinical trials and drugs",
+  "ot.type.clinical": "Clinical trials",
   "ot.type.genetic_literature": "Genetics in the literature",
 } as const;
 
@@ -2101,6 +2101,6 @@ export const zhNext: Record<keyof typeof enNext, string> = {
   "ot.type.rna_expression": "RNA 表达",
   "ot.type.literature": "文献",
   "ot.type.animal_model": "动物模型",
-  "ot.type.clinical": "临床试验与药物",
+  "ot.type.clinical": "临床试验",
   "ot.type.genetic_literature": "文献中的遗传证据",
 };
