@@ -105,7 +105,11 @@ export function panelFor(a: Analysis, figLang: FigLang, t: T): Panel | null {
     const r = a.result as ExpressionResult;
     let groups: Group[], brackets: { a: string; b: string; text: string }[] = [];
     let colors = (k: string) => (k.endsWith("normal") ? FIG.normal : FIG.tumour), label = (k: string) => k, stat: string;
-    if (r.kind === "expression_mut") {
+    if (r.kind === "expression_cn") {
+      const CN: Record<string, string> = { deletion: "#2f5f8f", loss: "#7fa3c4", normal: "#9a9184", gain: "#d08a5c", amplification: "#a5402a" };
+      groups = r.groups; colors = (k) => CN[k] ?? FIG.ink; label = (k) => F[`cn_${k}` as "cn_normal"] ?? k;
+      stat = fillFig(F.kw, { p: fmtP(r.test.p) });
+    } else if (r.kind === "expression_mut") {
       groups = r.groups;
       colors = (k) => (k === "mutated" ? FIG.tumour : FIG.normal);
       label = (k) => `${r.gene2} ${k === "mutated" ? F.mutated : F.notMutated}`;

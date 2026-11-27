@@ -277,7 +277,7 @@ if (length(unique(d$group)) == 2) wilcox.test(expression ~ group, data = d) else
 }
 boxplot(expression ~ group, data = d, outline = FALSE, ylab = "${a.data_versions.units}")
 `;
-  if (a.kind === "expression_stage") return `d <- read.csv("${csv}")
+  if (a.kind === "expression_stage" || a.kind === "expression_cn") return `d <- read.csv("${csv}")
 d$group <- factor(d$group, levels = c("I", "II", "III", "IV"))
 
 tapply(d$expression, d$group, summary)       # n, median and quartiles per stage
@@ -420,7 +420,7 @@ if len(groups) == 2:
 else:
     print("Kruskal-Wallis p =", stats.kruskal(*groups.values()).pvalue)
 `;
-  if (a.kind === "expression_stage") return `import itertools
+  if (a.kind === "expression_stage" || a.kind === "expression_cn") return `import itertools
 import pandas as pd                        # pip install pandas scipy statsmodels
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
