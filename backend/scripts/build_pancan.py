@@ -19,14 +19,16 @@ import pandas as pd
 
 HUB = "https://pancanatlas.xenahubs.net/download/"
 SUBTYPES = ["TCGASubtype.20170308.tsv", "TCGASubtype.20170308.tsv.gz"]
-PURITY = ["TCGA_mastercalls.abs_tables_JSedit.fixed.txt", "TCGA_mastercalls.abs_tables_JSedit.fixed.txt.gz"]
+PURITY = ["TCGA_mastercalls.abs_tables_JSedit.fixed.txt", "TCGA_mastercalls.abs_tables_JSedit.fixed.txt.gz",
+          # The same PanCanAtlas file on the GDC publication page (open access).
+          "https://api.gdc.cancer.gov/data/4f277128-f793-4354-a13d-30cc7fe9f6b5"]
 
 
 def fetch(names: list[str]) -> pd.DataFrame:
     errors = []
     for n in names:
         try:
-            req = urllib.request.Request(HUB + n, headers={"User-Agent": "kiri-ci"})
+            req = urllib.request.Request(n if n.startswith("https://") else HUB + n, headers={"User-Agent": "kiri-ci"})
             with urllib.request.urlopen(req, timeout=120) as r:
                 raw = r.read()
             return pd.read_csv(io.BytesIO(raw), sep="\t", compression="gzip" if n.endswith(".gz") else None, low_memory=False)
@@ -36,17 +38,29 @@ def fetch(names: list[str]) -> pd.DataFrame:
     raise SystemExit("no source worked:\n" + "\n".join(errors))
 
 
+def list_hub(word: str) -> None:
+    """Print hub datasets whose name holds a word, to find a renamed file."""
+    try:
+        import xenaPython as xena
+
+        names = [d for d in xena.all_datasets_n(HUB.replace("/download/", "")) if word in d.lower()] if hasattr(xena, "all_datasets_n") else []
+        print(f"hub datasets with '{word}':", names[:30])
+    except Exception as e:  # noqa: BLE001
+        print("could not list hub:", e)
+
+
 def main(out: str) -> None:
     o = Path(out)
     s = fetch(SUBTYPES)
     print("subtypes columns:", list(s.columns))
     sid = next(c for c in s.columns if c.lower() in ("sampleid", "sample", "pan.samplesid"))
-    keep = pd.DataFrame({"sample": s[sid].astype(str).str[:15], "cancer": s.get("cancer.type", s.get("cancer type", "")),
+    keep = pd.DataFrame({"sample": s[sid].astype(str).str[:15], "cancer": s["Subtype_Selected"].astype(str).str.split(".").str[0],
                          "subtype": s["Subtype_Selected"].astype(str)})
-    keep = keep[keep["sample"].str.match(r"^TCGA-\w\w-\w{4}-\d\d$") & ~keep["subtype"].isin(["nan", "NA", ""])].drop_duplicates("sample")
+    keep = keep[keep["sample"].str.match(r"^TCGA-\w\w-\w{4}-\d\d$") & ~keep["subtype"].isin(["nan", "NA", ""]) & ~keep["subtype"].str.endswith(".NA")].drop_duplicates("sample")
     keep.to_csv(o / "tcga_subtypes.tsv.gz", sep="\t", index=False, compression={"method": "gzip", "mtime": 0})
     print(f"subtypes: {len(keep)} tumours; e.g. {keep['subtype'].value_counts().head(8).to_dict()}")
 
+    list_hub("abs"); list_hub("purity")
     p = fetch(PURITY)
     print("purity columns:", list(p.columns))
     scol = "sample" if "sample" in p.columns else p.columns[1]
