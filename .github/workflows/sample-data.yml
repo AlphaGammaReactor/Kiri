@@ -5,7 +5,7 @@ name: Sample project data
 on:
   push:
     branches: [claude/project-thread-btcqwn, claude/project-thread-bdrb9s, claude/project-thread-2tc0ep]
-    paths: ["backend/scripts/build_sample_slice.py", "backend/scripts/build_cdr.py", "backend/app/cohorts/**", ".github/workflows/sample-data.yml"]
+    paths: ["backend/scripts/build_sample_slice.py", "backend/scripts/build_cdr.py", "backend/app/cohorts/mutations.py", "backend/app/cohorts/**", ".github/workflows/sample-data.yml"]
   workflow_dispatch:
 
 permissions:
@@ -71,4 +71,10 @@ jobs:
           print("survival EGFR READ: n", r["groups"]["high"]["n"] + r["groups"]["low"]["n"], "HR", r["cox"]["hr"], "p", r["logrank"]["p"])
           e = expression.tumour_vs_normal(c, "EGFR")
           print("expression EGFR READ:", e.get("error") or (e["groups"][0]["n"], e["groups"][1]["n"], e["test"]["p"]))
+          assert c.mutations, "no mutation calls in the pack"
+          print("mutations:", len(c.mutations["profiled"]), "sequenced;", {g: len(c.mutations["genes"].get(g, [])) for g in ("APC", "TP53", "KRAS")})
+          m = survival.run(c, "TP53", cut="mutation")
+          print("survival by TP53 mutation READ:", m.get("error") or (m["groups"]["high"]["n"], m["groups"]["low"]["n"], m["cox"]["hr"]))
+          x = expression.by_mutation(c, "EGFR", "KRAS")
+          print("EGFR by KRAS mutation READ:", x.get("error") or [(g["key"], g["n"]) for g in x["groups"]])
           PY

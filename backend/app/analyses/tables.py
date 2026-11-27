@@ -40,11 +40,12 @@ def rows_for(c: Cohort, kind: str, params: dict) -> dict:
         cols = ["gene", "log2_fold_change", f"mean_{a}", f"mean_{b}", "welch_t", "p", "p_adj_BH", "direction"]
         return {"columns": cols, "rows": [[x["gene"], x["lfc"], x["mean_a"], x["mean_b"], x["t"], x["p"], x["p_adj"], x["dir"]] for x in r.get("rows", [])]}
     if kind == "survival":
-        t, _ = _patients(c, gene, params.get("endpoint", "OS"))
+        mut = params.get("cut") == "mutation"
+        t, _ = _patients(c, gene, params.get("endpoint", "OS"), mutation=mut)
         g, value, _ = _split(t, params.get("cut", "median"))
         g = g.sort_values("expr", ascending=False)
-        cols = ["sample", "patient", "project", "expression", "group", "time_months", "event", "age", "stage"]
-        rows = [[r["id"], r["case"], r["project"], _r(r["expr"]), "high" if r["high"] else "low", _r(r["time"]), int(r["event"]),
+        cols = ["sample", "patient", "project", "mutated" if mut else "expression", "group", "time_months", "event", "age", "stage"]
+        rows = [[r["id"], r["case"], r["project"], int(r["expr"]) if mut else _r(r["expr"]), ("mutated" if r["high"] else "not_mutated") if mut else "high" if r["high"] else "low", _r(r["time"]), int(r["event"]),
                  _r(r.get("age")), r.get("stage") if isinstance(r.get("stage"), str) else None] for _, r in g.iterrows()]
         return {"columns": cols, "rows": rows, "cut_value": clean(value)}
     s = c.samples.copy()
@@ -56,6 +57,10 @@ def rows_for(c: Cohort, kind: str, params: dict) -> dict:
     elif kind == "expression_stage":
         s = s[(s["type"] == "tumor") & s["stage"].isin(["I", "II", "III", "IV"])]
         group = s["stage"]
+    elif kind == "expression_mut":
+        s["mut"] = c.mutation(params.get("gene2") or gene)[s.index]
+        s = s[(s["type"] == "tumor") & s["mut"].notna()].sort_values("id").drop_duplicates("case", keep="first")
+        group = s["mut"].map(lambda m: "mutated" if m >= 0.5 else "not_mutated")
     elif kind == "expression_group":
         s = s[s["group"].notna() & (s["group"].astype(str) != "")]
         group = s["group"].astype(str)

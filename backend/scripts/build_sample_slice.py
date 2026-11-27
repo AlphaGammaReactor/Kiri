@@ -16,7 +16,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import urllib.request
+
 import xenaPython as xena
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from app.cohorts import mutations as muts  # noqa: E402
 
 # Immune context: the Danaher et al. 2017 marker genes, so the sample projects run it offline.
 IMMUNE = ["PTPRC", "CD3D", "CD3E", "CD3G", "CD6", "SH2D1A", "TRAT1", "CD8A", "CD8B", "CD244", "EOMES",
@@ -106,8 +111,24 @@ def stage_of(s) -> str:
     return ""
 
 
+MUT_MIN = 0.02  # keep genes mutated in at least 2% of sequenced tumours (plus the slice's own genes)
+
+
+def mutations_of(proj: str, tmp: Path) -> dict:
+    """Somatic mutations for one project from the hub's download address (what the app downloads)."""
+    name = muts.FILE.format(p=proj)
+    dest = tmp / name
+    req = urllib.request.Request(f"{HUB}/download/{name}", headers={"User-Agent": "kiri-ci"})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        dest.write_bytes(r.read())
+    d = muts.parse(dest)
+    print(f"  mutations: {len(d['profiled'])} sequenced, {len(d['genes'])} genes with a protein-changing call", flush=True)
+    return d
+
+
 def build(name: str, spec: dict) -> dict:
     samples, values = [], {g: [] for g in spec["genes"]}
+    parts = []
     for proj in spec["projects"]:
         cohort = cohort_of(proj)
         print(proj, "->", cohort, flush=True)
@@ -128,6 +149,11 @@ def build(name: str, spec: dict) -> dict:
             expr[row["gene"]] = sc if sc and len(sc) == len(sids) else [None] * len(sids)
             if not (sc and len(sc) == len(sids)):
                 print("  WARNING: no values for", row["gene"], flush=True)
+        try:
+            parts.append(mutations_of(proj, Path("/tmp")))
+        except Exception as e:  # noqa: BLE001 - the slice still works without mutations
+            print("  WARNING: no mutations:", type(e).__name__, e, flush=True)
+            parts.append(None)
         surv = phenotype(ds["surv"], sids, {"t": ["OS.time"], "e": ["OS"]})
         clin = phenotype(ds["clin"], sids, {
             "stage": ["ajcc_pathologic_stage.diagnoses", "ajcc_pathologic_stage"],
@@ -148,10 +174,17 @@ def build(name: str, spec: dict) -> dict:
             for g in spec["genes"]:
                 v = num(expr[g][i])
                 values[g].append(round(v, 4) if v is not None else None)
+    m = muts.merge(parts)
+    if m:
+        n = max(1, len(m["profiled"]))
+        m["genes"] = {g: ids for g, ids in m["genes"].items() if g in spec["genes"] or len(set(ids)) / n >= MUT_MIN}
+        m["partial"] = True  # rarer genes are left out: the app downloads the full calls for them
+        print(f"  kept mutations for {len(m['genes'])} genes", flush=True)
     return {
         "name": name, "projects": spec["projects"], "built": date.today().isoformat(),
         "source": "GDC harmonised data (STAR, GENCODE v36) via the UCSC Xena GDC hub",
         "units": "log2(TPM + 1)", "samples": samples, "genes": values,
+        **({"mutations": m, "mutation_source": "GDC open-access somatic mutations (WXS, masked) via the UCSC Xena GDC hub"} if m else {}),
     }
 
 

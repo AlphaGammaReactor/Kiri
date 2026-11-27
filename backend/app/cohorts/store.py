@@ -41,6 +41,7 @@ class Cohort:
     built: str
     _genes: dict[str, np.ndarray] = field(default_factory=dict)
     reader: object | None = None   # pack reader for genes not in _genes
+    mutations: dict | None = None  # somatic mutation calls (mutations.py), when the source has them
 
     def has(self, gene: str) -> bool:
         return gene in self._genes or (self.reader is not None and self.reader.has(gene))
@@ -51,6 +52,20 @@ class Cohort:
         if self.reader is not None and self.reader.has(gene):
             return self.reader.gene(gene, self.samples["id"].tolist())
         raise CohortUnavailable("gene_not_in_cohort", gene=gene, cohort=self.name)
+
+    def has_mutation(self, gene: str) -> bool:
+        """Mutation status is known for this gene (a bundled slice keeps only the commoner genes)."""
+        return bool(self.mutations) and (not self.mutations.get("partial") or gene in self.mutations["genes"])
+
+    def mutation(self, gene: str) -> np.ndarray:
+        """1 mutated, 0 sequenced and not mutated, NaN not sequenced (see mutations.py)."""
+        from app.cohorts.mutations import status
+
+        if not self.mutations:
+            raise CohortUnavailable("no_mutation_data", cohort=self.name)
+        if not self.has_mutation(gene):
+            raise CohortUnavailable("gene_not_in_cohort", gene=gene, cohort=self.name)
+        return status(self.mutations, self.samples["id"].tolist(), gene)
 
     def data_version(self) -> dict:
         return {"cohort": self.name, "projects": self.projects, "source": self.source, "units": self.units, "built": self.built}
@@ -65,7 +80,7 @@ def load_slice(name: str) -> Cohort:
         d = json.load(f)
     samples = pd.DataFrame(d["samples"])
     genes = {g: np.array([np.nan if v is None else v for v in vals], dtype=float) for g, vals in d["genes"].items()}
-    return Cohort(d["name"], d["projects"], samples, d["source"], d["units"], d["built"], genes)
+    return Cohort(d["name"], d["projects"], samples, d["source"], d["units"], d["built"], genes, mutations=d.get("mutations"))
 
 
 def slice_for(projects: list[str]) -> str | None:
@@ -81,12 +96,12 @@ def slice_for(projects: list[str]) -> str | None:
     return None
 
 
-def cohort_for(projects: list[str], genes: list[str], data_dir: str | Path) -> Cohort:
-    """The best available cohort for these projects that has all `genes`."""
+def cohort_for(projects: list[str], genes: list[str], data_dir: str | Path, mutated: list[str] | None = None) -> Cohort:
+    """The best available cohort for these projects that has all `genes` (and mutation status for `mutated`)."""
     name = slice_for(projects)
     if name:
         c = load_slice(name)
-        if all(c.has(g) for g in genes):
+        if all(c.has(g) for g in genes) and all(c.has_mutation(g) for g in (mutated or [])):
             return c
     from app.cohorts.packs import open_packs
 

@@ -213,3 +213,30 @@ def by_group(c: Cohort, gene: str) -> dict:
     ] + tail
     return out | {"test": {"name": "kruskal_wallis", "statistic": clean(kw.statistic), "p": clean(kw.pvalue)},
                   "pairwise": pairs, "effect": {"epsilon_squared": clean(max(eps2, 0.0))}, "checks": checks}
+
+
+def by_mutation(c: Cohort, gene: str, mutated: str) -> dict:
+    """Expression of `gene` in tumours with and without a protein-changing mutation in `mutated`
+    (the same gene or another). One tumour per patient; tumours never sequenced are left out."""
+    from dataclasses import replace
+
+    s = c.samples.copy()
+    s["_m"] = c.mutation(mutated)
+    s["_i"] = np.arange(len(s))
+    t = s[(s["type"] == "tumor")].sort_values("id").drop_duplicates("case", keep="first")
+    keep = t[t["_m"].notna()]
+    group = np.array([None] * len(s), dtype=object)
+    group[keep["_i"].to_numpy()] = np.where(keep["_m"].to_numpy() >= 0.5, "mutated", "not_mutated")
+    sub = replace(c, samples=s.drop(columns=["_m", "_i"]).assign(group=group))
+    n_mut = int((keep["_m"] >= 0.5).sum())
+    if n_mut < 3:
+        return {"kind": "expression_mut", "gene": gene, "gene2": mutated, "error": "too_few_mutated", "n": n_mut, "n_other": int(len(keep) - n_mut)}
+    r = by_group(sub, gene)
+    if r.get("error"):
+        return r | {"kind": "expression_mut", "gene2": mutated}
+    # Keep "mutated" first whatever the group sizes, and say where the groups came from.
+    r["groups"].sort(key=lambda g: g["key"] != "mutated")
+    for ch in r["checks"]:
+        if ch["check"] == "data":
+            ch.update(code="data.groupsMut", vars={**ch["vars"], "gene2": mutated, "mutated": n_mut, "not_sequenced": int(len(t) - len(keep))})
+    return r | {"kind": "expression_mut", "gene2": mutated, "data_version": c.data_version() | {"mutations": "GDC open-access somatic mutations (WXS, masked)"}}

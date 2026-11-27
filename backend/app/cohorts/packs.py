@@ -129,6 +129,26 @@ def build_pack(data_dir: Path, project: str, progress=None) -> None:
     if not probemap.exists():
         _fetch(PROBEMAP, probemap)
     convert(raw["expr"], raw["survival"], raw["clinical"], probemap, d, project)
+    fetch_mutations(d, project, progress)
+
+
+def fetch_mutations(d: Path, project: str, progress=None) -> bool:
+    """Somatic mutations for the pack (optional: the pack works without them). Safe to call again."""
+    from app.cohorts import mutations
+
+    out = d / "mutations.json.gz"
+    if out.exists():
+        return True
+    name = mutations.FILE.format(p=project)
+    raw = d / name
+    try:
+        if not raw.exists():
+            _fetch(name, raw, (lambda a, b: progress("mutation", a, b)) if progress else None)
+        mutations.save(mutations.parse(raw), out)
+        raw.unlink(missing_ok=True)
+        return True
+    except Exception:  # noqa: BLE001 - mutations are an extra; expression and survival still work
+        return False
 
 
 def convert(expr_path: Path, surv_path: Path, clin_path: Path, probemap: Path, out: Path, project: str) -> None:
@@ -228,5 +248,8 @@ def open_packs(projects: list[str], data_dir: Path) -> Cohort:
         raise CohortUnavailable("needs_download", projects=missing)
     dirs = [pack_dir(data_dir, p) for p in projects]
     samples = pd.concat([pd.read_json(d / "samples.json", orient="records") for d in dirs], ignore_index=True)
+    from app.cohorts import mutations
+
+    muts = mutations.merge([mutations.load(d / "mutations.json.gz") for d in dirs])
     return Cohort("+".join(projects), projects, samples, "GDC harmonised data (STAR, GENCODE v36) via the UCSC Xena GDC hub",
-                  "log2(TPM + 1)", "downloaded", reader=PackReader(dirs))
+                  "log2(TPM + 1)", "downloaded", reader=PackReader(dirs), mutations=muts)

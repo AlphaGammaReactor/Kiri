@@ -28,11 +28,13 @@ MIN_EVENTS_PER_GROUP = 10
 RNG_SEED = 20261126
 
 
-def _patients(c: Cohort, gene: str, endpoint: str = "OS") -> tuple[pd.DataFrame, dict]:
+def _patients(c: Cohort, gene: str, endpoint: str = "OS", mutation: bool = False) -> tuple[pd.DataFrame, dict]:
+    """Tumours with survival, one per patient. With mutation=True, "expr" holds the gene's mutation status
+    (1 mutated, 0 not) and tumours that were never sequenced are left out like missing expression."""
     from app.cohorts.cdr import attach
 
     s = attach(c.samples, endpoint)
-    s["expr"] = c.gene(gene)
+    s["expr"] = c.mutation(gene) if mutation else c.gene(gene)
     t = s[(s["type"] == "tumor")].sort_values("id").drop_duplicates("case", keep="first")
     n_all = len(t)
     t = t[t["expr"].notna()]
@@ -46,6 +48,10 @@ def _patients(c: Cohort, gene: str, endpoint: str = "OS") -> tuple[pd.DataFrame,
 
 
 def _split(t: pd.DataFrame, cut: str) -> tuple[pd.DataFrame, float, dict]:
+    if cut == "mutation":
+        g = t.copy()
+        g["high"] = (g["expr"] >= 0.5).astype(int)
+        return g, float("nan"), {"mutated": int(g["high"].sum()), "not_mutated": int((g["high"] == 0).sum())}
     if cut == "quartile":
         lo, hi = t["expr"].quantile([0.25, 0.75])
         g = t[(t["expr"] <= lo) | (t["expr"] >= hi)].copy()
@@ -123,11 +129,14 @@ def _stability(main_sig: bool, stab: list, same_dir: int, same_sig: int, boot_sa
 
 def run(c: Cohort, gene: str, cut: str = "median", adjust: list[str] | None = None, endpoint: str = "OS") -> dict:
     adjust = adjust or []
-    t, counts = _patients(c, gene, endpoint)
+    mut = cut == "mutation"
+    t, counts = _patients(c, gene, endpoint, mutation=mut)
     if len(t) < 20:
         return {"kind": "survival", "gene": gene, "error": "too_few_patients", "n": int(len(t))}
     g, value, cutinfo = _split(t, cut)
     hi, lo = g[g["high"] == 1], g[g["high"] == 0]
+    if mut and min(len(hi), len(lo)) < 5:
+        return {"kind": "survival", "gene": gene, "error": "too_few_mutated", "n": int(len(hi)), "n_other": int(len(lo))}
     lr = logrank_test(hi["time"], lo["time"], hi["event"], lo["event"])
     cox = _cox(g, [])
     adj = _cox(g, adjust) if adjust else None
@@ -138,7 +147,7 @@ def run(c: Cohort, gene: str, cut: str = "median", adjust: list[str] | None = No
 
     # Stability: other cutpoints and bootstrap
     stab = []
-    for q in (0.33, 0.4, 0.5, 0.6, 0.67):
+    for q in (() if mut else (0.33, 0.4, 0.5, 0.6, 0.67)):
         v = t["expr"].quantile(q)
         h = t["expr"] > v
         p = logrank_test(t.loc[h, "time"], t.loc[~h, "time"], t.loc[h, "event"], t.loc[~h, "event"]).p_value
@@ -168,19 +177,20 @@ def run(c: Cohort, gene: str, cut: str = "median", adjust: list[str] | None = No
     events = {"high": int(hi["event"].sum()), "low": int(lo["event"].sum())}
     excl = counts["no_expression"] + counts["no_survival"]
     checks = [
-        check("data", "pass", "data.patients" if endpoint == "OS" else "data.patientsCdr", n=int(len(g)), excluded=int(excl), no_survival=counts["no_survival"], source=c.source, endpoint=endpoint),
+        check("data", "pass", "data.patientsMut" if mut else "data.patients" if endpoint == "OS" else "data.patientsCdr", n=int(len(g)), excluded=int(excl), no_survival=counts["no_survival"], source=c.source, endpoint=endpoint),
         check("enough", "pass" if min(events.values()) >= MIN_EVENTS_PER_GROUP else "caution",
               "enough.events" if min(events.values()) >= MIN_EVENTS_PER_GROUP else "enough.fewEvents",
               high=events["high"], low=events["low"], min=MIN_EVENTS_PER_GROUP),
         check("assumptions", "pass" if (cox["ph_p"] is None or cox["ph_p"] >= 0.05) else "caution",
               "assume.ph" if (cox["ph_p"] is None or cox["ph_p"] >= 0.05) else "assume.phViolated", p=cox["ph_p"]),
-        check("multiple", "pass" if cut != "optimal" else "caution",
+        check("multiple", "pass" if cut != "optimal" else "caution",  # mutated against not: one fixed split
               "multiple.fixedCut" if cut != "optimal" else "multiple.optimalAdjusted",
               tried=cutinfo.get("tried", 1), p_raw=cutinfo.get("p_min"), p_adj=cutinfo.get("p_adjusted")),
         check("effect", "pass" if (cox["lo"] or 0) > 1 or (cox["hi"] or 2) < 1 else "caution",
               "effect.hrExcludes1" if (cox["lo"] or 0) > 1 or (cox["hi"] or 2) < 1 else "effect.hrIncludes1",
               hr=cox["hr"], lo=cox["lo"], hi=cox["hi"]),
-        _stability(p_report < 0.05, stab, same_dir, same_sig, boot_same),
+        _stability(p_report < 0.05, stab, same_dir, same_sig, boot_same) if not mut
+        else check("stability", "pass" if boot_same is None or boot_same >= 0.8 else "caution", "stability.mutationBoot", boot_same=boot_same),
         check("replication", "info", "replication.notYet"),
         check("reproducibility", "pass", "repro.recorded", built=c.built),
     ]
